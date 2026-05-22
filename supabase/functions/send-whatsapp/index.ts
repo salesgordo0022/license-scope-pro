@@ -10,6 +10,8 @@ interface SendBody {
   mensagem: string;
   cliente_id?: string;
   tipo?: string; // avulsa | contrato | boleto | aniversario
+  media_url?: string;          // URL pública do anexo (PDF do boleto, etc.)
+  media_filename?: string;     // nome do arquivo opcional
 }
 
 const onlyDigits = (s: string) => (s || "").replace(/\D/g, "");
