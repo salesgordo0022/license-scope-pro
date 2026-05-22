@@ -10,6 +10,8 @@ interface SendBody {
   mensagem: string;
   cliente_id?: string;
   tipo?: string; // avulsa | contrato | boleto | aniversario
+  media_url?: string;          // URL pública do anexo (PDF do boleto, etc.)
+  media_filename?: string;     // nome do arquivo opcional
 }
 
 const onlyDigits = (s: string) => (s || "").replace(/\D/g, "");
@@ -55,6 +57,8 @@ Deno.serve(async (req) => {
     const mensagem = (body.mensagem || "").trim();
     const tipo = (body.tipo || "avulsa").trim();
     const cliente_id = body.cliente_id || null;
+    const media_url = (body.media_url || "").trim();
+    const media_filename = (body.media_filename || "").trim();
 
     if (!telefone || telefone.length < 10) {
       return new Response(
@@ -77,17 +81,54 @@ Deno.serve(async (req) => {
       .maybeSingle();
 
     const numero = telefone.startsWith("55") ? telefone : `55${telefone}`;
-    const zapUrl = `https://api-imperial.zapcontabil.chat/api/send/${numero}`;
 
-    const resp = await fetch(zapUrl, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "accept": "application/json",
-        "Authorization": `Bearer ${ZAPCONTABIL_API_TOKEN}`,
-      },
-      body: JSON.stringify({ body: mensagem, connectionFrom: 0 }),
-    });
+    // Se houver mídia, tenta enviar via endpoint de mídia primeiro; senão envia texto.
+    let resp: Response;
+    let usedMedia = false;
+    if (media_url) {
+      usedMedia = true;
+      const mediaUrl = `https://api-imperial.zapcontabil.chat/api/send-media/${numero}`;
+      resp = await fetch(mediaUrl, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "accept": "application/json",
+          "Authorization": `Bearer ${ZAPCONTABIL_API_TOKEN}`,
+        },
+        body: JSON.stringify({
+          url: media_url,
+          filename: media_filename || "boleto.pdf",
+          caption: mensagem,
+          connectionFrom: 0,
+        }),
+      });
+
+      // Se o endpoint de mídia falhar, faz fallback enviando o link como texto
+      if (!resp.ok) {
+        const mensagemComLink = `${mensagem}\n\n${media_url}`;
+        resp = await fetch(`https://api-imperial.zapcontabil.chat/api/send/${numero}`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "accept": "application/json",
+            "Authorization": `Bearer ${ZAPCONTABIL_API_TOKEN}`,
+          },
+          body: JSON.stringify({ body: mensagemComLink, connectionFrom: 0 }),
+        });
+        usedMedia = false;
+      }
+    } else {
+      const zapUrl = `https://api-imperial.zapcontabil.chat/api/send/${numero}`;
+      resp = await fetch(zapUrl, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "accept": "application/json",
+          "Authorization": `Bearer ${ZAPCONTABIL_API_TOKEN}`,
+        },
+        body: JSON.stringify({ body: mensagem, connectionFrom: 0 }),
+      });
+    }
 
     const respText = await resp.text();
     let respJson: unknown = null;
