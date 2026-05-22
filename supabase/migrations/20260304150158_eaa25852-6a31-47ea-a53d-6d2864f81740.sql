@@ -1,0 +1,1 @@
+ALTER TABLE public.licencas ADD COLUMN valor_venda numeric DEFAULT 0;

@@ -1,0 +1,1 @@
+ALTER TABLE public.contratos ADD COLUMN link_documento text NULL;
