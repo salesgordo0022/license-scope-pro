@@ -99,14 +99,14 @@ export default function Login() {
           <h1 className="text-4xl font-bold text-primary-foreground mb-4">
             Gerencie suas revendas com qualidade!
           </h1>
-          <p className="text-lg text-primary-foreground/80 mb-2">
+          <div className="text-lg text-primary-foreground/80 mb-2">
             <TextLoop interval={3}>
               <span>Controle contratos e licenças facilmente</span>
               <span>Acompanhe pagamentos em tempo real</span>
               <span>Gerencie implantações com eficiência</span>
               <span>Tudo em um só lugar</span>
             </TextLoop>
-          </p>
+          </div>
         </motion.div>
       </div>
 
