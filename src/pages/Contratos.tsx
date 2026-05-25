@@ -773,6 +773,7 @@ export default function Contratos() {
         </div>
       </div>
     );
+
   };
 
   return (
