@@ -974,6 +974,26 @@ export default function Clientes() {
                           </div>
                         </td>
                         <td>
+                          {(() => {
+                            const grupo = grupos.find(g => g.id === (cliente as any).grupo_id);
+                            return grupo ? (
+                              <Badge 
+                                variant="outline" 
+                                className="font-semibold text-[10px]"
+                                style={{ 
+                                  borderColor: grupo.cor,
+                                  color: grupo.cor,
+                                  backgroundColor: `${grupo.cor}10`
+                                }}
+                              >
+                                {grupo.nome}
+                              </Badge>
+                            ) : (
+                              <span className="text-muted-foreground text-xs">Sem grupo</span>
+                            );
+                          })()}
+                        </td>
+                        <td>
                           {cliente.segmento ? (
                             <div className="flex items-center gap-1.5">
                               <div className="h-1.5 w-1.5 rounded-full bg-primary/60" />
