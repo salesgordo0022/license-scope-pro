@@ -462,33 +462,92 @@ export default function Contratos() {
     return (
       <div id="contract-document" className="bg-white text-black shadow-xl rounded-sm mx-auto print:shadow-none relative overflow-hidden" style={{ 
         maxWidth: '210mm', 
-        padding: '30mm 25mm', 
+        padding: '0', 
         fontFamily: "'Times New Roman', Times, serif", 
         fontSize: '11pt', 
         lineHeight: '1.6',
         border: '1px solid #e2e8f0',
         minHeight: '297mm'
       }}>
-        {/* Bordas decorativas */}
-        <div className="absolute top-4 left-4 right-4 bottom-4 border border-gray-200 pointer-events-none" />
-        <div className="absolute top-6 left-6 right-6 bottom-6 border-2 border-double border-gray-300 pointer-events-none" />
+        {/* ===== Decoração: faixas diagonais superior direita ===== */}
+        <svg className="absolute top-0 right-0 pointer-events-none" width="320" height="260" viewBox="0 0 320 260" style={{ zIndex: 1 }}>
+          <defs>
+            <linearGradient id="stripeBlueA" x1="0" y1="0" x2="1" y2="1">
+              <stop offset="0%" stopColor="#7a93b5" />
+              <stop offset="100%" stopColor="#b8c7da" />
+            </linearGradient>
+            <linearGradient id="stripeBlueB" x1="0" y1="0" x2="1" y2="1">
+              <stop offset="0%" stopColor="#d9e4f0" />
+              <stop offset="100%" stopColor="#eef3f9" />
+            </linearGradient>
+          </defs>
+          <polygon points="180,-20 340,-20 340,140 240,260 140,180" fill="url(#stripeBlueA)" opacity="0.85" />
+          <polygon points="230,-20 320,-20 320,90 200,230 130,160" fill="url(#stripeBlueB)" opacity="0.95" />
+          <polygon points="280,-20 340,-20 340,60 220,200 180,140" fill="#ffffff" opacity="0.9" />
+          <polygon points="295,-20 340,-20 340,40 230,180 200,140" fill="url(#stripeBlueB)" opacity="0.7" />
+        </svg>
 
-        {/* Marca d'água */}
-        <div className="absolute inset-0 flex items-center justify-center opacity-[0.03] pointer-events-none">
-          <img src={logoUrl} alt="" className="w-[500px] grayscale" />
+        {/* ===== Decoração: faixas diagonais inferior esquerda ===== */}
+        <svg className="absolute bottom-0 left-0 pointer-events-none" width="260" height="220" viewBox="0 0 260 220" style={{ zIndex: 1 }}>
+          <defs>
+            <linearGradient id="stripeBL" x1="0" y1="0" x2="1" y2="1">
+              <stop offset="0%" stopColor="#6f86a8" />
+              <stop offset="100%" stopColor="#a8b9cf" />
+            </linearGradient>
+          </defs>
+          <polygon points="-20,80 100,-30 200,30 60,220 -20,220" fill="url(#stripeBL)" opacity="0.85" />
+          <polygon points="-20,140 80,40 180,90 40,220 -20,220" fill="#dfe7f1" opacity="0.95" />
+          <polygon points="-20,180 60,110 140,150 20,220 -20,220" fill="url(#stripeBL)" opacity="0.6" />
+        </svg>
+
+        {/* ===== Decoração: faixa inferior direita pequena ===== */}
+        <svg className="absolute bottom-0 right-0 pointer-events-none" width="140" height="120" viewBox="0 0 140 120" style={{ zIndex: 1 }}>
+          <polygon points="40,120 140,20 140,120" fill="#b8c7da" opacity="0.6" />
+        </svg>
+
+        {/* Marca d'água central */}
+        <div className="absolute inset-0 flex items-center justify-center opacity-[0.04] pointer-events-none" style={{ zIndex: 0 }}>
+          <img src={logoUrl} alt="" className="w-[480px]" />
         </div>
 
-        {/* Header */}
-        <div className="text-center mb-12 relative z-10">
-          <img src={logoUrl} alt="Logo" className="h-20 mx-auto mb-4 object-contain" />
-          <h1 className="text-2xl font-serif font-bold tracking-tight uppercase text-black mb-1">
-            Contrato de Prestação de Serviços de Software
-          </h1>
-          <div className="w-32 h-1 bg-black mx-auto mb-3" />
-          {contrato.numero_contrato && (
-            <p className="text-sm font-semibold text-gray-800">DOCUMENTO Nº {contrato.numero_contrato}</p>
-          )}
-        </div>
+        {/* Conteúdo do contrato */}
+        <div style={{ padding: '30mm 25mm', position: 'relative', zIndex: 10 }}>
+          {/* Header com pílula azul */}
+          <div className="mb-10 relative" style={{ zIndex: 10 }}>
+            <div
+              className="inline-flex items-center gap-4"
+              style={{
+                background: 'linear-gradient(135deg, #2a3f63 0%, #324b75 100%)',
+                padding: '14px 56px 14px 28px',
+                borderRadius: '9999px',
+                minWidth: '280px',
+                boxShadow: '0 4px 14px rgba(42,63,99,0.25)',
+              }}
+            >
+              <img src={logoUrl} alt="Logo" className="h-12 object-contain" style={{ filter: 'brightness(0) invert(1)' }} />
+              <div className="text-white">
+                <div style={{ fontSize: '13pt', fontWeight: 700, letterSpacing: '0.08em', fontFamily: 'Arial, sans-serif' }}>
+                  {nomeContratado.toUpperCase()}
+                </div>
+                {config.contratado_slogan && (
+                  <div style={{ fontSize: '7pt', letterSpacing: '0.18em', opacity: 0.85, fontFamily: 'Arial, sans-serif' }}>
+                    {config.contratado_slogan}
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+
+          <div className="text-center mb-10">
+            <h1 className="text-2xl font-serif font-bold tracking-tight uppercase text-black mb-2">
+              Contrato de Prestação de Serviços de Software
+            </h1>
+            <div className="w-32 h-1 mx-auto mb-3" style={{ background: '#2a3f63' }} />
+            {contrato.numero_contrato && (
+              <p className="text-sm font-semibold text-gray-800">DOCUMENTO Nº {contrato.numero_contrato}</p>
+            )}
+          </div>
+
 
         {/* Preâmbulo */}
         <p className="text-justify mb-6 indent-8">
