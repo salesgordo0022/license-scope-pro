@@ -529,11 +529,10 @@ export default function Contratos() {
                 <div style={{ fontSize: '13pt', fontWeight: 700, letterSpacing: '0.08em', fontFamily: 'Arial, sans-serif' }}>
                   {nomeContratado.toUpperCase()}
                 </div>
-                {config.contratado_slogan && (
-                  <div style={{ fontSize: '7pt', letterSpacing: '0.18em', opacity: 0.85, fontFamily: 'Arial, sans-serif' }}>
-                    {config.contratado_slogan}
-                  </div>
-                )}
+                <div style={{ fontSize: '7pt', letterSpacing: '0.18em', opacity: 0.85, fontFamily: 'Arial, sans-serif' }}>
+                  VENDA DE SISTEMAS E SOLUÇÕES
+                </div>
+
               </div>
             </div>
           </div>
