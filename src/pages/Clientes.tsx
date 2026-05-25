@@ -512,7 +512,8 @@ export default function Clientes() {
           <p className="page-description">Gerencie seus clientes e informações de contato</p>
         </div>
 
-        <div className="flex gap-2">
+        <div className="flex gap-2 items-center">
+          <GrupoClienteManager onGroupsChange={fetchGrupos} />
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="outline">
@@ -555,6 +556,28 @@ export default function Clientes() {
                   onChange={(e) => setFormData({ ...formData, nome_empresa: e.target.value })}
                   required
                 />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="grupo_id">Grupo</Label>
+                <Select
+                  value={formData.grupo_id}
+                  onValueChange={(value) => setFormData({ ...formData, grupo_id: value })}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Sem grupo" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">Nenhum</SelectItem>
+                    {grupos.map((grupo) => (
+                      <SelectItem key={grupo.id} value={grupo.id}>
+                        <div className="flex items-center gap-2">
+                          <div className="w-2 h-2 rounded-full" style={{ backgroundColor: grupo.cor }} />
+                          {grupo.nome}
+                        </div>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
@@ -809,6 +832,18 @@ export default function Clientes() {
                   ))}
                 </SelectContent>
               </Select>
+              <Select value={filterGrupo} onValueChange={setFilterGrupo}>
+                <SelectTrigger className="w-full sm:w-[180px]">
+                  <Tag className="mr-2 h-4 w-4" />
+                  <SelectValue placeholder="Grupo" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todos grupos</SelectItem>
+                  {grupos.map((grupo) => (
+                    <SelectItem key={grupo.id} value={grupo.id}>{grupo.nome}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
               <Select value={filterStatus} onValueChange={setFilterStatus}>
                 <SelectTrigger className="w-full sm:w-[150px]">
                   <SelectValue placeholder="Status" />
@@ -889,6 +924,7 @@ export default function Clientes() {
                 <thead>
                   <tr>
                     <th>Empresa</th>
+                    <th>Grupo</th>
                     <th>Segmento</th>
                     <th>Contato</th>
                     <th>Mensalidade</th>
