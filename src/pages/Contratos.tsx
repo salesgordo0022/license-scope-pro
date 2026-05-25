@@ -195,6 +195,7 @@ export default function Contratos() {
           prazo_aviso_rescisao: configRes.data.prazo_aviso_rescisao || 30,
           foro_comarca: configRes.data.foro_comarca || '',
           logo_url: configRes.data.logo_url || '',
+          mostrar_marca_dagua: (configRes.data as any).mostrar_marca_dagua ?? true,
         });
       }
     } catch (error) {
