@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
-import { Plus, Search, Filter, MoreHorizontal, Mail, Phone, Edit, Trash2, DollarSign, FileText, Loader2, MessageCircle, Users, Download } from 'lucide-react';
+import { Plus, Search, Filter, MoreHorizontal, Mail, Phone, Edit, Trash2, DollarSign, FileText, Loader2, MessageCircle, Users, Download, Tag } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -31,6 +31,13 @@ import { Textarea } from '@/components/ui/textarea';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import type { Database } from '@/integrations/supabase/types';
+import { GrupoClienteManager } from '@/components/GrupoClienteManager';
+
+interface Grupo {
+  id: string;
+  nome: string;
+  cor: string;
+}
 
 type Cliente = Database['public']['Tables']['clientes']['Row'];
 type StatusType = Database['public']['Enums']['status_type'];
@@ -54,9 +61,11 @@ export default function Clientes() {
   const [clientes, setClientes] = useState<Cliente[]>([]);
   const [segmentos, setSegmentos] = useState<Segmento[]>([]);
   const [sistemas, setSistemas] = useState<Sistema[]>([]);
+  const [grupos, setGrupos] = useState<Grupo[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterSegmento, setFilterSegmento] = useState<string>('all');
+  const [filterGrupo, setFilterGrupo] = useState<string>('all');
   const [filterStatus, setFilterStatus] = useState<string>('ativo');
   const [sistemasPorCliente, setSistemasPorCliente] = useState<Record<string, string[]>>({});
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -113,6 +122,7 @@ export default function Clientes() {
   const [formData, setFormData] = useState({
     nome_empresa: '',
     segmento: '',
+    grupo_id: '',
     email: '',
     telefone: '',
     status: 'ativo' as StatusType,
@@ -155,6 +165,19 @@ export default function Clientes() {
     }
   };
 
+  const fetchGrupos = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('grupos_clientes')
+        .select('id, nome, cor')
+        .order('nome');
+      if (error) throw error;
+      setGrupos(data || []);
+    } catch (error) {
+      console.error('Error fetching groups:', error);
+    }
+  };
+
   const fetchClientes = async () => {
     try {
       let query = supabase.from('clientes').select('*').order('created_at', { ascending: false });
@@ -193,12 +216,14 @@ export default function Clientes() {
     fetchClientes();
     fetchSegmentos();
     fetchSistemas();
+    fetchGrupos();
   }, []);
 
   const resetForm = () => {
     setFormData({
       nome_empresa: '',
       segmento: '',
+      grupo_id: '',
       email: '',
       telefone: '',
       status: 'ativo',
@@ -245,7 +270,11 @@ export default function Clientes() {
     e.preventDefault();
     
     try {
-      const { sistemasSelecionados, ...clienteData } = formData;
+      const { sistemasSelecionados, ...clienteDataRaw } = formData;
+      const clienteData = {
+        ...clienteDataRaw,
+        grupo_id: clienteDataRaw.grupo_id === 'none' || clienteDataRaw.grupo_id === '' ? null : clienteDataRaw.grupo_id
+      };
 
       if (editingCliente) {
         const { error } = await supabase
@@ -353,6 +382,7 @@ export default function Clientes() {
     setFormData({
       nome_empresa: cliente.nome_empresa,
       segmento: cliente.segmento || '',
+      grupo_id: (cliente as any).grupo_id || '',
       email: cliente.email || '',
       telefone: cliente.telefone || '',
       status: cliente.status || 'ativo',
@@ -423,8 +453,9 @@ export default function Clientes() {
       cliente.nome_empresa.toLowerCase().includes(searchTerm.toLowerCase()) ||
       cliente.email?.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesSegmento = filterSegmento === 'all' || cliente.segmento === filterSegmento;
+    const matchesGrupo = filterGrupo === 'all' || (cliente as any).grupo_id === filterGrupo;
     const matchesStatus = filterStatus === 'all' || cliente.status === filterStatus;
-    return matchesSearch && matchesSegmento && matchesStatus;
+    return matchesSearch && matchesSegmento && matchesGrupo && matchesStatus;
   });
 
   const getStatusBadge = (status: string | null) => {
@@ -485,7 +516,8 @@ export default function Clientes() {
           <p className="page-description">Gerencie seus clientes e informações de contato</p>
         </div>
 
-        <div className="flex gap-2">
+        <div className="flex gap-2 items-center">
+          <GrupoClienteManager onGroupsChange={fetchGrupos} />
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="outline">
@@ -528,6 +560,28 @@ export default function Clientes() {
                   onChange={(e) => setFormData({ ...formData, nome_empresa: e.target.value })}
                   required
                 />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="grupo_id">Grupo</Label>
+                <Select
+                  value={formData.grupo_id}
+                  onValueChange={(value) => setFormData({ ...formData, grupo_id: value })}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Sem grupo" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">Nenhum</SelectItem>
+                    {grupos.map((grupo) => (
+                      <SelectItem key={grupo.id} value={grupo.id}>
+                        <div className="flex items-center gap-2">
+                          <div className="w-2 h-2 rounded-full" style={{ backgroundColor: grupo.cor }} />
+                          {grupo.nome}
+                        </div>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
@@ -782,6 +836,18 @@ export default function Clientes() {
                   ))}
                 </SelectContent>
               </Select>
+              <Select value={filterGrupo} onValueChange={setFilterGrupo}>
+                <SelectTrigger className="w-full sm:w-[180px]">
+                  <Tag className="mr-2 h-4 w-4" />
+                  <SelectValue placeholder="Grupo" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todos grupos</SelectItem>
+                  {grupos.map((grupo) => (
+                    <SelectItem key={grupo.id} value={grupo.id}>{grupo.nome}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
               <Select value={filterStatus} onValueChange={setFilterStatus}>
                 <SelectTrigger className="w-full sm:w-[150px]">
                   <SelectValue placeholder="Status" />
@@ -862,6 +928,7 @@ export default function Clientes() {
                 <thead>
                   <tr>
                     <th>Empresa</th>
+                    <th>Grupo</th>
                     <th>Segmento</th>
                     <th>Contato</th>
                     <th>Mensalidade</th>
@@ -909,6 +976,26 @@ export default function Clientes() {
                               )}
                             </div>
                           </div>
+                        </td>
+                        <td>
+                          {(() => {
+                            const grupo = grupos.find(g => g.id === (cliente as any).grupo_id);
+                            return grupo ? (
+                              <Badge 
+                                variant="outline" 
+                                className="font-semibold text-[10px]"
+                                style={{ 
+                                  borderColor: grupo.cor,
+                                  color: grupo.cor,
+                                  backgroundColor: `${grupo.cor}10`
+                                }}
+                              >
+                                {grupo.nome}
+                              </Badge>
+                            ) : (
+                              <span className="text-muted-foreground text-xs">Sem grupo</span>
+                            );
+                          })()}
                         </td>
                         <td>
                           {cliente.segmento ? (

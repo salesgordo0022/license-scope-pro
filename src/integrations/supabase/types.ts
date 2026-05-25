@@ -60,6 +60,7 @@ export type Database = {
           empresa_id: string | null
           endereco: string | null
           estado: string | null
+          grupo_id: string | null
           id: string
           nome_empresa: string
           observacoes: string | null
@@ -78,6 +79,7 @@ export type Database = {
           empresa_id?: string | null
           endereco?: string | null
           estado?: string | null
+          grupo_id?: string | null
           id?: string
           nome_empresa: string
           observacoes?: string | null
@@ -96,6 +98,7 @@ export type Database = {
           empresa_id?: string | null
           endereco?: string | null
           estado?: string | null
+          grupo_id?: string | null
           id?: string
           nome_empresa?: string
           observacoes?: string | null
@@ -111,6 +114,13 @@ export type Database = {
             columns: ["empresa_id"]
             isOneToOne: false
             referencedRelation: "empresas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "clientes_grupo_id_fkey"
+            columns: ["grupo_id"]
+            isOneToOne: false
+            referencedRelation: "grupos_clientes"
             referencedColumns: ["id"]
           },
         ]
@@ -307,6 +317,44 @@ export type Database = {
             columns: ["plano_id"]
             isOneToOne: false
             referencedRelation: "planos"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      grupos_clientes: {
+        Row: {
+          cor: string | null
+          created_at: string
+          descricao: string | null
+          empresa_id: string
+          id: string
+          nome: string
+          updated_at: string
+        }
+        Insert: {
+          cor?: string | null
+          created_at?: string
+          descricao?: string | null
+          empresa_id: string
+          id?: string
+          nome: string
+          updated_at?: string
+        }
+        Update: {
+          cor?: string | null
+          created_at?: string
+          descricao?: string | null
+          empresa_id?: string
+          id?: string
+          nome?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "fk_empresa"
+            columns: ["empresa_id"]
+            isOneToOne: false
+            referencedRelation: "empresas"
             referencedColumns: ["id"]
           },
         ]
