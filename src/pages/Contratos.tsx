@@ -96,6 +96,7 @@ const defaultConfig: ConfigContrato = {
   prazo_aviso_rescisao: 30,
   foro_comarca: '',
   logo_url: '',
+  mostrar_marca_dagua: true,
 };
 
 const formatCurrency = (value: number | null) => {
