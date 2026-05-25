@@ -54,15 +54,17 @@ export function GrupoClienteManager({ onGroupsChange }: { onGroupsChange?: () =>
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        toast.error('Usuário não autenticado');
+        return;
+      }
+
       const { data: profile } = await supabase
         .from('usuario_perfil')
         .select('empresa_id')
-        .single();
-
-      if (!profile?.empresa_id) {
-        toast.error('Empresa não encontrada');
-        return;
-      }
+        .eq('user_id', user.id)
+        .maybeSingle();
 
       if (editingGrupo) {
         const { error } = await supabase
@@ -82,7 +84,7 @@ export function GrupoClienteManager({ onGroupsChange }: { onGroupsChange?: () =>
             nome: formData.nome,
             cor: formData.cor,
             descricao: formData.descricao,
-            empresa_id: profile.empresa_id,
+            empresa_id: profile?.empresa_id ?? null,
           });
         if (error) throw error;
         toast.success('Grupo criado!');

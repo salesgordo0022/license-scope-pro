@@ -326,7 +326,7 @@ export type Database = {
           cor: string | null
           created_at: string
           descricao: string | null
-          empresa_id: string
+          empresa_id: string | null
           id: string
           nome: string
           updated_at: string
@@ -335,7 +335,7 @@ export type Database = {
           cor?: string | null
           created_at?: string
           descricao?: string | null
-          empresa_id: string
+          empresa_id?: string | null
           id?: string
           nome: string
           updated_at?: string
@@ -344,7 +344,7 @@ export type Database = {
           cor?: string | null
           created_at?: string
           descricao?: string | null
-          empresa_id?: string
+          empresa_id?: string | null
           id?: string
           nome?: string
           updated_at?: string
