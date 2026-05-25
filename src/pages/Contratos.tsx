@@ -162,15 +162,16 @@ export default function Contratos() {
       if (clienteIds.length > 0) {
         const { data: lics } = await supabase
           .from('licencas')
-          .select('cliente_id, tipo')
+          .select('cliente_id, sistema:sistemas(nome)')
           .eq('status', 'ativo')
           .in('cliente_id', clienteIds);
         
         const map: Record<string, string[]> = {};
         (lics || []).forEach((l: any) => {
           if (!map[l.cliente_id]) map[l.cliente_id] = [];
-          if (l.tipo && !map[l.cliente_id].includes(l.tipo)) {
-            map[l.cliente_id].push(l.tipo);
+          const sistemaNome = l.sistema?.nome;
+          if (sistemaNome && !map[l.cliente_id].includes(sistemaNome)) {
+            map[l.cliente_id].push(sistemaNome);
           }
         });
         setSistemasPorCliente(map);
@@ -328,7 +329,7 @@ export default function Contratos() {
       const payload = { ...formData, empresa_id: profile?.empresa_id || null, data_fim: dataFim, status: 'ativo' };
 
       if (editingContrato) {
-        const { error } = await supabase.from('contratos').update(payload).eq('id', editingContrato.id);
+        const { error } = await supabase.from('contratos').update({ ...payload, updated_at: new Date().toISOString() }).eq('id', editingContrato.id);
         if (error) throw error;
         toast.success('Contrato atualizado!');
       } else {
@@ -436,7 +437,7 @@ export default function Contratos() {
       
       while (remainingHeight > 0) {
         if (position > 0) pdf.addPage();
-        pdf.addImage(imgData, 'PNG', margin, margin - position, usableWidth, totalPdfHeight);
+        pdf.addImage(imgData, 'PNG', margin, margin - position, usableWidth, totalPdfHeight, undefined, 'FAST');
         position += pdfHeight - margin * 2;
         remainingHeight -= pdfHeight - margin * 2;
       }
@@ -550,7 +551,7 @@ export default function Contratos() {
           <section style={{ pageBreakInside: 'avoid' }} className="relative z-10">
             <h2 className="font-bold uppercase text-base mb-3 text-black border-b border-gray-100 pb-1">Cláusula Quarta — Preço e Forma de Pagamento (Modelo SaaS Mensal)</h2>
             <p className="text-justify indent-8 mb-2">
-              <strong>4.1.</strong> O valor da implantação do sistema é de <strong>{formatCurrency(Number(contrato.valor_software))}</strong>, e a mensalidade do serviço SaaS é de <strong>{formatCurrency(Number(contrato.valor_mensalidade))}</strong>, com vencimento todo dia <strong>10</strong> de cada mês, a contar após 30 (trinta) dias da implantação do sistema.
+              <strong>4.1.</strong> O valor da implantação do sistema é de <strong>{formatCurrency(Number(contrato.valor_software))}</strong>, e a mensalidade do serviço SaaS é de <strong>{formatCurrency(Number(contrato.valor_mensalidade))}</strong>, com vencimento todo dia <strong>10</strong> de cada mês, a contar da data de assinatura deste instrumento.
             </p>
             <p className="text-justify indent-8 mb-2">
               <strong>4.2.</strong> O contrato será renovado automaticamente a cada mês, no dia 10, salvo manifestação contrária de uma das partes com antecedência mínima de <strong>{config.prazo_aviso_rescisao}</strong> dias.
