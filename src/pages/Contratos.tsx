@@ -509,9 +509,11 @@ export default function Contratos() {
         </svg>
 
         {/* Marca d'água central */}
-        <div className="absolute inset-0 flex items-center justify-center opacity-[0.04] pointer-events-none" style={{ zIndex: 0 }}>
-          <img src={logoUrl} alt="" className="w-[480px]" />
-        </div>
+        {config.mostrar_marca_dagua && (
+          <div className="absolute inset-0 flex items-center justify-center opacity-[0.04] pointer-events-none" style={{ zIndex: 0 }}>
+            <img src={logoUrl} alt="" className="w-[480px]" />
+          </div>
+        )}
 
         {/* Conteúdo do contrato */}
         <div style={{ padding: '30mm 25mm', position: 'relative', zIndex: 10 }}>
