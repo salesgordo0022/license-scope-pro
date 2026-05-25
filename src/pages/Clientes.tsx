@@ -270,7 +270,11 @@ export default function Clientes() {
     e.preventDefault();
     
     try {
-      const { sistemasSelecionados, ...clienteData } = formData;
+      const { sistemasSelecionados, ...clienteDataRaw } = formData;
+      const clienteData = {
+        ...clienteDataRaw,
+        grupo_id: clienteDataRaw.grupo_id === 'none' || clienteDataRaw.grupo_id === '' ? null : clienteDataRaw.grupo_id
+      };
 
       if (editingCliente) {
         const { error } = await supabase
