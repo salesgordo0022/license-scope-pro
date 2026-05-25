@@ -79,6 +79,7 @@ interface ConfigContrato {
   prazo_aviso_rescisao: number;
   foro_comarca: string;
   logo_url: string;
+  mostrar_marca_dagua: boolean;
 }
 
 const defaultConfig: ConfigContrato = {
