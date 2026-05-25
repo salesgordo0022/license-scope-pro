@@ -1176,48 +1176,15 @@ export default function Contratos() {
                   <Input value={config.contratado_telefone} onChange={(e) => setConfig({ ...config, contratado_telefone: e.target.value })} placeholder="(11) 99999-9999" />
                 </div>
               </div>
-              <div className="space-y-2">
-                <Label>Logo da empresa</Label>
-                <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-                  <Input
-                    type="file"
-                    accept="image/*"
-                    onChange={async (e) => {
-                      const file = e.target.files?.[0];
-                      if (!file) return;
-                      if (file.size > 2 * 1024 * 1024) {
-                        toast.error('Logo muito grande (máx 2MB)');
-                        return;
-                      }
-                      try {
-                        const ext = file.name.split('.').pop() || 'png';
-                        const path = `logo-${Date.now()}.${ext}`;
-                        const { error: upErr } = await supabase.storage
-                          .from('contract-logos')
-                          .upload(path, file, { upsert: true, contentType: file.type });
-                        if (upErr) throw upErr;
-                        const { data: pub } = supabase.storage
-                          .from('contract-logos')
-                          .getPublicUrl(path);
-                        setConfig({ ...config, logo_url: pub.publicUrl });
-                        toast.success('Logo enviada!');
-                      } catch (err: any) {
-                        toast.error(err.message || 'Erro no upload');
-                      }
-                    }}
-                  />
-                  <Input
-                    type="url"
-                    value={config.logo_url}
-                    onChange={(e) => setConfig({ ...config, logo_url: e.target.value })}
-                    placeholder="ou cole uma URL https://..."
-                  />
+              <div className="flex items-center justify-between rounded-lg border p-3">
+                <div className="space-y-0.5">
+                  <Label>Exibir marca d'água no contrato</Label>
+                  <p className="text-xs text-muted-foreground">Mostra o logo em transparência ao fundo do documento</p>
                 </div>
-                {config.logo_url && (
-                  <div className="mt-2 p-3 bg-secondary/50 rounded-lg inline-block">
-                    <img src={config.logo_url} alt="Preview" className="h-16 object-contain" />
-                  </div>
-                )}
+                <Switch
+                  checked={config.mostrar_marca_dagua}
+                  onCheckedChange={(v) => setConfig({ ...config, mostrar_marca_dagua: v })}
+                />
               </div>
             </CardContent>
           </Card>
