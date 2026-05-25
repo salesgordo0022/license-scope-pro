@@ -1,0 +1,1 @@
+ALTER TABLE public.configuracao_contrato ADD COLUMN IF NOT EXISTS mostrar_marca_dagua boolean NOT NULL DEFAULT true;

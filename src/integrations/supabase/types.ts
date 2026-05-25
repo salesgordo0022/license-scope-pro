@@ -142,6 +142,7 @@ export type Database = {
           id: string
           indice_reajuste: string | null
           logo_url: string | null
+          mostrar_marca_dagua: boolean
           prazo_aviso_rescisao: number | null
           updated_at: string
         }
@@ -161,6 +162,7 @@ export type Database = {
           id?: string
           indice_reajuste?: string | null
           logo_url?: string | null
+          mostrar_marca_dagua?: boolean
           prazo_aviso_rescisao?: number | null
           updated_at?: string
         }
@@ -180,6 +182,7 @@ export type Database = {
           id?: string
           indice_reajuste?: string | null
           logo_url?: string | null
+          mostrar_marca_dagua?: boolean
           prazo_aviso_rescisao?: number | null
           updated_at?: string
         }
