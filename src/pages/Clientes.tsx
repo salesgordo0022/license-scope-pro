@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
-import { Plus, Search, Filter, MoreHorizontal, Mail, Phone, Edit, Trash2, DollarSign, FileText, Loader2, MessageCircle, Users, Download } from 'lucide-react';
+import { Plus, Search, Filter, MoreHorizontal, Mail, Phone, Edit, Trash2, DollarSign, FileText, Loader2, MessageCircle, Users, Download, Tag } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -31,6 +31,13 @@ import { Textarea } from '@/components/ui/textarea';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import type { Database } from '@/integrations/supabase/types';
+import { GrupoClienteManager } from '@/components/GrupoClienteManager';
+
+interface Grupo {
+  id: string;
+  nome: string;
+  cor: string;
+}
 
 type Cliente = Database['public']['Tables']['clientes']['Row'];
 type StatusType = Database['public']['Enums']['status_type'];
@@ -54,9 +61,11 @@ export default function Clientes() {
   const [clientes, setClientes] = useState<Cliente[]>([]);
   const [segmentos, setSegmentos] = useState<Segmento[]>([]);
   const [sistemas, setSistemas] = useState<Sistema[]>([]);
+  const [grupos, setGrupos] = useState<Grupo[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterSegmento, setFilterSegmento] = useState<string>('all');
+  const [filterGrupo, setFilterGrupo] = useState<string>('all');
   const [filterStatus, setFilterStatus] = useState<string>('ativo');
   const [sistemasPorCliente, setSistemasPorCliente] = useState<Record<string, string[]>>({});
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -113,6 +122,7 @@ export default function Clientes() {
   const [formData, setFormData] = useState({
     nome_empresa: '',
     segmento: '',
+    grupo_id: '',
     email: '',
     telefone: '',
     status: 'ativo' as StatusType,
@@ -155,6 +165,19 @@ export default function Clientes() {
     }
   };
 
+  const fetchGrupos = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('grupos_clientes')
+        .select('id, nome, cor')
+        .order('nome');
+      if (error) throw error;
+      setGrupos(data || []);
+    } catch (error) {
+      console.error('Error fetching groups:', error);
+    }
+  };
+
   const fetchClientes = async () => {
     try {
       let query = supabase.from('clientes').select('*').order('created_at', { ascending: false });
@@ -193,12 +216,14 @@ export default function Clientes() {
     fetchClientes();
     fetchSegmentos();
     fetchSistemas();
+    fetchGrupos();
   }, []);
 
   const resetForm = () => {
     setFormData({
       nome_empresa: '',
       segmento: '',
+      grupo_id: '',
       email: '',
       telefone: '',
       status: 'ativo',
@@ -353,6 +378,7 @@ export default function Clientes() {
     setFormData({
       nome_empresa: cliente.nome_empresa,
       segmento: cliente.segmento || '',
+      grupo_id: (cliente as any).grupo_id || '',
       email: cliente.email || '',
       telefone: cliente.telefone || '',
       status: cliente.status || 'ativo',
@@ -423,8 +449,9 @@ export default function Clientes() {
       cliente.nome_empresa.toLowerCase().includes(searchTerm.toLowerCase()) ||
       cliente.email?.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesSegmento = filterSegmento === 'all' || cliente.segmento === filterSegmento;
+    const matchesGrupo = filterGrupo === 'all' || (cliente as any).grupo_id === filterGrupo;
     const matchesStatus = filterStatus === 'all' || cliente.status === filterStatus;
-    return matchesSearch && matchesSegmento && matchesStatus;
+    return matchesSearch && matchesSegmento && matchesGrupo && matchesStatus;
   });
 
   const getStatusBadge = (status: string | null) => {
