@@ -4,8 +4,6 @@ import { Plus, Search, FileText, MoreHorizontal, Edit, Trash2, Eye, CheckCircle,
 import html2canvas from 'html2canvas';
 import jsPDF from 'jspdf';
 import ModelosContrato from '@/components/contratos/ModelosContrato';
-import impertechLogo from '@/assets/impertech-logo.png.asset.json';
-import impertechCircuitBg from '@/assets/impertech-circuit-bg.png.asset.json';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -462,7 +460,8 @@ export default function Contratos() {
     const dataInicio = formatDate(contrato.data_inicio);
     const dataFim = formatDate(contrato.data_fim);
     const nomeContratante = contrato.contratante_nome || cliente?.nome_empresa || '……………..';
-    const nomeContratado = config.contratado_nome || 'ImperTech';
+    const nomeContratado = config.contratado_nome || 'ImperialTech';
+    const logoUrl = config.logo_url || "https://fars-api.pocaweb.com.br/f99ce3aec60e45488a2b9e80f87b303a.png";
 
     return (
       <div id="contract-document" className="bg-white text-black shadow-xl rounded-sm mx-auto print:shadow-none relative overflow-hidden" style={{ 
@@ -474,91 +473,81 @@ export default function Contratos() {
         border: '1px solid #e2e8f0',
         minHeight: '297mm'
       }}>
-        {/* ===== Fundo de circuito (SVG inline, recriado) ===== */}
-        <svg
-          className="absolute inset-0 w-full h-full pointer-events-none select-none"
-          viewBox="0 0 1080 1400"
-          preserveAspectRatio="none"
-          style={{ zIndex: 1 }}
-          aria-hidden="true"
-        >
-          <g fill="none" stroke="#0a0a0a" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-            {/* ===== CANTO SUPERIOR ESQUERDO ===== */}
-            <path d="M0,30 L120,30 L150,60 L260,60" />
-            <path d="M0,60 L90,60 L120,90 L230,90" />
-            <path d="M0,95 L70,95 L100,125 L210,125" />
-            <path d="M0,130 L50,130 L80,160 L190,160" />
-            <path d="M30,0 L30,80 L60,110 L60,210" />
-            <path d="M60,0 L60,70 L90,100 L90,200" />
-            <path d="M95,0 L95,55 L125,85 L125,190" />
-            <path d="M130,0 L130,40 L160,70 L160,180" />
-            <circle cx="260" cy="60" r="6" fill="#fff" />
-            <circle cx="230" cy="90" r="6" fill="#fff" />
-            <circle cx="210" cy="125" r="4" fill="#0a0a0a" stroke="none" />
-            <circle cx="190" cy="160" r="4" fill="#0a0a0a" stroke="none" />
-            <circle cx="60" cy="210" r="4" fill="#0a0a0a" stroke="none" />
-            <circle cx="90" cy="200" r="6" fill="#fff" />
-            <circle cx="125" cy="190" r="4" fill="#0a0a0a" stroke="none" />
-            <circle cx="160" cy="180" r="4" fill="#0a0a0a" stroke="none" />
-
-            {/* ===== CANTO SUPERIOR DIREITO ===== */}
-            <path d="M1080,30 L960,30 L930,60 L820,60" />
-            <path d="M1080,60 L990,60 L960,90 L850,90" />
-            <path d="M1080,95 L1010,95 L980,125 L870,125" />
-            <path d="M1080,130 L1030,130 L1000,160 L890,160" />
-            <path d="M1050,0 L1050,80 L1020,110 L1020,210" />
-            <path d="M1020,0 L1020,70 L990,100 L990,200" />
-            <path d="M985,0 L985,55 L955,85 L955,190" />
-            <path d="M950,0 L950,40 L920,70 L920,180" />
-            <circle cx="820" cy="60" r="6" fill="#fff" />
-            <circle cx="850" cy="90" r="6" fill="#fff" />
-            <circle cx="870" cy="125" r="4" fill="#0a0a0a" stroke="none" />
-            <circle cx="890" cy="160" r="4" fill="#0a0a0a" stroke="none" />
-            <circle cx="1020" cy="210" r="4" fill="#0a0a0a" stroke="none" />
-            <circle cx="990" cy="200" r="6" fill="#fff" />
-            <circle cx="955" cy="190" r="4" fill="#0a0a0a" stroke="none" />
-            <circle cx="920" cy="180" r="4" fill="#0a0a0a" stroke="none" />
-
-            {/* ===== BORDA INFERIOR — pinos verticais ===== */}
-            {Array.from({ length: 22 }).map((_, i) => {
-              const x = 40 + i * 46;
-              const topY = 1180 + ((i * 37) % 80);
-              const hasHead = i % 2 === 0;
-              return (
-                <g key={`pin-${i}`}>
-                  <path d={`M${x},${topY} L${x},1400`} />
-                  {hasHead ? (
-                    <circle cx={x} cy={topY} r="7" fill="#fff" />
-                  ) : (
-                    <circle cx={x} cy={topY} r="4" fill="#0a0a0a" stroke="none" />
-                  )}
-                </g>
-              );
-            })}
-            {/* Conexões horizontais inferiores entre alguns pinos */}
-            <path d="M86,1240 L132,1240 L132,1260 L178,1260" />
-            <path d="M270,1230 L316,1230 L316,1255 L362,1255" />
-            <path d="M500,1245 L546,1245 L546,1268 L592,1268" />
-            <path d="M730,1235 L776,1235 L776,1258 L822,1258" />
-            <path d="M914,1248 L960,1248 L960,1270 L1006,1270" />
-          </g>
+        {/* ===== Decoração: faixas diagonais superior direita ===== */}
+        <svg className="absolute top-0 right-0 pointer-events-none" width="320" height="260" viewBox="0 0 320 260" style={{ zIndex: 1 }}>
+          <defs>
+            <linearGradient id="stripeBlueA" x1="0" y1="0" x2="1" y2="1">
+              <stop offset="0%" stopColor="#7a93b5" />
+              <stop offset="100%" stopColor="#b8c7da" />
+            </linearGradient>
+            <linearGradient id="stripeBlueB" x1="0" y1="0" x2="1" y2="1">
+              <stop offset="0%" stopColor="#d9e4f0" />
+              <stop offset="100%" stopColor="#eef3f9" />
+            </linearGradient>
+          </defs>
+          <polygon points="180,-20 340,-20 340,140 240,260 140,180" fill="url(#stripeBlueA)" opacity="0.85" />
+          <polygon points="230,-20 320,-20 320,90 200,230 130,160" fill="url(#stripeBlueB)" opacity="0.95" />
+          <polygon points="280,-20 340,-20 340,60 220,200 180,140" fill="#ffffff" opacity="0.9" />
+          <polygon points="295,-20 340,-20 340,40 230,180 200,140" fill="url(#stripeBlueB)" opacity="0.7" />
         </svg>
 
-        {/* ===== Logo ImperTech no canto superior direito ===== */}
-        <img
-          src={impertechLogo.url}
-          alt="ImperTech"
-          className="absolute pointer-events-none select-none"
-          style={{ top: '12mm', right: '14mm', width: '32mm', height: 'auto', zIndex: 5 }}
-        />
+        {/* ===== Decoração: faixas diagonais inferior esquerda ===== */}
+        <svg className="absolute bottom-0 left-0 pointer-events-none" width="260" height="220" viewBox="0 0 260 220" style={{ zIndex: 1 }}>
+          <defs>
+            <linearGradient id="stripeBL" x1="0" y1="0" x2="1" y2="1">
+              <stop offset="0%" stopColor="#6f86a8" />
+              <stop offset="100%" stopColor="#a8b9cf" />
+            </linearGradient>
+          </defs>
+          <polygon points="-20,80 100,-30 200,30 60,220 -20,220" fill="url(#stripeBL)" opacity="0.85" />
+          <polygon points="-20,140 80,40 180,90 40,220 -20,220" fill="#dfe7f1" opacity="0.95" />
+          <polygon points="-20,180 60,110 140,150 20,220 -20,220" fill="url(#stripeBL)" opacity="0.6" />
+        </svg>
+
+        {/* ===== Decoração: faixa inferior direita pequena ===== */}
+        <svg className="absolute bottom-0 right-0 pointer-events-none" width="140" height="120" viewBox="0 0 140 120" style={{ zIndex: 1 }}>
+          <polygon points="40,120 140,20 140,120" fill="#b8c7da" opacity="0.6" />
+        </svg>
+
+        {/* Marca d'água central */}
+        {config.mostrar_marca_dagua && (
+          <div className="absolute inset-0 flex items-center justify-center opacity-[0.04] pointer-events-none" style={{ zIndex: 0 }}>
+            <img src={logoUrl} alt="" className="w-[480px]" />
+          </div>
+        )}
 
         {/* Conteúdo do contrato */}
         <div style={{ padding: '30mm 25mm', position: 'relative', zIndex: 10 }}>
-          <div className="text-center mb-10" style={{ marginTop: '18mm' }}>
+          {/* Header com pílula azul */}
+          <div className="mb-10 relative" style={{ zIndex: 10 }}>
+            <div
+              className="inline-flex items-center gap-4"
+              style={{
+                background: 'linear-gradient(135deg, #2a3f63 0%, #324b75 100%)',
+                padding: '14px 56px 14px 28px',
+                borderRadius: '9999px',
+                minWidth: '280px',
+                boxShadow: '0 4px 14px rgba(42,63,99,0.25)',
+              }}
+            >
+              <img src={logoUrl} alt="Logo" className="h-12 object-contain" style={{ filter: 'brightness(0) invert(1)' }} />
+              <div className="text-white">
+                <div style={{ fontSize: '13pt', fontWeight: 700, letterSpacing: '0.08em', fontFamily: 'Arial, sans-serif' }}>
+                  {nomeContratado.toUpperCase()}
+                </div>
+                <div style={{ fontSize: '7pt', letterSpacing: '0.18em', opacity: 0.85, fontFamily: 'Arial, sans-serif' }}>
+                  VENDA DE SISTEMAS E SOLUÇÕES
+                </div>
+
+              </div>
+            </div>
+          </div>
+
+          <div className="text-center mb-10">
             <h1 className="text-2xl font-serif font-bold tracking-tight uppercase text-black mb-2">
               Contrato de Prestação de Serviços de Software
             </h1>
-            <div className="w-32 h-1 mx-auto mb-3" style={{ background: '#6a5cf0' }} />
+            <div className="w-32 h-1 mx-auto mb-3" style={{ background: '#2a3f63' }} />
             {contrato.numero_contrato && (
               <p className="text-sm font-semibold text-gray-800">DOCUMENTO Nº {contrato.numero_contrato}</p>
             )}
@@ -1186,6 +1175,16 @@ export default function Contratos() {
                   <Label>Telefone</Label>
                   <Input value={config.contratado_telefone} onChange={(e) => setConfig({ ...config, contratado_telefone: e.target.value })} placeholder="(11) 99999-9999" />
                 </div>
+              </div>
+              <div className="flex items-center justify-between rounded-lg border p-3">
+                <div className="space-y-0.5">
+                  <Label>Exibir marca d'água no contrato</Label>
+                  <p className="text-xs text-muted-foreground">Mostra o logo em transparência ao fundo do documento</p>
+                </div>
+                <Switch
+                  checked={config.mostrar_marca_dagua}
+                  onCheckedChange={(v) => setConfig({ ...config, mostrar_marca_dagua: v })}
+                />
               </div>
             </CardContent>
           </Card>
