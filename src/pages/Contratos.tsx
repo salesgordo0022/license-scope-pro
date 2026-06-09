@@ -473,73 +473,38 @@ export default function Contratos() {
         border: '1px solid #e2e8f0',
         minHeight: '297mm'
       }}>
-        {/* ===== Decoração: faixas diagonais superior direita ===== */}
-        <svg className="absolute top-0 right-0 pointer-events-none" width="320" height="260" viewBox="0 0 320 260" style={{ zIndex: 1 }}>
-          <defs>
-            <linearGradient id="stripeBlueA" x1="0" y1="0" x2="1" y2="1">
-              <stop offset="0%" stopColor="#7a93b5" />
-              <stop offset="100%" stopColor="#b8c7da" />
-            </linearGradient>
-            <linearGradient id="stripeBlueB" x1="0" y1="0" x2="1" y2="1">
-              <stop offset="0%" stopColor="#d9e4f0" />
-              <stop offset="100%" stopColor="#eef3f9" />
-            </linearGradient>
-          </defs>
-          <polygon points="180,-20 340,-20 340,140 240,260 140,180" fill="url(#stripeBlueA)" opacity="0.85" />
-          <polygon points="230,-20 320,-20 320,90 200,230 130,160" fill="url(#stripeBlueB)" opacity="0.95" />
-          <polygon points="280,-20 340,-20 340,60 220,200 180,140" fill="#ffffff" opacity="0.9" />
-          <polygon points="295,-20 340,-20 340,40 230,180 200,140" fill="url(#stripeBlueB)" opacity="0.7" />
-        </svg>
-
-        {/* ===== Decoração: faixas diagonais inferior esquerda ===== */}
-        <svg className="absolute bottom-0 left-0 pointer-events-none" width="260" height="220" viewBox="0 0 260 220" style={{ zIndex: 1 }}>
-          <defs>
-            <linearGradient id="stripeBL" x1="0" y1="0" x2="1" y2="1">
-              <stop offset="0%" stopColor="#6f86a8" />
-              <stop offset="100%" stopColor="#a8b9cf" />
-            </linearGradient>
-          </defs>
-          <polygon points="-20,80 100,-30 200,30 60,220 -20,220" fill="url(#stripeBL)" opacity="0.85" />
-          <polygon points="-20,140 80,40 180,90 40,220 -20,220" fill="#dfe7f1" opacity="0.95" />
-          <polygon points="-20,180 60,110 140,150 20,220 -20,220" fill="url(#stripeBL)" opacity="0.6" />
-        </svg>
-
-        {/* ===== Decoração: faixa inferior direita pequena ===== */}
-        <svg className="absolute bottom-0 right-0 pointer-events-none" width="140" height="120" viewBox="0 0 140 120" style={{ zIndex: 1 }}>
-          <polygon points="40,120 140,20 140,120" fill="#b8c7da" opacity="0.6" />
-        </svg>
-
         {/* Marca d'água central */}
         {config.mostrar_marca_dagua && (
-          <div className="absolute inset-0 flex items-center justify-center opacity-[0.04] pointer-events-none" style={{ zIndex: 0 }}>
-            <img src={logoUrl} alt="" className="w-[480px]" />
+          <div className="absolute inset-0 flex items-center justify-center opacity-[0.05] pointer-events-none" style={{ zIndex: 0 }}>
+            <img src={logoUrl} alt="" className="w-[460px]" crossOrigin="anonymous" />
           </div>
         )}
 
         {/* Conteúdo do contrato */}
-        <div style={{ padding: '30mm 25mm', position: 'relative', zIndex: 10 }}>
-          {/* Header com pílula azul */}
-          <div className="mb-10 relative" style={{ zIndex: 10 }}>
+        <div style={{ padding: '25mm 22mm', position: 'relative', zIndex: 10 }}>
+          {/* Cabeçalho centralizado — logo + pílula azul */}
+          <div className="flex flex-col items-center mb-10" style={{ zIndex: 10 }}>
+            <img
+              src={logoUrl}
+              alt="Logo"
+              crossOrigin="anonymous"
+              style={{ height: '64px', objectFit: 'contain', marginBottom: '14px' }}
+            />
             <div
-              className="inline-flex items-center gap-4"
               style={{
                 background: 'linear-gradient(135deg, #2a3f63 0%, #324b75 100%)',
-                padding: '14px 56px 14px 28px',
+                padding: '12px 48px',
                 borderRadius: '9999px',
-                minWidth: '280px',
-                boxShadow: '0 4px 14px rgba(42,63,99,0.25)',
+                boxShadow: '0 4px 14px rgba(42,63,99,0.22)',
+                color: '#ffffff',
+                fontFamily: 'Arial, sans-serif',
+                fontSize: '9pt',
+                fontWeight: 600,
+                letterSpacing: '0.22em',
+                textAlign: 'center',
               }}
             >
-              <img src={logoUrl} alt="Logo" className="h-12 object-contain" style={{ filter: 'brightness(0) invert(1)' }} />
-              <div className="text-white">
-                <div style={{ fontSize: '13pt', fontWeight: 700, letterSpacing: '0.08em', fontFamily: 'Arial, sans-serif' }}>
-                  {nomeContratado.toUpperCase()}
-                </div>
-                <div style={{ fontSize: '7pt', letterSpacing: '0.18em', opacity: 0.85, fontFamily: 'Arial, sans-serif' }}>
-                  VENDA DE SISTEMAS E SOLUÇÕES
-                </div>
-
-              </div>
+              VENDA DE SISTEMAS E SOLUÇÕES
             </div>
           </div>
 
@@ -552,6 +517,8 @@ export default function Contratos() {
               <p className="text-sm font-semibold text-gray-800">DOCUMENTO Nº {contrato.numero_contrato}</p>
             )}
           </div>
+
+
 
 
         {/* Preâmbulo */}
