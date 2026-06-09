@@ -461,7 +461,7 @@ export default function Contratos() {
     const dataFim = formatDate(contrato.data_fim);
     const nomeContratante = contrato.contratante_nome || cliente?.nome_empresa || '……………..';
     const nomeContratado = config.contratado_nome || 'ImperialTech';
-    const logoUrl = config.logo_url || "https://fars-api.pocaweb.com.br/f99ce3aec60e45488a2b9e80f87b303a.png";
+    const logoUrl = config.logo_url || "/__l5e/assets-v1/2bd820be-8ac9-46e0-b258-dbf77ce4946f/impertech-logo.png";
 
     return (
       <div id="contract-document" className="bg-white text-black shadow-xl rounded-sm mx-auto print:shadow-none relative overflow-hidden" style={{ 
