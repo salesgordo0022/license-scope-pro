@@ -474,20 +474,82 @@ export default function Contratos() {
         border: '1px solid #e2e8f0',
         minHeight: '297mm'
       }}>
-        {/* ===== Fundo de circuito (cantos) ===== */}
-        <img
-          src={impertechCircuitBg.url}
-          alt=""
-          className="absolute inset-0 w-full h-full object-cover pointer-events-none select-none"
-          style={{ zIndex: 1, opacity: 0.55 }}
-        />
+        {/* ===== Fundo de circuito (SVG inline, recriado) ===== */}
+        <svg
+          className="absolute inset-0 w-full h-full pointer-events-none select-none"
+          viewBox="0 0 1080 1400"
+          preserveAspectRatio="none"
+          style={{ zIndex: 1 }}
+          aria-hidden="true"
+        >
+          <g fill="none" stroke="#0a0a0a" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+            {/* ===== CANTO SUPERIOR ESQUERDO ===== */}
+            <path d="M0,30 L120,30 L150,60 L260,60" />
+            <path d="M0,60 L90,60 L120,90 L230,90" />
+            <path d="M0,95 L70,95 L100,125 L210,125" />
+            <path d="M0,130 L50,130 L80,160 L190,160" />
+            <path d="M30,0 L30,80 L60,110 L60,210" />
+            <path d="M60,0 L60,70 L90,100 L90,200" />
+            <path d="M95,0 L95,55 L125,85 L125,190" />
+            <path d="M130,0 L130,40 L160,70 L160,180" />
+            <circle cx="260" cy="60" r="6" fill="#fff" />
+            <circle cx="230" cy="90" r="6" fill="#fff" />
+            <circle cx="210" cy="125" r="4" fill="#0a0a0a" stroke="none" />
+            <circle cx="190" cy="160" r="4" fill="#0a0a0a" stroke="none" />
+            <circle cx="60" cy="210" r="4" fill="#0a0a0a" stroke="none" />
+            <circle cx="90" cy="200" r="6" fill="#fff" />
+            <circle cx="125" cy="190" r="4" fill="#0a0a0a" stroke="none" />
+            <circle cx="160" cy="180" r="4" fill="#0a0a0a" stroke="none" />
+
+            {/* ===== CANTO SUPERIOR DIREITO ===== */}
+            <path d="M1080,30 L960,30 L930,60 L820,60" />
+            <path d="M1080,60 L990,60 L960,90 L850,90" />
+            <path d="M1080,95 L1010,95 L980,125 L870,125" />
+            <path d="M1080,130 L1030,130 L1000,160 L890,160" />
+            <path d="M1050,0 L1050,80 L1020,110 L1020,210" />
+            <path d="M1020,0 L1020,70 L990,100 L990,200" />
+            <path d="M985,0 L985,55 L955,85 L955,190" />
+            <path d="M950,0 L950,40 L920,70 L920,180" />
+            <circle cx="820" cy="60" r="6" fill="#fff" />
+            <circle cx="850" cy="90" r="6" fill="#fff" />
+            <circle cx="870" cy="125" r="4" fill="#0a0a0a" stroke="none" />
+            <circle cx="890" cy="160" r="4" fill="#0a0a0a" stroke="none" />
+            <circle cx="1020" cy="210" r="4" fill="#0a0a0a" stroke="none" />
+            <circle cx="990" cy="200" r="6" fill="#fff" />
+            <circle cx="955" cy="190" r="4" fill="#0a0a0a" stroke="none" />
+            <circle cx="920" cy="180" r="4" fill="#0a0a0a" stroke="none" />
+
+            {/* ===== BORDA INFERIOR — pinos verticais ===== */}
+            {Array.from({ length: 22 }).map((_, i) => {
+              const x = 40 + i * 46;
+              const topY = 1180 + ((i * 37) % 80);
+              const hasHead = i % 2 === 0;
+              return (
+                <g key={`pin-${i}`}>
+                  <path d={`M${x},${topY} L${x},1400`} />
+                  {hasHead ? (
+                    <circle cx={x} cy={topY} r="7" fill="#fff" />
+                  ) : (
+                    <circle cx={x} cy={topY} r="4" fill="#0a0a0a" stroke="none" />
+                  )}
+                </g>
+              );
+            })}
+            {/* Conexões horizontais inferiores entre alguns pinos */}
+            <path d="M86,1240 L132,1240 L132,1260 L178,1260" />
+            <path d="M270,1230 L316,1230 L316,1255 L362,1255" />
+            <path d="M500,1245 L546,1245 L546,1268 L592,1268" />
+            <path d="M730,1235 L776,1235 L776,1258 L822,1258" />
+            <path d="M914,1248 L960,1248 L960,1270 L1006,1270" />
+          </g>
+        </svg>
 
         {/* ===== Logo ImperTech no canto superior direito ===== */}
         <img
           src={impertechLogo.url}
           alt="ImperTech"
           className="absolute pointer-events-none select-none"
-          style={{ top: '14mm', right: '16mm', width: '28mm', height: 'auto', zIndex: 5 }}
+          style={{ top: '12mm', right: '14mm', width: '32mm', height: 'auto', zIndex: 5 }}
         />
 
         {/* Conteúdo do contrato */}
