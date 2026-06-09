@@ -149,14 +149,29 @@ export default function Mensagens() {
     }
     setUploading(true);
     try {
+      // Resolve empresa_id of current user to scope the upload to their folder
+      const { data: userData } = await supabase.auth.getUser();
+      if (!userData?.user) throw new Error("Sessão expirada");
+      const { data: perfil, error: perfilErr } = await supabase
+        .from("usuario_perfil")
+        .select("empresa_id")
+        .eq("user_id", userData.user.id)
+        .maybeSingle();
+      if (perfilErr) throw perfilErr;
+      if (!perfil?.empresa_id) throw new Error("Sua conta não está vinculada a uma empresa");
+
       const ext = file.name.split(".").pop() || "pdf";
-      const path = `boleto-${Date.now()}.${ext}`;
+      const path = `${perfil.empresa_id}/boleto-${Date.now()}.${ext}`;
       const { error: upErr } = await supabase.storage
         .from("boletos")
         .upload(path, file, { upsert: true, contentType: file.type });
       if (upErr) throw upErr;
-      const { data: pub } = supabase.storage.from("boletos").getPublicUrl(path);
-      setArquivoUrl(pub.publicUrl);
+      // Bucket is private — generate a signed URL (valid 30 days) to share via WhatsApp
+      const { data: signed, error: signErr } = await supabase.storage
+        .from("boletos")
+        .createSignedUrl(path, 60 * 60 * 24 * 30);
+      if (signErr) throw signErr;
+      setArquivoUrl(signed.signedUrl);
       setArquivoNome(file.name);
       toast.success("Arquivo enviado!");
     } catch (e: any) {
