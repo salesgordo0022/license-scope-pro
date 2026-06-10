@@ -135,6 +135,7 @@ export default function Clientes() {
     endereco: '',
     cidade: '',
     estado: '',
+    data_entrada: '',
     sistemasSelecionados: [] as string[], // nomes dos sistemas
   });
 
@@ -236,6 +237,7 @@ export default function Clientes() {
       endereco: '',
       cidade: '',
       estado: '',
+      data_entrada: '',
       sistemasSelecionados: [],
     });
   };
@@ -395,6 +397,7 @@ export default function Clientes() {
       endereco: (cliente as any).endereco || '',
       cidade: (cliente as any).cidade || '',
       estado: (cliente as any).estado || '',
+      data_entrada: (cliente as any).data_entrada || '',
       sistemasSelecionados: sistemasAtuais,
     });
     setDialogOpen(true);
@@ -484,14 +487,14 @@ export default function Clientes() {
       toast.error('Nenhum cliente para exportar');
       return;
     }
-    const headers = ['Empresa', 'CNPJ', 'Segmento', 'Email', 'Telefone', 'Cidade', 'Estado', 'Status', 'Mensalidade', 'Implantacao', 'Desconto (%)'];
+    const headers = ['Empresa', 'CNPJ', 'Segmento', 'Email', 'Telefone', 'Cidade', 'Estado', 'Data Entrada', 'Status', 'Mensalidade', 'Implantacao', 'Desconto (%)'];
     const escape = (v: any) => {
       const s = String(v ?? '').replace(/"/g, '""');
       return `"${s}"`;
     };
     const rows = lista.map(c => [
       c.nome_empresa, c.cnpj, c.segmento, c.email, c.telefone,
-      c.cidade, c.estado, c.status, c.valor_mensalidade, c.valor_implantacao, c.desconto_percentual,
+      c.cidade, c.estado, c.data_entrada, c.status, c.valor_mensalidade, c.valor_implantacao, c.desconto_percentual,
     ].map(escape).join(';'));
     const csv = '\ufeff' + [headers.map(escape).join(';'), ...rows].join('\n');
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
@@ -603,21 +606,30 @@ export default function Clientes() {
                   </Select>
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="status">Status</Label>
-                  <Select
-                    value={formData.status}
-                    onValueChange={(value) => setFormData({ ...formData, status: value as StatusType })}
-                  >
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="ativo">Ativo</SelectItem>
-                      <SelectItem value="inativo">Inativo</SelectItem>
-                      <SelectItem value="pendente">Pendente</SelectItem>
-                    </SelectContent>
-                  </Select>
+                  <Label htmlFor="data_entrada">Data de Entrada</Label>
+                  <Input
+                    id="data_entrada"
+                    type="date"
+                    value={formData.data_entrada}
+                    onChange={(e) => setFormData({ ...formData, data_entrada: e.target.value })}
+                  />
                 </div>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="status">Status</Label>
+                <Select
+                  value={formData.status}
+                  onValueChange={(value) => setFormData({ ...formData, status: value as StatusType })}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="ativo">Ativo</SelectItem>
+                    <SelectItem value="inativo">Inativo</SelectItem>
+                    <SelectItem value="pendente">Pendente</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
@@ -945,6 +957,7 @@ export default function Clientes() {
                     <th>Grupo</th>
                     <th>Segmento</th>
                     <th>Contato</th>
+                    <th>Data Entrada</th>
                     <th>Mensalidade</th>
                     <th>Implantação</th>
                     <th>Status</th>
@@ -954,13 +967,13 @@ export default function Clientes() {
                 <tbody>
                   {loading ? (
                     <tr>
-                      <td colSpan={7} className="text-center py-8 text-muted-foreground">
+                      <td colSpan={9} className="text-center py-8 text-muted-foreground">
                         Carregando...
                       </td>
                     </tr>
                   ) : filteredClientes.length === 0 ? (
                     <tr>
-                      <td colSpan={7} className="text-center py-8 text-muted-foreground">
+                      <td colSpan={9} className="text-center py-8 text-muted-foreground">
                         Nenhum cliente encontrado
                       </td>
                     </tr>
@@ -1049,6 +1062,15 @@ export default function Clientes() {
                               </div>
                             )}
                           </div>
+                        </td>
+                        <td>
+                          {cliente.data_entrada ? (
+                            <span className="text-sm text-muted-foreground">
+                              {new Date(cliente.data_entrada).toLocaleDateString('pt-BR')}
+                            </span>
+                          ) : (
+                            <span className="text-xs text-muted-foreground italic">—</span>
+                          )}
                         </td>
                         <td>
                           <span className="text-sm font-medium text-success">

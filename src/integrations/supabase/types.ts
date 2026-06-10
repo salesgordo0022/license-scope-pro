@@ -55,6 +55,7 @@ export type Database = {
           cidade: string | null
           cnpj: string | null
           created_at: string | null
+          data_entrada: string | null
           desconto_percentual: number | null
           email: string | null
           empresa_id: string | null
@@ -74,6 +75,7 @@ export type Database = {
           cidade?: string | null
           cnpj?: string | null
           created_at?: string | null
+          data_entrada?: string | null
           desconto_percentual?: number | null
           email?: string | null
           empresa_id?: string | null
@@ -93,6 +95,7 @@ export type Database = {
           cidade?: string | null
           cnpj?: string | null
           created_at?: string | null
+          data_entrada?: string | null
           desconto_percentual?: number | null
           email?: string | null
           empresa_id?: string | null
