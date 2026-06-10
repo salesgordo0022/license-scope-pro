@@ -1064,6 +1064,15 @@ export default function Clientes() {
                           </div>
                         </td>
                         <td>
+                          {cliente.data_entrada ? (
+                            <span className="text-sm text-muted-foreground">
+                              {new Date(cliente.data_entrada).toLocaleDateString('pt-BR')}
+                            </span>
+                          ) : (
+                            <span className="text-xs text-muted-foreground italic">—</span>
+                          )}
+                        </td>
+                        <td>
                           <span className="text-sm font-medium text-success">
                             {formatCurrency(Number(cliente.valor_mensalidade))}
                           </span>
