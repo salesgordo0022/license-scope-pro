@@ -135,6 +135,7 @@ export default function Clientes() {
     endereco: '',
     cidade: '',
     estado: '',
+    data_entrada: '',
     sistemasSelecionados: [] as string[], // nomes dos sistemas
   });
 
