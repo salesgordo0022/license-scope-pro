@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
-import { Plus, Search, Filter, MoreHorizontal, Mail, Phone, Edit, Trash2, DollarSign, FileText, Loader2, MessageCircle, Users, Download, Tag } from 'lucide-react';
+import { Plus, Search, Filter, MoreHorizontal, Mail, Phone, Edit, Trash2, DollarSign, FileText, Loader2, MessageCircle, Users, Download, Tag, Monitor } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
