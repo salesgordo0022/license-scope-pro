@@ -237,6 +237,7 @@ export default function Clientes() {
       endereco: '',
       cidade: '',
       estado: '',
+      data_entrada: '',
       sistemasSelecionados: [],
     });
   };
@@ -396,6 +397,7 @@ export default function Clientes() {
       endereco: (cliente as any).endereco || '',
       cidade: (cliente as any).cidade || '',
       estado: (cliente as any).estado || '',
+      data_entrada: (cliente as any).data_entrada || '',
       sistemasSelecionados: sistemasAtuais,
     });
     setDialogOpen(true);
