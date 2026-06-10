@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
-import { Plus, Search, Filter, MoreHorizontal, Mail, Phone, Edit, Trash2, DollarSign, FileText, Loader2, MessageCircle, Users, Download, Tag } from 'lucide-react';
+import { Plus, Search, Filter, MoreHorizontal, Mail, Phone, Edit, Trash2, DollarSign, FileText, Loader2, MessageCircle, Users, Download, Tag, Monitor } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -67,6 +67,7 @@ export default function Clientes() {
   const [filterSegmento, setFilterSegmento] = useState<string>('all');
   const [filterGrupo, setFilterGrupo] = useState<string>('all');
   const [filterStatus, setFilterStatus] = useState<string>('ativo');
+  const [filterSistema, setFilterSistema] = useState<string>('all');
   const [sistemasPorCliente, setSistemasPorCliente] = useState<Record<string, string[]>>({});
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingCliente, setEditingCliente] = useState<Cliente | null>(null);
@@ -455,7 +456,8 @@ export default function Clientes() {
     const matchesSegmento = filterSegmento === 'all' || cliente.segmento === filterSegmento;
     const matchesGrupo = filterGrupo === 'all' || (cliente as any).grupo_id === filterGrupo;
     const matchesStatus = filterStatus === 'all' || cliente.status === filterStatus;
-    return matchesSearch && matchesSegmento && matchesGrupo && matchesStatus;
+    const matchesSistema = filterSistema === 'all' || (sistemasPorCliente[cliente.id] || []).includes(filterSistema);
+    return matchesSearch && matchesSegmento && matchesGrupo && matchesStatus && matchesSistema;
   });
 
   const getStatusBadge = (status: string | null) => {
@@ -857,6 +859,18 @@ export default function Clientes() {
                   <SelectItem value="ativo">Ativo</SelectItem>
                   <SelectItem value="inativo">Inativo</SelectItem>
                   <SelectItem value="pendente">Pendente</SelectItem>
+                </SelectContent>
+              </Select>
+              <Select value={filterSistema} onValueChange={setFilterSistema}>
+                <SelectTrigger className="w-full sm:w-[180px]">
+                  <Monitor className="mr-2 h-4 w-4" />
+                  <SelectValue placeholder="Sistema" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todos sistemas</SelectItem>
+                  {sistemas.map((sis) => (
+                    <SelectItem key={sis.id} value={sis.nome}>{sis.nome}</SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>
