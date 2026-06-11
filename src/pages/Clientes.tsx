@@ -741,7 +741,7 @@ export default function Clientes() {
                       id="estado"
                       value={formData.estado}
                       onChange={(e) => setFormData({ ...formData, estado: e.target.value })}
-                      placeholder="Ex: SP"
+                      placeholder="Ex: MA"
                       maxLength={2}
                     />
                   </div>
