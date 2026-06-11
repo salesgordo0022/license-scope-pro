@@ -572,7 +572,7 @@ export default function Contratos() {
           <strong>{nomeContratante}</strong>
           {contrato.contratante_endereco && <>, com sede na {contrato.contratante_endereco}</>}
           {contrato.contratante_cidade && <>, cidade de {contrato.contratante_cidade}</>}
-          {contrato.contratante_estado && <>, Estado de {contrato.contratante_estado}</>}
+          {contrato.contratante_estado && <>, {contrato.contratante_estado}</>}
           {contrato.contratante_cnpj && <>, inscrita no CNPJ/MF sob o nº <strong>{contrato.contratante_cnpj}</strong></>}
           , adiante denominado simplesmente <strong>CONTRATANTE</strong>.
         </p>
@@ -1152,11 +1152,11 @@ export default function Contratos() {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label>Cidade</Label>
-                  <Input value={config.contratado_cidade} onChange={(e) => setConfig({ ...config, contratado_cidade: e.target.value })} placeholder="São Paulo" />
+                  <Input value={config.contratado_cidade} onChange={(e) => setConfig({ ...config, contratado_cidade: e.target.value })} placeholder="São Luís" />
                 </div>
                 <div className="space-y-2">
                   <Label>Estado</Label>
-                  <Input value={config.contratado_estado} onChange={(e) => setConfig({ ...config, contratado_estado: e.target.value })} placeholder="SP" />
+                  <Input value={config.contratado_estado} onChange={(e) => setConfig({ ...config, contratado_estado: e.target.value })} placeholder="MA" />
                 </div>
               </div>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -1207,7 +1207,7 @@ export default function Contratos() {
                 </div>
                 <div className="space-y-2">
                   <Label>Foro / Comarca</Label>
-                  <Input value={config.foro_comarca} onChange={(e) => setConfig({ ...config, foro_comarca: e.target.value })} placeholder="São Paulo/SP" />
+                  <Input value={config.foro_comarca} onChange={(e) => setConfig({ ...config, foro_comarca: e.target.value })} placeholder="São Luís/MA" />
                 </div>
               </div>
               <div className="space-y-2">
