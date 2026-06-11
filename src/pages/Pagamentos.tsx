@@ -63,7 +63,6 @@ interface Cliente {
 
 const tiposPagamento = [
   { value: 'mensalidade', label: 'Mensalidade' },
-  { value: 'implantacao', label: 'Implantação' },
   { value: 'avulso', label: 'Avulso' },
 ];
 
@@ -174,8 +173,6 @@ export default function Pagamentos() {
       let valor = 0;
       if (formData.tipo === 'mensalidade') {
         valor = Number(cliente.valor_mensalidade) || 0;
-      } else if (formData.tipo === 'implantacao') {
-        valor = Number(cliente.valor_implantacao) || 0;
       }
       setFormData({
         ...formData,
@@ -194,8 +191,6 @@ export default function Pagamentos() {
     if (cliente) {
       if (tipo === 'mensalidade') {
         valor = Number(cliente.valor_mensalidade) || 0;
-      } else if (tipo === 'implantacao') {
-        valor = Number(cliente.valor_implantacao) || 0;
       }
     }
     setFormData({ ...formData, tipo, valor });
@@ -442,7 +437,7 @@ export default function Pagamentos() {
       >
         <div className="page-header">
           <h1 className="page-title">Pagamentos</h1>
-          <p className="page-description">Controle financeiro de mensalidades e implantações</p>
+          <p className="page-description">Controle financeiro de mensalidades</p>
         </div>
 
         {isAdmin && (
