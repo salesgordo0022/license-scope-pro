@@ -742,7 +742,7 @@ export default function Contratos() {
           <div className="grid grid-cols-2 gap-20 mb-20 relative">
             <div className="text-center">
               <div className="border-t border-black pt-2 mx-4 relative">
-                {contrato.assinado && contrato.is_digital_sign && (
+                {contrato.assinado && (
                   <div className="absolute -top-16 left-1/2 -translate-x-1/2 pointer-events-none">
                     <div className="flex flex-col items-center">
                       <ShieldCheck className="h-10 w-10 text-success mb-1" />
@@ -758,7 +758,7 @@ export default function Contratos() {
             </div>
             <div className="text-center">
               <div className="border-t border-black pt-2 mx-4 relative">
-                {contrato.assinado && contrato.is_digital_sign && (
+                {contrato.assinado && (
                   <div className="absolute -top-16 left-1/2 -translate-x-1/2 pointer-events-none">
                     <div className="flex flex-col items-center">
                       <ShieldCheck className="h-10 w-10 text-success mb-1" />
