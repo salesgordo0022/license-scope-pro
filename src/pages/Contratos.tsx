@@ -749,6 +749,11 @@ export default function Contratos() {
                       <div className="bg-success/10 border border-success/30 rounded px-2 py-1 text-[10px] text-success font-bold uppercase whitespace-nowrap">
                         Assinado Digitalmente
                       </div>
+                      {contrato.data_assinatura && (
+                        <div className="text-[8px] text-muted-foreground mt-0.5">
+                          {new Date(contrato.data_assinatura).toLocaleString('pt-BR')}
+                        </div>
+                      )}
                     </div>
                   </div>
                 )}
@@ -1312,6 +1317,11 @@ export default function Contratos() {
                       <CheckCircle className="mr-2 h-4 w-4" /> Marcar Assinado
                     </Button>
                   </div>
+                )}
+                {viewingContrato.assinado && (
+                  <Badge className="bg-success/10 text-success border-success/30 hover:bg-success/20">
+                    <ShieldCheck className="mr-1.5 h-3.5 w-3.5" /> Assinado em {new Date(viewingContrato.data_assinatura || '').toLocaleString('pt-BR')}
+                  </Badge>
                 )}
               </div>
               <div className="flex-1 overflow-auto border border-gray-100 rounded-lg p-4 bg-muted/10">
