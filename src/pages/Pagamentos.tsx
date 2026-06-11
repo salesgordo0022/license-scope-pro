@@ -465,7 +465,10 @@ export default function Pagamentos() {
                   <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-2">
                       <Label>Mês de Referência</Label>
-                      <Select defaultValue={String(new Date().getMonth() + 1)} id="batch-month">
+                      <Select 
+                        value={String(batchConfig.mes)} 
+                        onValueChange={(v) => setBatchConfig(prev => ({ ...prev, mes: parseInt(v) }))}
+                      >
                         <SelectTrigger>
                           <SelectValue />
                         </SelectTrigger>
@@ -478,7 +481,10 @@ export default function Pagamentos() {
                     </div>
                     <div className="space-y-2">
                       <Label>Ano de Referência</Label>
-                      <Select defaultValue={String(new Date().getFullYear())} id="batch-year">
+                      <Select 
+                        value={String(batchConfig.ano)} 
+                        onValueChange={(v) => setBatchConfig(prev => ({ ...prev, ano: parseInt(v) }))}
+                      >
                         <SelectTrigger>
                           <SelectValue />
                         </SelectTrigger>
@@ -492,18 +498,19 @@ export default function Pagamentos() {
                   </div>
                   <div className="space-y-2">
                     <Label>Dia de Vencimento</Label>
-                    <Input type="number" min="1" max="31" defaultValue="10" id="batch-day" />
+                    <Input 
+                      type="number" 
+                      min="1" 
+                      max="31" 
+                      value={batchConfig.dia} 
+                      onChange={(e) => setBatchConfig(prev => ({ ...prev, dia: parseInt(e.target.value) || 1 }))}
+                    />
                     <p className="text-xs text-muted-foreground">O sistema criará apenas pagamentos que ainda não existem para o mês/ano selecionado.</p>
                   </div>
                 </div>
                 <div className="flex justify-end gap-3">
                   <Button variant="outline" onClick={() => setBatchDialogOpen(false)}>Cancelar</Button>
-                  <Button onClick={() => {
-                    const mes = parseInt((document.getElementById('batch-month') as any)?.value || new Date().getMonth() + 1);
-                    const ano = parseInt((document.getElementById('batch-year') as any)?.value || new Date().getFullYear());
-                    const dia = parseInt((document.getElementById('batch-day') as any)?.value || 10);
-                    handleBatchGenerate(mes, ano, dia);
-                  }}>Gerar Agora</Button>
+                  <Button onClick={() => handleBatchGenerate(batchConfig.mes, batchConfig.ano, batchConfig.dia)}>Gerar Agora</Button>
                 </div>
               </DialogContent>
             </Dialog>
