@@ -863,8 +863,16 @@ export default function Pagamentos() {
             <div className="overflow-x-auto">
               <table className="data-table">
                 <thead>
-                  <tr>
-                    <th>Cliente</th>
+                  <tr className="bg-muted/50 border-b">
+                    <th className="w-10 px-4 py-3">
+                      <input 
+                        type="checkbox" 
+                        className="rounded border-gray-300 h-4 w-4"
+                        checked={filteredPagamentos.length > 0 && selectedPagamentos.length === filteredPagamentos.length}
+                        onChange={toggleSelectAll}
+                      />
+                    </th>
+                    <th className="text-left py-3 px-2">Cliente</th>
                     <th>Tipo</th>
                     <th>Referência</th>
                     <th>Valor</th>
