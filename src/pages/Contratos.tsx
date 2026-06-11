@@ -61,6 +61,7 @@ interface Contrato {
   data_assinatura: string | null;
   observacoes: string | null;
   link_documento: string | null;
+  is_digital_sign?: boolean | null;
   created_at: string | null;
 }
 
@@ -386,7 +387,7 @@ export default function Contratos() {
   const handleAssinar = async (id: string) => {
     try {
       const { error } = await supabase.from('contratos')
-        .update({ assinado: true, data_assinatura: new Date().toISOString() })
+        .update({ assinado: true, data_assinatura: new Date().toISOString(), is_digital_sign: false })
         .eq('id', id);
       if (error) throw error;
       toast.success('Contrato assinado!'); fetchData();
@@ -415,6 +416,7 @@ export default function Contratos() {
         .update({ 
           assinado: true, 
           data_assinatura: new Date().toISOString(),
+          is_digital_sign: true,
           observacoes: (viewingContrato.observacoes || '') + '\n[Assinado Digitalmente via Certificado A1]'
         })
         .eq('id', viewingContrato.id);
@@ -740,7 +742,7 @@ export default function Contratos() {
           <div className="grid grid-cols-2 gap-20 mb-20 relative">
             <div className="text-center">
               <div className="border-t border-black pt-2 mx-4 relative">
-                {contrato.assinado && (
+                {contrato.assinado && contrato.is_digital_sign && (
                   <div className="absolute -top-16 left-1/2 -translate-x-1/2 pointer-events-none">
                     <div className="flex flex-col items-center">
                       <ShieldCheck className="h-10 w-10 text-success mb-1" />
@@ -756,7 +758,7 @@ export default function Contratos() {
             </div>
             <div className="text-center">
               <div className="border-t border-black pt-2 mx-4 relative">
-                {contrato.assinado && (
+                {contrato.assinado && contrato.is_digital_sign && (
                   <div className="absolute -top-16 left-1/2 -translate-x-1/2 pointer-events-none">
                     <div className="flex flex-col items-center">
                       <ShieldCheck className="h-10 w-10 text-success mb-1" />
