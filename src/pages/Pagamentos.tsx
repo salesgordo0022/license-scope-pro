@@ -100,6 +100,12 @@ export default function Pagamentos() {
   const [filterMes, setFilterMes] = useState<number>(new Date().getMonth() + 1);
   const [filterAno, setFilterAno] = useState<number>(new Date().getFullYear());
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [batchDialogOpen, setBatchDialogOpen] = useState(false);
+  const [batchConfig, setBatchConfig] = useState({
+    mes: new Date().getMonth() + 1,
+    ano: new Date().getFullYear(),
+    dia: 10
+  });
   const [editingPagamento, setEditingPagamento] = useState<Pagamento | null>(null);
 
   const currentYear = new Date().getFullYear();
@@ -321,6 +327,81 @@ export default function Pagamentos() {
     }
   };
 
+  const handleBatchGenerate = async (mes: number, ano: number, diaVencimento: number) => {
+    try {
+      setLoading(true);
+      
+      // Obter clientes ativos com mensalidade > 0
+      const { data: activeClients, error: clientsError } = await supabase
+        .from('clientes')
+        .select('*')
+        .eq('status', 'ativo')
+        .gt('valor_mensalidade', 0);
+
+      if (clientsError) throw clientsError;
+
+      if (!activeClients || activeClients.length === 0) {
+        toast.info('Nenhum cliente ativo com mensalidade configurada encontrado.');
+        return;
+      }
+
+      // Obter pagamentos já existentes para este mês/ano/tipo mensalidade
+      const { data: existingPayments, error: paymentsError } = await supabase
+        .from('pagamentos')
+        .select('cliente_id')
+        .eq('tipo', 'mensalidade')
+        .eq('referencia_mes', mes)
+        .eq('referencia_ano', ano);
+
+      if (paymentsError) throw paymentsError;
+
+      const existingClientIds = new Set(existingPayments?.map(p => p.cliente_id) || []);
+      
+      const clientsToGenerate = activeClients.filter(c => !existingClientIds.has(c.id));
+
+      if (clientsToGenerate.length === 0) {
+        toast.info('Todos os pagamentos para este mês já foram gerados.');
+        return;
+      }
+
+      // Preparar inserts
+      const vDate = new Date(ano, mes - 1, diaVencimento);
+      const formattedVDate = vDate.toISOString().split('T')[0];
+
+      const inserts = clientsToGenerate.map(cliente => {
+        const valor = Number(cliente.valor_mensalidade) || 0;
+        const desconto = Number(cliente.desconto_percentual) || 0;
+        const valorFinal = valor - (valor * desconto / 100);
+
+        return {
+          empresa_id: cliente.empresa_id,
+          cliente_id: cliente.id,
+          tipo: 'mensalidade',
+          valor,
+          desconto,
+          valor_final: valorFinal,
+          data_vencimento: formattedVDate,
+          status: 'pendente',
+          referencia_mes: mes,
+          referencia_ano: ano,
+        };
+      });
+
+      const { error: insertError } = await supabase.from('pagamentos').insert(inserts);
+
+      if (insertError) throw insertError;
+
+      toast.success(`${inserts.length} pagamentos gerados com sucesso!`);
+      setBatchDialogOpen(false);
+      fetchData();
+    } catch (error: any) {
+      console.error('Error generating batch payments:', error);
+      toast.error(error.message || 'Erro ao gerar pagamentos em lote');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const filteredPagamentos = pagamentos.filter((pagamento) => {
     const matchesSearch = !searchTerm || pagamento.clientes?.nome_empresa?.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesStatus = filterStatus === 'all' || pagamento.status === filterStatus;
@@ -365,13 +446,82 @@ export default function Pagamentos() {
         </div>
 
         {isAdmin && (
-          <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-            <DialogTrigger asChild>
-              <Button onClick={() => { setEditingPagamento(null); resetForm(); }}>
-                <Plus className="mr-2 h-4 w-4" />
-                Novo Pagamento
-              </Button>
-            </DialogTrigger>
+          <div className="flex gap-2">
+            <Dialog open={batchDialogOpen} onOpenChange={setBatchDialogOpen}>
+              <DialogTrigger asChild>
+                <Button variant="outline">
+                  <DollarSign className="mr-2 h-4 w-4" />
+                  Gerar Mensalidades
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="sm:max-w-[425px]">
+                <DialogHeader>
+                  <DialogTitle>Gerar Mensalidades em Lote</DialogTitle>
+                  <DialogDescription>
+                    Gera automaticamente cobranças de mensalidade para todos os clientes ativos com base no valor configurado em seus perfis.
+                  </DialogDescription>
+                </DialogHeader>
+                <div className="space-y-4 py-4">
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label>Mês de Referência</Label>
+                      <Select 
+                        value={String(batchConfig.mes)} 
+                        onValueChange={(v) => setBatchConfig(prev => ({ ...prev, mes: parseInt(v) }))}
+                      >
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {meses.map((mes) => (
+                            <SelectItem key={mes.value} value={String(mes.value)}>{mes.label}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Ano de Referência</Label>
+                      <Select 
+                        value={String(batchConfig.ano)} 
+                        onValueChange={(v) => setBatchConfig(prev => ({ ...prev, ano: parseInt(v) }))}
+                      >
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {anos.map((ano) => (
+                            <SelectItem key={ano} value={String(ano)}>{ano}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Dia de Vencimento</Label>
+                    <Input 
+                      type="number" 
+                      min="1" 
+                      max="31" 
+                      value={batchConfig.dia} 
+                      onChange={(e) => setBatchConfig(prev => ({ ...prev, dia: parseInt(e.target.value) || 1 }))}
+                    />
+                    <p className="text-xs text-muted-foreground">O sistema criará apenas pagamentos que ainda não existem para o mês/ano selecionado.</p>
+                  </div>
+                </div>
+                <div className="flex justify-end gap-3">
+                  <Button variant="outline" onClick={() => setBatchDialogOpen(false)}>Cancelar</Button>
+                  <Button onClick={() => handleBatchGenerate(batchConfig.mes, batchConfig.ano, batchConfig.dia)}>Gerar Agora</Button>
+                </div>
+              </DialogContent>
+            </Dialog>
+
+            <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+              <DialogTrigger asChild>
+                <Button onClick={() => { setEditingPagamento(null); resetForm(); }}>
+                  <Plus className="mr-2 h-4 w-4" />
+                  Novo Pagamento
+                </Button>
+              </DialogTrigger>
             <DialogContent className="sm:max-w-[550px] max-h-[90vh] overflow-y-auto">
               <DialogHeader>
                 <DialogTitle>{editingPagamento ? 'Editar Pagamento' : 'Novo Pagamento'}</DialogTitle>
@@ -546,7 +696,8 @@ export default function Pagamentos() {
                 </div>
               </form>
             </DialogContent>
-          </Dialog>
+            </Dialog>
+          </div>
         )}
       </motion.div>
 
