@@ -685,9 +685,9 @@ export default function Contratos() {
           </section>
 
 
-          {/* CLÁUSULA NONA */}
+          {/* CLÁUSULA OITAVA */}
           <section className="relative z-10">
-            <h2 className="font-bold uppercase text-base mb-3 text-black border-b border-gray-100 pb-1">Cláusula Nona — Aspectos Trabalhistas</h2>
+            <h2 className="font-bold uppercase text-base mb-3 text-black border-b border-gray-100 pb-1">Cláusula Oitava — Aspectos Trabalhistas</h2>
             <p className="text-justify indent-10">
               <strong>9.1.</strong> O CONTRATADO é a única responsável pelo contrato de trabalho da pessoa designada por ela para a prestação dos serviços, responsabilizando-se pela gerência das atividades de seu empregado e/ou preposto, bem como responder por atos, omissões e/ou infrações por eles cometidos. Não podendo ser arguida solidariedade do CONTRATANTE, nem mesmo responsabilidade subsidiária nas relações trabalhistas relacionadas aos serviços prestados pelo CONTRATADO, a qual declara, ainda, não existir nenhum vínculo empregatício entre o CONTRATANTE e as pessoas designadas pelo CONTRATADO para a prestação dos serviços.
             </p>
