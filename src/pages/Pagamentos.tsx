@@ -331,49 +331,66 @@ export default function Pagamentos() {
     try {
       setLoading(true);
       
-      // Obter clientes ativos com mensalidade > 0
+      // Obter clientes ativos
       const { data: activeClients, error: clientsError } = await supabase
         .from('clientes')
         .select('*')
-        .eq('status', 'ativo')
-        .gt('valor_mensalidade', 0);
+        .eq('status', 'ativo');
 
       if (clientsError) throw clientsError;
 
       if (!activeClients || activeClients.length === 0) {
-        toast.info('Nenhum cliente ativo com mensalidade configurada encontrado.');
+        toast.info('Nenhum cliente ativo encontrado.');
         return;
       }
 
-      // Obter pagamentos já existentes para este mês/ano/tipo mensalidade
-      const { data: existingPayments, error: paymentsError } = await supabase
+      // 1. GERAR MENSALIDADES
+      // Obter pagamentos de mensalidade já existentes para este mês/ano
+      const { data: existingMensalidades, error: mensalidadesError } = await supabase
         .from('pagamentos')
         .select('cliente_id')
         .eq('tipo', 'mensalidade')
         .eq('referencia_mes', mes)
         .eq('referencia_ano', ano);
 
-      if (paymentsError) throw paymentsError;
+      if (mensalidadesError) throw mensalidadesError;
 
-      const existingClientIds = new Set(existingPayments?.map(p => p.cliente_id) || []);
+      const existingMensalidadeClientIds = new Set(existingMensalidades?.map(p => p.cliente_id) || []);
       
-      const clientsToGenerate = activeClients.filter(c => !existingClientIds.has(c.id));
+      // Clientes ativos que têm valor_mensalidade > 0 e ainda não têm mensalidade gerada
+      const clientsForMensalidade = activeClients.filter(c => 
+        (Number(c.valor_mensalidade) || 0) > 0 && !existingMensalidadeClientIds.has(c.id)
+      );
 
-      if (clientsToGenerate.length === 0) {
-        toast.info('Todos os pagamentos para este mês já foram gerados.');
-        return;
-      }
+      // 2. GERAR IMPLANTAÇÕES
+      // Obter pagamentos de implantação já existentes (implantação geralmente é única ou específica, 
+      // mas vamos verificar se já existe algum pagamento do tipo 'implantacao' para o cliente)
+      const { data: existingImplantacoes, error: implantacoesError } = await supabase
+        .from('pagamentos')
+        .select('cliente_id')
+        .eq('tipo', 'implantacao');
 
-      // Preparar inserts
+      if (implantacoesError) throw implantacoesError;
+
+      const existingImplantacaoClientIds = new Set(existingImplantacoes?.map(p => p.cliente_id) || []);
+
+      // Clientes ativos que têm valor_implantacao > 0 e ainda não têm implantação gerada
+      const clientsForImplantacao = activeClients.filter(c => 
+        (Number(c.valor_implantacao) || 0) > 0 && !existingImplantacaoClientIds.has(c.id)
+      );
+
       const vDate = new Date(ano, mes - 1, diaVencimento);
       const formattedVDate = vDate.toISOString().split('T')[0];
 
-      const inserts = clientsToGenerate.map(cliente => {
+      const inserts: any[] = [];
+
+      // Adicionar mensalidades
+      clientsForMensalidade.forEach(cliente => {
         const valor = Number(cliente.valor_mensalidade) || 0;
         const desconto = Number(cliente.desconto_percentual) || 0;
         const valorFinal = valor - (valor * desconto / 100);
 
-        return {
+        inserts.push({
           empresa_id: cliente.empresa_id,
           cliente_id: cliente.id,
           tipo: 'mensalidade',
@@ -384,14 +401,40 @@ export default function Pagamentos() {
           status: 'pendente',
           referencia_mes: mes,
           referencia_ano: ano,
-        };
+        });
       });
+
+      // Adicionar implantações
+      clientsForImplantacao.forEach(cliente => {
+        const valor = Number(cliente.valor_implantacao) || 0;
+        // Para implantação, geralmente não aplicamos o desconto recorrente da mensalidade, 
+        // mas se necessário poderíamos ajustar. Aqui usaremos o valor cheio.
+        const valorFinal = valor; 
+
+        inserts.push({
+          empresa_id: cliente.empresa_id,
+          cliente_id: cliente.id,
+          tipo: 'implantacao',
+          valor,
+          desconto: 0,
+          valor_final: valorFinal,
+          data_vencimento: formattedVDate,
+          status: 'pendente',
+          referencia_mes: mes,
+          referencia_ano: ano,
+        });
+      });
+
+      if (inserts.length === 0) {
+        toast.info('Não há novas mensalidades ou implantações para gerar.');
+        return;
+      }
 
       const { error: insertError } = await supabase.from('pagamentos').insert(inserts);
 
       if (insertError) throw insertError;
 
-      toast.success(`${inserts.length} pagamentos gerados com sucesso!`);
+      toast.success(`${inserts.length} cobranças (mensalidades e/ou implantações) geradas com sucesso!`);
       setBatchDialogOpen(false);
       fetchData();
     } catch (error: any) {
@@ -451,14 +494,14 @@ export default function Pagamentos() {
               <DialogTrigger asChild>
                 <Button variant="outline">
                   <DollarSign className="mr-2 h-4 w-4" />
-                  Gerar Mensalidades
+                  Gerar Pagamentos
                 </Button>
               </DialogTrigger>
               <DialogContent className="sm:max-w-[425px]">
                 <DialogHeader>
-                  <DialogTitle>Gerar Mensalidades em Lote</DialogTitle>
+                  <DialogTitle>Gerar Pagamentos em Lote</DialogTitle>
                   <DialogDescription>
-                    Gera automaticamente cobranças de mensalidade para todos os clientes ativos com base no valor configurado em seus perfis.
+                    Gera automaticamente cobranças de mensalidade e implantação para todos os clientes ativos com base nos valores configurados.
                   </DialogDescription>
                 </DialogHeader>
                 <div className="space-y-4 py-4">
