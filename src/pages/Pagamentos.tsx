@@ -451,14 +451,14 @@ export default function Pagamentos() {
               <DialogTrigger asChild>
                 <Button variant="outline">
                   <DollarSign className="mr-2 h-4 w-4" />
-                  Gerar Pagamentos
+                  Gerar Mensalidades
                 </Button>
               </DialogTrigger>
               <DialogContent className="sm:max-w-[425px]">
                 <DialogHeader>
-                  <DialogTitle>Gerar Pagamentos em Lote</DialogTitle>
+                  <DialogTitle>Gerar Mensalidades em Lote</DialogTitle>
                   <DialogDescription>
-                    Gera automaticamente cobranças de mensalidade e implantação para todos os clientes ativos com base nos valores configurados.
+                    Gera automaticamente cobranças de mensalidade para todos os clientes ativos com base no valor configurado em seus perfis.
                   </DialogDescription>
                 </DialogHeader>
                 <div className="space-y-4 py-4">
