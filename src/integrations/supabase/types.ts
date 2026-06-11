@@ -955,6 +955,7 @@ export type Database = {
       sistemas: {
         Row: {
           ativo: boolean | null
+          cor: string | null
           created_at: string
           descricao: string | null
           id: string
@@ -962,6 +963,7 @@ export type Database = {
         }
         Insert: {
           ativo?: boolean | null
+          cor?: string | null
           created_at?: string
           descricao?: string | null
           id?: string
@@ -969,6 +971,7 @@ export type Database = {
         }
         Update: {
           ativo?: boolean | null
+          cor?: string | null
           created_at?: string
           descricao?: string | null
           id?: string

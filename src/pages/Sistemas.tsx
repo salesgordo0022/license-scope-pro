@@ -22,6 +22,7 @@ interface Sistema {
   id: string;
   nome: string;
   descricao: string | null;
+  cor: string | null;
   ativo: boolean;
   created_at: string;
 }
@@ -35,6 +36,7 @@ export default function Sistemas() {
   const [formData, setFormData] = useState({
     nome: '',
     descricao: '',
+    cor: '#3b82f6',
     ativo: true,
   });
   const { toast } = useToast();
@@ -73,6 +75,7 @@ export default function Sistemas() {
           .update({
             nome: formData.nome,
             descricao: formData.descricao || null,
+            cor: formData.cor,
             ativo: formData.ativo,
           })
           .eq('id', editingSistema.id);
@@ -84,6 +87,7 @@ export default function Sistemas() {
         const { error } = await supabase.from('sistemas').insert({
           nome: formData.nome,
           descricao: formData.descricao || null,
+          cor: formData.cor,
           ativo: formData.ativo,
         });
 
@@ -94,7 +98,7 @@ export default function Sistemas() {
 
       setIsDialogOpen(false);
       setEditingSistema(null);
-      setFormData({ nome: '', descricao: '', ativo: true });
+      setFormData({ nome: '', descricao: '', cor: '#3b82f6', ativo: true });
       fetchSistemas();
     } catch (error: any) {
       toast({
@@ -110,6 +114,7 @@ export default function Sistemas() {
     setFormData({
       nome: sistema.nome,
       descricao: sistema.descricao || '',
+      cor: sistema.cor || '#3b82f6',
       ativo: sistema.ativo,
     });
     setIsDialogOpen(true);
@@ -159,7 +164,7 @@ export default function Sistemas() {
             <Button
               onClick={() => {
                 setEditingSistema(null);
-                setFormData({ nome: '', descricao: '', ativo: true });
+                setFormData({ nome: '', descricao: '', cor: '#3b82f6', ativo: true });
               }}
             >
               <Plus className="mr-2 h-4 w-4" />
@@ -195,6 +200,29 @@ export default function Sistemas() {
                   }
                   rows={3}
                 />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="cor">Cor do Sistema</Label>
+                <div className="flex gap-2 items-center">
+                  <Input
+                    id="cor"
+                    type="color"
+                    value={formData.cor}
+                    onChange={(e) =>
+                      setFormData({ ...formData, cor: e.target.value })
+                    }
+                    className="h-10 w-20 p-1 cursor-pointer"
+                  />
+                  <Input
+                    value={formData.cor}
+                    onChange={(e) =>
+                      setFormData({ ...formData, cor: e.target.value })
+                    }
+                    className="flex-1"
+                    placeholder="#000000"
+                  />
+                </div>
               </div>
 
               <div className="flex items-center space-x-2">
@@ -244,23 +272,24 @@ export default function Sistemas() {
             <table className="w-full">
               <thead>
                 <tr className="border-b text-left text-sm text-muted-foreground">
-                  <th className="pb-3 font-medium">Nome</th>
-                  <th className="pb-3 font-medium">Descrição</th>
-                  <th className="pb-3 font-medium">Status</th>
-                  <th className="pb-3 font-medium">Ações</th>
+                   <th className="pb-3 font-medium">Cor</th>
+                   <th className="pb-3 font-medium">Nome</th>
+                   <th className="pb-3 font-medium">Descrição</th>
+                   <th className="pb-3 font-medium">Status</th>
+                   <th className="pb-3 font-medium">Ações</th>
                 </tr>
               </thead>
               <tbody>
                 {loading ? (
                   <tr>
-                    <td colSpan={4} className="py-8 text-center">
+                    <td colSpan={5} className="py-8 text-center">
                       <TetrisLoading size="sm" speed="fast" loadingText="Carregando..." />
                     </td>
                   </tr>
                 ) : filteredSistemas.length === 0 ? (
                   <tr>
                     <td
-                      colSpan={4}
+                      colSpan={5}
                       className="py-8 text-center text-muted-foreground"
                     >
                       <Monitor className="mx-auto mb-2 h-8 w-8 opacity-50" />
@@ -273,6 +302,13 @@ export default function Sistemas() {
                       key={sistema.id}
                       className="border-b last:border-0 hover:bg-muted/50"
                     >
+                      <td className="py-3">
+                        <div 
+                          className="h-6 w-6 rounded-full border border-border"
+                          style={{ backgroundColor: sistema.cor || '#3b82f6' }}
+                          title={sistema.cor || '#3b82f6'}
+                        />
+                      </td>
                       <td className="py-3 font-medium">{sistema.nome}</td>
                       <td className="py-3 text-muted-foreground">
                         {sistema.descricao || '-'}
@@ -314,7 +350,7 @@ export default function Sistemas() {
               {!loading && filteredSistemas.length > 0 && (
                 <tfoot>
                   <tr className="bg-muted/50 font-semibold border-t-2">
-                    <td colSpan={4} className="py-3">
+                    <td colSpan={5} className="py-3">
                       Total: {filteredSistemas.length} sistemas
                     </td>
                   </tr>
