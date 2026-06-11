@@ -101,6 +101,11 @@ export default function Pagamentos() {
   const [filterAno, setFilterAno] = useState<number>(new Date().getFullYear());
   const [dialogOpen, setDialogOpen] = useState(false);
   const [batchDialogOpen, setBatchDialogOpen] = useState(false);
+  const [batchConfig, setBatchConfig] = useState({
+    mes: new Date().getMonth() + 1,
+    ano: new Date().getFullYear(),
+    dia: 10
+  });
   const [editingPagamento, setEditingPagamento] = useState<Pagamento | null>(null);
 
   const currentYear = new Date().getFullYear();
