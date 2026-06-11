@@ -214,6 +214,7 @@ export type Database = {
           data_inicio: string
           empresa_id: string | null
           id: string
+          is_digital_sign: boolean | null
           link_documento: string | null
           numero_contrato: string | null
           observacoes: string | null
@@ -240,6 +241,7 @@ export type Database = {
           data_inicio?: string
           empresa_id?: string | null
           id?: string
+          is_digital_sign?: boolean | null
           link_documento?: string | null
           numero_contrato?: string | null
           observacoes?: string | null
@@ -266,6 +268,7 @@ export type Database = {
           data_inicio?: string
           empresa_id?: string | null
           id?: string
+          is_digital_sign?: boolean | null
           link_documento?: string | null
           numero_contrato?: string | null
           observacoes?: string | null
