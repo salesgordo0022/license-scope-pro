@@ -684,20 +684,6 @@ export default function Contratos() {
             </div>
           </section>
 
-          {/* CLÁUSULA OITAVA */}
-          <section className="relative z-10">
-            <h2 className="font-bold uppercase text-base mb-3 text-black border-b border-gray-100 pb-1">Cláusula Oitava — Outras Soluções</h2>
-            <p className="text-justify indent-10 mb-2">
-              <strong>8.1.</strong> O CONTRATANTE poderá demandar e usufruir de outros serviços fornecidos pelo CONTRATADO, conforme abaixo:
-            </p>
-            <div className="ml-14 space-y-2">
-              <p className="text-justify">a) Desenvolvimento do portal Web Site com hospedagem na nossa estrutura;</p>
-              <p className="text-justify">b) Backup do banco de dados do servidor principal do Licenciado, em nuvem;</p>
-              <p className="text-justify">c) Criação de páginas do Facebook – FanPage;</p>
-              <p className="text-justify">d) Criação e Gestão de conteúdos para o Site e redes sociais;</p>
-              <p className="text-justify">e) Assessoria na Gestão do Relacionamento com o mercado e na gestão de vendas;</p>
-            </div>
-          </section>
 
           {/* CLÁUSULA NONA */}
           <section className="relative z-10">
