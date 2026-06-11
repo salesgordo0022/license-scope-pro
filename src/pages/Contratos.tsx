@@ -684,34 +684,20 @@ export default function Contratos() {
             </div>
           </section>
 
+
           {/* CLÁUSULA OITAVA */}
           <section className="relative z-10">
-            <h2 className="font-bold uppercase text-base mb-3 text-black border-b border-gray-100 pb-1">Cláusula Oitava — Outras Soluções</h2>
-            <p className="text-justify indent-10 mb-2">
-              <strong>8.1.</strong> O CONTRATANTE poderá demandar e usufruir de outros serviços fornecidos pelo CONTRATADO, conforme abaixo:
+            <h2 className="font-bold uppercase text-base mb-3 text-black border-b border-gray-100 pb-1">Cláusula Oitava — Aspectos Trabalhistas</h2>
+            <p className="text-justify indent-10">
+              <strong>8.1.</strong> O CONTRATADO é a única responsável pelo contrato de trabalho da pessoa designada por ela para a prestação dos serviços, responsabilizando-se pela gerência das atividades de seu empregado e/ou preposto, bem como responder por atos, omissões e/ou infrações por eles cometidos. Não podendo ser arguida solidariedade do CONTRATANTE, nem mesmo responsabilidade subsidiária nas relações trabalhistas relacionadas aos serviços prestados pelo CONTRATADO, a qual declara, ainda, não existir nenhum vínculo empregatício entre o CONTRATANTE e as pessoas designadas pelo CONTRATADO para a prestação dos serviços.
             </p>
-            <div className="ml-14 space-y-2">
-              <p className="text-justify">a) Desenvolvimento do portal Web Site com hospedagem na nossa estrutura;</p>
-              <p className="text-justify">b) Backup do banco de dados do servidor principal do Licenciado, em nuvem;</p>
-              <p className="text-justify">c) Criação de páginas do Facebook – FanPage;</p>
-              <p className="text-justify">d) Criação e Gestão de conteúdos para o Site e redes sociais;</p>
-              <p className="text-justify">e) Assessoria na Gestão do Relacionamento com o mercado e na gestão de vendas;</p>
-            </div>
           </section>
 
           {/* CLÁUSULA NONA */}
-          <section className="relative z-10">
-            <h2 className="font-bold uppercase text-base mb-3 text-black border-b border-gray-100 pb-1">Cláusula Nona — Aspectos Trabalhistas</h2>
-            <p className="text-justify indent-10">
-              <strong>9.1.</strong> O CONTRATADO é a única responsável pelo contrato de trabalho da pessoa designada por ela para a prestação dos serviços, responsabilizando-se pela gerência das atividades de seu empregado e/ou preposto, bem como responder por atos, omissões e/ou infrações por eles cometidos. Não podendo ser arguida solidariedade do CONTRATANTE, nem mesmo responsabilidade subsidiária nas relações trabalhistas relacionadas aos serviços prestados pelo CONTRATADO, a qual declara, ainda, não existir nenhum vínculo empregatício entre o CONTRATANTE e as pessoas designadas pelo CONTRATADO para a prestação dos serviços.
-            </p>
-          </section>
-
-          {/* CLÁUSULA DÉCIMA */}
           <section style={{ pageBreakInside: 'avoid' }} className="relative z-10">
-            <h2 className="font-bold uppercase text-base mb-3 text-black border-b border-gray-100 pb-1">Cláusula Décima — Rescisão e Multa</h2>
+            <h2 className="font-bold uppercase text-base mb-3 text-black border-b border-gray-100 pb-1">Cláusula Nona — Rescisão e Multa</h2>
             <p className="text-justify indent-10 mb-2">
-              <strong>10.1.</strong> O presente contrato poderá ser extinto nas seguintes hipóteses:
+              <strong>9.1.</strong> O presente contrato poderá ser extinto nas seguintes hipóteses:
             </p>
             <div className="ml-14 space-y-2">
               <p className="text-justify">a) Por Distrato das partes;</p>
