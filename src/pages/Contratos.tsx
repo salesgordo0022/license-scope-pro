@@ -693,11 +693,11 @@ export default function Contratos() {
             </p>
           </section>
 
-          {/* CLÁUSULA DÉCIMA */}
+          {/* CLÁUSULA NONA */}
           <section style={{ pageBreakInside: 'avoid' }} className="relative z-10">
-            <h2 className="font-bold uppercase text-base mb-3 text-black border-b border-gray-100 pb-1">Cláusula Décima — Rescisão e Multa</h2>
+            <h2 className="font-bold uppercase text-base mb-3 text-black border-b border-gray-100 pb-1">Cláusula Nona — Rescisão e Multa</h2>
             <p className="text-justify indent-10 mb-2">
-              <strong>10.1.</strong> O presente contrato poderá ser extinto nas seguintes hipóteses:
+              <strong>9.1.</strong> O presente contrato poderá ser extinto nas seguintes hipóteses:
             </p>
             <div className="ml-14 space-y-2">
               <p className="text-justify">a) Por Distrato das partes;</p>
