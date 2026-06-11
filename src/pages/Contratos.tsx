@@ -1318,6 +1318,11 @@ export default function Contratos() {
                     </Button>
                   </div>
                 )}
+                {viewingContrato.assinado && (
+                  <Badge className="bg-success/10 text-success border-success/30 hover:bg-success/20">
+                    <ShieldCheck className="mr-1.5 h-3.5 w-3.5" /> Assinado em {new Date(viewingContrato.data_assinatura || '').toLocaleString('pt-BR')}
+                  </Badge>
+                )}
               </div>
               <div className="flex-1 overflow-auto border border-gray-100 rounded-lg p-4 bg-muted/10">
                 <div id="contract-document">
