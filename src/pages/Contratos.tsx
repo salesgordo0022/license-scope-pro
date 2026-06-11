@@ -737,15 +737,40 @@ export default function Contratos() {
             )}
           </div>
 
-          <div className="grid grid-cols-2 gap-20 mb-20">
+          <div className="grid grid-cols-2 gap-20 mb-20 relative">
             <div className="text-center">
-              <div className="border-t border-black pt-2 mx-4">
+              <div className="border-t border-black pt-2 mx-4 relative">
+                {contrato.assinado && (
+                  <div className="absolute -top-16 left-1/2 -translate-x-1/2 pointer-events-none">
+                    <div className="flex flex-col items-center">
+                      <ShieldCheck className="h-10 w-10 text-success mb-1" />
+                      <div className="bg-success/10 border border-success/30 rounded px-2 py-1 text-[10px] text-success font-bold uppercase whitespace-nowrap">
+                        Assinado Digitalmente
+                      </div>
+                    </div>
+                  </div>
+                )}
                 <p className="font-bold uppercase tracking-wider">CONTRATADO</p>
                 <p className="text-sm mt-1">{nomeContratado}</p>
               </div>
             </div>
             <div className="text-center">
-              <div className="border-t border-black pt-2 mx-4">
+              <div className="border-t border-black pt-2 mx-4 relative">
+                {contrato.assinado && (
+                  <div className="absolute -top-16 left-1/2 -translate-x-1/2 pointer-events-none">
+                    <div className="flex flex-col items-center">
+                      <ShieldCheck className="h-10 w-10 text-success mb-1" />
+                      <div className="bg-success/10 border border-success/30 rounded px-2 py-1 text-[10px] text-success font-bold uppercase whitespace-nowrap">
+                        Assinado Digitalmente
+                      </div>
+                      {contrato.data_assinatura && (
+                        <div className="text-[8px] text-muted-foreground mt-0.5">
+                          {new Date(contrato.data_assinatura).toLocaleString('pt-BR')}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
                 <p className="font-bold uppercase tracking-wider">CONTRATANTE</p>
                 <p className="text-sm mt-1">{nomeContratante}</p>
               </div>
