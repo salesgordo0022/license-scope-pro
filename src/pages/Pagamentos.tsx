@@ -98,6 +98,7 @@ export default function Pagamentos() {
   const [filterTipo, setFilterTipo] = useState<string>('all');
   const [filterMes, setFilterMes] = useState<number>(new Date().getMonth() + 1);
   const [filterAno, setFilterAno] = useState<number>(new Date().getFullYear());
+  const [selectedPagamentos, setSelectedPagamentos] = useState<string[]>([]);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [batchDialogOpen, setBatchDialogOpen] = useState(false);
   const [batchConfig, setBatchConfig] = useState({
@@ -322,6 +323,44 @@ export default function Pagamentos() {
     }
   };
 
+  const handleDeleteSelected = async () => {
+    if (selectedPagamentos.length === 0) return;
+    if (!confirm(`Tem certeza que deseja excluir os ${selectedPagamentos.length} pagamentos selecionados?`)) return;
+
+    try {
+      setLoading(true);
+      const { error } = await supabase
+        .from('pagamentos')
+        .delete()
+        .in('id', selectedPagamentos);
+
+      if (error) throw error;
+      
+      toast.success(`${selectedPagamentos.length} pagamentos excluídos com sucesso!`);
+      setSelectedPagamentos([]);
+      fetchData();
+    } catch (error) {
+      console.error('Error deleting selected pagamentos:', error);
+      toast.error('Erro ao excluir pagamentos selecionados');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const toggleSelectAll = () => {
+    if (selectedPagamentos.length === filteredPagamentos.length) {
+      setSelectedPagamentos([]);
+    } else {
+      setSelectedPagamentos(filteredPagamentos.map(p => p.id));
+    }
+  };
+
+  const toggleSelectPagamento = (id: string) => {
+    setSelectedPagamentos(prev => 
+      prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]
+    );
+  };
+
   const handleBatchGenerate = async (mes: number, ano: number, diaVencimento: number) => {
     try {
       setLoading(true);
@@ -441,7 +480,13 @@ export default function Pagamentos() {
         </div>
 
         {isAdmin && (
-          <div className="flex gap-2">
+          <div className="flex gap-2 items-center">
+            {selectedPagamentos.length > 0 && (
+              <Button variant="destructive" onClick={handleDeleteSelected}>
+                <Trash2 className="mr-2 h-4 w-4" />
+                Excluir Selecionados ({selectedPagamentos.length})
+              </Button>
+            )}
             <Dialog open={batchDialogOpen} onOpenChange={setBatchDialogOpen}>
               <DialogTrigger asChild>
                 <Button variant="outline">
@@ -819,8 +864,16 @@ export default function Pagamentos() {
             <div className="overflow-x-auto">
               <table className="data-table">
                 <thead>
-                  <tr>
-                    <th>Cliente</th>
+                  <tr className="bg-muted/50 border-b">
+                    <th className="w-10 px-4 py-3">
+                      <input 
+                        type="checkbox" 
+                        className="rounded border-gray-300 h-4 w-4"
+                        checked={filteredPagamentos.length > 0 && selectedPagamentos.length === filteredPagamentos.length}
+                        onChange={toggleSelectAll}
+                      />
+                    </th>
+                    <th className="text-left py-3 px-2">Cliente</th>
                     <th>Tipo</th>
                     <th>Referência</th>
                     <th>Valor</th>
@@ -844,8 +897,16 @@ export default function Pagamentos() {
                     </tr>
                   ) : (
                     filteredPagamentos.map((pagamento) => (
-                      <tr key={pagamento.id}>
-                        <td className="font-medium">{pagamento.clientes?.nome_empresa || '-'}</td>
+                      <tr key={pagamento.id} className={selectedPagamentos.includes(pagamento.id) ? 'bg-primary/5' : ''}>
+                        <td className="px-4 py-3">
+                          <input 
+                            type="checkbox" 
+                            className="rounded border-gray-300 h-4 w-4"
+                            checked={selectedPagamentos.includes(pagamento.id)}
+                            onChange={() => toggleSelectPagamento(pagamento.id)}
+                          />
+                        </td>
+                        <td className="font-medium px-2">{pagamento.clientes?.nome_empresa || '-'}</td>
                         <td>
                           <Badge variant="outline">
                             {tiposPagamento.find(t => t.value === pagamento.tipo)?.label}
@@ -916,7 +977,7 @@ export default function Pagamentos() {
                 {!loading && filteredPagamentos.length > 0 && (
                   <tfoot>
                     <tr className="bg-muted/50 font-semibold border-t-2">
-                      <td colSpan={3} className="text-right pr-4">
+                      <td colSpan={4} className="text-right pr-4">
                         Total ({filteredPagamentos.length} pagamentos):
                       </td>
                       <td className="text-success">
