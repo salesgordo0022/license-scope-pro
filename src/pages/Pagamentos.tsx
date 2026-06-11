@@ -359,6 +359,7 @@ export default function Pagamentos() {
     setSelectedPagamentos(prev => 
       prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]
     );
+  };
 
   const handleBatchGenerate = async (mes: number, ano: number, diaVencimento: number) => {
     try {
