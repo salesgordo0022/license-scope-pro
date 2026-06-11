@@ -683,9 +683,9 @@ export default function Contratos() {
           </section>
 
           <section className="relative z-10">
-            <h2 className="font-bold uppercase text-base mb-3 text-black border-b border-gray-100 pb-1">Cláusula Décima Primeira — Do Foro</h2>
+            <h2 className="font-bold uppercase text-base mb-3 text-black border-b border-gray-100 pb-1">Cláusula Décima — Do Foro</h2>
             <p className="text-justify indent-10">
-              <strong>11.1.</strong> As partes elegem o Foro da Comarca {config.foro_comarca ? <> de <strong>{config.foro_comarca}</strong></> : <> de …………………..</>} para dirimir qualquer questão decorrente deste contrato, com exclusão de qualquer outro, por mais privilegiado que seja.
+              <strong>10.1.</strong> As partes elegem o Foro da Comarca {config.foro_comarca ? <> de <strong>{config.foro_comarca}</strong></> : <> de …………………..</>} para dirimir qualquer questão decorrente deste contrato, com exclusão de qualquer outro, por mais privilegiado que seja.
             </p>
           </section>
 
