@@ -61,6 +61,7 @@ interface Contrato {
   data_assinatura: string | null;
   observacoes: string | null;
   link_documento: string | null;
+  is_digital_sign: boolean | null;
   created_at: string | null;
 }
 
