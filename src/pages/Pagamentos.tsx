@@ -331,66 +331,49 @@ export default function Pagamentos() {
     try {
       setLoading(true);
       
-      // Obter clientes ativos
+      // Obter clientes ativos com mensalidade > 0
       const { data: activeClients, error: clientsError } = await supabase
         .from('clientes')
         .select('*')
-        .eq('status', 'ativo');
+        .eq('status', 'ativo')
+        .gt('valor_mensalidade', 0);
 
       if (clientsError) throw clientsError;
 
       if (!activeClients || activeClients.length === 0) {
-        toast.info('Nenhum cliente ativo encontrado.');
+        toast.info('Nenhum cliente ativo com mensalidade configurada encontrado.');
         return;
       }
 
-      // 1. GERAR MENSALIDADES
       // Obter pagamentos de mensalidade já existentes para este mês/ano
-      const { data: existingMensalidades, error: mensalidadesError } = await supabase
+      const { data: existingPayments, error: paymentsError } = await supabase
         .from('pagamentos')
         .select('cliente_id')
         .eq('tipo', 'mensalidade')
         .eq('referencia_mes', mes)
         .eq('referencia_ano', ano);
 
-      if (mensalidadesError) throw mensalidadesError;
+      if (paymentsError) throw paymentsError;
 
-      const existingMensalidadeClientIds = new Set(existingMensalidades?.map(p => p.cliente_id) || []);
+      const existingClientIds = new Set(existingPayments?.map(p => p.cliente_id) || []);
       
-      // Clientes ativos que têm valor_mensalidade > 0 e ainda não têm mensalidade gerada
-      const clientsForMensalidade = activeClients.filter(c => 
-        (Number(c.valor_mensalidade) || 0) > 0 && !existingMensalidadeClientIds.has(c.id)
-      );
+      // Filtrar apenas clientes que ainda não têm mensalidade para este período
+      const clientsToGenerate = activeClients.filter(c => !existingClientIds.has(c.id));
 
-      // 2. GERAR IMPLANTAÇÕES
-      // Obter pagamentos de implantação já existentes (implantação geralmente é única ou específica, 
-      // mas vamos verificar se já existe algum pagamento do tipo 'implantacao' para o cliente)
-      const { data: existingImplantacoes, error: implantacoesError } = await supabase
-        .from('pagamentos')
-        .select('cliente_id')
-        .eq('tipo', 'implantacao');
-
-      if (implantacoesError) throw implantacoesError;
-
-      const existingImplantacaoClientIds = new Set(existingImplantacoes?.map(p => p.cliente_id) || []);
-
-      // Clientes ativos que têm valor_implantacao > 0 e ainda não têm implantação gerada
-      const clientsForImplantacao = activeClients.filter(c => 
-        (Number(c.valor_implantacao) || 0) > 0 && !existingImplantacaoClientIds.has(c.id)
-      );
+      if (clientsToGenerate.length === 0) {
+        toast.info('Todos os pagamentos para este mês já foram gerados.');
+        return;
+      }
 
       const vDate = new Date(ano, mes - 1, diaVencimento);
       const formattedVDate = vDate.toISOString().split('T')[0];
 
-      const inserts: any[] = [];
-
-      // Adicionar mensalidades
-      clientsForMensalidade.forEach(cliente => {
+      const inserts = clientsToGenerate.map(cliente => {
         const valor = Number(cliente.valor_mensalidade) || 0;
         const desconto = Number(cliente.desconto_percentual) || 0;
         const valorFinal = valor - (valor * desconto / 100);
 
-        inserts.push({
+        return {
           empresa_id: cliente.empresa_id,
           cliente_id: cliente.id,
           tipo: 'mensalidade',
@@ -401,40 +384,14 @@ export default function Pagamentos() {
           status: 'pendente',
           referencia_mes: mes,
           referencia_ano: ano,
-        });
+        };
       });
-
-      // Adicionar implantações
-      clientsForImplantacao.forEach(cliente => {
-        const valor = Number(cliente.valor_implantacao) || 0;
-        // Para implantação, geralmente não aplicamos o desconto recorrente da mensalidade, 
-        // mas se necessário poderíamos ajustar. Aqui usaremos o valor cheio.
-        const valorFinal = valor; 
-
-        inserts.push({
-          empresa_id: cliente.empresa_id,
-          cliente_id: cliente.id,
-          tipo: 'implantacao',
-          valor,
-          desconto: 0,
-          valor_final: valorFinal,
-          data_vencimento: formattedVDate,
-          status: 'pendente',
-          referencia_mes: mes,
-          referencia_ano: ano,
-        });
-      });
-
-      if (inserts.length === 0) {
-        toast.info('Não há novas mensalidades ou implantações para gerar.');
-        return;
-      }
 
       const { error: insertError } = await supabase.from('pagamentos').insert(inserts);
 
       if (insertError) throw insertError;
 
-      toast.success(`${inserts.length} cobranças (mensalidades e/ou implantações) geradas com sucesso!`);
+      toast.success(`${inserts.length} mensalidades geradas com sucesso!`);
       setBatchDialogOpen(false);
       fetchData();
     } catch (error: any) {
