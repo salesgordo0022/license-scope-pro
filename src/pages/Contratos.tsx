@@ -749,6 +749,11 @@ export default function Contratos() {
                       <div className="bg-success/10 border border-success/30 rounded px-2 py-1 text-[10px] text-success font-bold uppercase whitespace-nowrap">
                         Assinado Digitalmente
                       </div>
+                      {contrato.data_assinatura && (
+                        <div className="text-[8px] text-muted-foreground mt-0.5">
+                          {new Date(contrato.data_assinatura).toLocaleString('pt-BR')}
+                        </div>
+                      )}
                     </div>
                   </div>
                 )}
