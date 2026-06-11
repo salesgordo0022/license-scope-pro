@@ -386,7 +386,7 @@ export default function Contratos() {
   const handleAssinar = async (id: string) => {
     try {
       const { error } = await supabase.from('contratos')
-        .update({ assinado: true, data_assinatura: new Date().toISOString() })
+        .update({ assinado: true, data_assinatura: new Date().toISOString(), is_digital_sign: false })
         .eq('id', id);
       if (error) throw error;
       toast.success('Contrato assinado!'); fetchData();
@@ -415,6 +415,7 @@ export default function Contratos() {
         .update({ 
           assinado: true, 
           data_assinatura: new Date().toISOString(),
+          is_digital_sign: true,
           observacoes: (viewingContrato.observacoes || '') + '\n[Assinado Digitalmente via Certificado A1]'
         })
         .eq('id', viewingContrato.id);
