@@ -298,6 +298,8 @@ serve(async (req) => {
         conteudo = conteudo.replace(/{{vigencia_meses}}/g, contrato.vigencia_meses?.toString() || '12')
         conteudo = conteudo.replace(/{{contratante_nome}}/g, contrato.contratante_nome || '---')
         conteudo = conteudo.replace(/{{contratante_cnpj}}/g, contrato.contratante_cnpj || '---')
+        conteudo = conteudo.replace(/{{data_inicio}}/g, new Date(contrato.data_inicio).toLocaleDateString('pt-BR'))
+        conteudo = conteudo.replace(/{{data_fim}}/g, contrato.data_fim ? new Date(contrato.data_fim).toLocaleDateString('pt-BR') : '---')
         
         addText(conteudo, 10, { align: 'justify', indent: 8, paragraphSpacing: 25 })
       }
