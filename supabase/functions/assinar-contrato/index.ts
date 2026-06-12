@@ -191,7 +191,7 @@ serve(async (req) => {
 
       const estimatedHeight = lines.length * (size * lineHeight)
       
-      if (y - estimatedHeight < 60) {
+      if (y - estimatedHeight < 80) {
         drawFooter(pageCount)
         page = pdfDoc.addPage([595.28, 841.89])
         y = height - 120 // Space for header
