@@ -538,11 +538,14 @@ export default function Contratos() {
         padding: '0', 
         fontFamily: "'Times New Roman', Times, serif", 
         fontSize: '11pt', 
-        lineHeight: '1.6',
-        color: '#000000',
-        backgroundColor: '#ffffff',
-        minHeight: '297mm'
+        lineHeight: '1.5',
+        color: '#000',
+        backgroundColor: '#fff',
+        minHeight: '297mm',
+        WebkitFontSmoothing: 'antialiased',
+        MozOsxFontSmoothing: 'grayscale'
       }}>
+
 
         {/* Marca d'água central */}
         {config.mostrar_marca_dagua && (
