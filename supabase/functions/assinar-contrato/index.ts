@@ -173,6 +173,13 @@ serve(async (req) => {
       for (const paragraph of paragraphs) {
         if (!paragraph.trim() && paragraphs.length > 1) {
           y -= (size * 0.8); 
+          if (y < 85) { // Aumentado limite para segurança
+            drawFooter(pageCount)
+            page = pdfDoc.addPage([595.28, 841.89])
+            pageCount++
+            drawHeaderDecoration()
+            y = height - 120
+          }
           continue;
         }
         processParagraph(paragraph, size, options);
