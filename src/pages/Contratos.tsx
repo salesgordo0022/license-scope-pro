@@ -486,11 +486,13 @@ export default function Contratos() {
     toast.info('Gerando PDF...');
     try {
       const canvas = await html2canvas(element, {
-        scale: 2,
+        scale: 3,
         useCORS: true,
         logging: false,
         backgroundColor: '#ffffff',
+        windowWidth: 794, // 210mm em pixels (96dpi)
       });
+
       
       const imgData = canvas.toDataURL('image/png');
       const pdf = new jsPDF('p', 'mm', 'a4');
