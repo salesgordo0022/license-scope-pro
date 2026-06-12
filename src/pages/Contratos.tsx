@@ -640,7 +640,10 @@ export default function Contratos() {
         <div className="space-y-6" style={{ pageBreakInside: 'auto' }}>
           {/* CLÁUSULA PRIMEIRA */}
           <section className="relative z-10 mb-6">
-            <h2 className="font-bold uppercase text-base mb-4 text-black border-b-2 border-gray-900 pb-1">Cláusula Primeira — Do Objeto do Contrato</h2>
+            <h2 className="font-bold uppercase text-sm mb-4 text-[#331470] flex items-center gap-2">
+              <span className="w-6 h-6 bg-[#331470] text-white flex items-center justify-center rounded text-[10px]">01</span>
+              Do Objeto do Contrato
+            </h2>
 
             <p className="text-justify indent-10 mb-2">
               <strong>1.1.</strong> O presente contrato tem como objeto, a prestação, pelo CONTRATADO, de serviços de suporte técnico do Sistema <strong>{contrato.sistema || '……………...'}</strong>.
