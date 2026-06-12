@@ -1,50 +1,21 @@
 import forge from 'https://esm.sh/node-forge@1.3.1'
-import { P12Signer } from 'https://esm.sh/@libpdf/core@0.3.6'
 
+const pfxBase64 = "MIIBpgIBAzCCAXAGCSqGSIb3DQEHAaCCAWEEggFdMIIBWTCCAVUGCSqGSIb3DQEHBqCCAUYwggFCAgEAMIIBPAYJKoZIhvcNAQcBMBwGCiqGSIb3DQEMAQYwDgQIPp6g1P8Xl54CAggAgIIBIEA5S12X7N6F9R9S7/9n8M8V2N3X9K8J6F9R9S7/9n8M8V2N3X9K8J6F9R9S7/9n8M8V2N3X9K8J6F9R9S7/9n8M8V2N3X9K8J6F9R9S7/9n8M8V2N3X9K8J6F9R9S7/9n8M8V2N3X9K8J6F9R9S7/9n8M8V2N3X9K8J6F9R9S7/9n8M8V2N3X9K8J6F9R9S7/9n8M8V2N3X9K8J6F9R9S7/9n8M8V2N3X9K8J6F9R9S7/9n8M8V2N3X9K8J6F9R9S7/9n8M8V2N3X9K8J6F9R9S7/9n8M8V2N3X9K8J6F9R9S7/9n8M8V2N3X9K8J6F9R9S7/9n8M8V2N3X9K8J6F9R9S7/9n8M8V2N3X9K8J6F9R9S7/9n8M8V2N3X9K8J6F9R9S7/9n8M8V2N3X9K8J6F9R9S7/9n8M8V2N3X9K8J6F9R9S7/9n8M8V2N3X9K8J6F9R9S7/9n8M8V2N3X9K8J6F9R9S7/9n8M8V2N3X9K8J6F9R9S7/9n8M8V2N3X9K8J6F9R9S7/9n8M8V2N3X9K8="; // Not valid but for length test
+
+const pfxBytes = forge.util.decode64(pfxBase64);
 const binaryStringToUint8Array = (binary: string) =>
   Uint8Array.from(binary, (char) => char.charCodeAt(0))
 
-// Create a dummy PKCS#12 for testing
-const pki = forge.pki;
-const keys = pki.rsa.generateKeyPair(2048);
-const cert = pki.createCertificate();
-cert.publicKey = keys.publicKey;
-cert.serialNumber = '01';
-cert.validity.notBefore = new Date();
-cert.validity.notAfter = new Date();
-cert.validity.notAfter.setFullYear(cert.validity.notBefore.getFullYear() + 1);
-cert.setSubject([{ name: 'commonName', value: 'Test' }]);
-cert.setIssuer([{ name: 'commonName', value: 'Test' }]);
-cert.sign(keys.privateKey);
+const pfxByteArray1 = binaryStringToUint8Array(pfxBytes);
+console.log('pfxBytes length:', pfxBytes.length);
+console.log('pfxByteArray1 length:', pfxByteArray1.length);
+console.log('pfxByteArray1[0]:', pfxByteArray1[0]);
 
-const password = 'password';
-const p12Der = forge.pkcs12.toPkcs12Der(keys.privateKey, cert, password);
-const p12Bytes = p12Der.getBytes();
+const pfxByteArray2 = new Uint8Array(forge.util.binary.raw.decode(pfxBytes));
+console.log('pfxByteArray2 length:', pfxByteArray2.length);
+console.log('pfxByteArray2[0]:', pfxByteArray2[0]);
 
-console.log('Test 1: Uint8Array from binary string (legacy approach)');
-const pfxByteArray1 = binaryStringToUint8Array(p12Bytes);
-try {
-    await P12Signer.create(pfxByteArray1, password);
-    console.log('Success 1');
-} catch (e) {
-    console.log('Failed 1:', e.message);
-}
-
-console.log('Test 2: Uint8Array from binary string (forge util approach)');
-const pfxByteArray2 = new Uint8Array(forge.util.binary.raw.decode(p12Bytes));
-try {
-    await P12Signer.create(pfxByteArray2, password);
-    console.log('Success 2');
-} catch (e) {
-    console.log('Failed 2:', e.message);
-}
-
-console.log('Test 3: Buffer approach (if available)');
-const pfxByteArray3 = new Uint8Array(p12Bytes.split('').map(c => c.charCodeAt(0)));
-try {
-    await P12Signer.create(pfxByteArray3, password);
-    console.log('Success 3');
-} catch (e) {
-    console.log('Failed 3:', e.message);
-}
+const pfxByteArray3 = forge.util.binary.raw.decode(pfxBytes);
+console.log('pfxByteArray3 type:', typeof pfxByteArray3);
+console.log('pfxByteArray3 instanceof Uint8Array:', pfxByteArray3 instanceof Uint8Array);
 
