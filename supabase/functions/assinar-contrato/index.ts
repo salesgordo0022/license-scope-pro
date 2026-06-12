@@ -103,16 +103,16 @@ serve(async (req) => {
     // Selo Visual "Estilo Adobe/Profissional"
     const signatureDate = new Date().toLocaleString('pt-BR')
     
-    // Desenhar retângulo do selo
+    // Desenhar retângulo do selo (Posicionado à esquerda, sob o CONTRATADO)
     page.drawRectangle({
       x: 50, y: signatureY - 80, width: 250, height: 70,
       borderColor: rgb(0, 0.2, 0.6), borderWidth: 1.5,
       color: rgb(0.95, 0.97, 1)
     })
 
-    page.drawText('ASSINADO DIGITALMENTE', { x: 60, y: signatureY - 25, size: 10, font: fontBold, color: rgb(0, 0.2, 0.6) })
-    page.drawText(`Por: ${nomeAssinante}`, { x: 60, y: signatureY - 40, size: 8, font })
-    page.drawText(`CPF/CNPJ: ${cpfCnpj}`, { x: 60, y: signatureY - 52, size: 8, font })
+    page.drawText('ASSINADO DIGITALMENTE (CONTRATADO)', { x: 60, y: signatureY - 25, size: 10, font: fontBold, color: rgb(0, 0.2, 0.6) })
+    page.drawText(`Por: ${configuration.contratado_nome || nomeAssinante}`, { x: 60, y: signatureY - 40, size: 8, font })
+    page.drawText(`CNPJ: ${configuration.contratado_cnpj || '---'}`, { x: 60, y: signatureY - 52, size: 8, font })
     page.drawText(`Data: ${signatureDate}`, { x: 60, y: signatureY - 64, size: 8, font })
     page.drawText('ICP-BRASIL / PADRÃO ADOBE', { x: 60, y: signatureY - 76, size: 7, font: fontBold, color: rgb(0.3, 0.3, 0.3) })
 
