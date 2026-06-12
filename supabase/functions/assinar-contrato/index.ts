@@ -212,8 +212,8 @@ serve(async (req) => {
       if (currentLine) lines.push(currentLine)
 
       for (let i = 0; i < lines.length; i++) {
-        // Verificar antes de cada linha se há espaço (limite aumentado para 85)
-        if (y < 85) {
+        // Verificar antes de cada linha se há espaço (limite de segurança 65 para caber o rodapé)
+        if (y < 65) {
           drawFooter(pageCount)
           page = pdfDoc.addPage([595.28, 841.89])
           pageCount++
