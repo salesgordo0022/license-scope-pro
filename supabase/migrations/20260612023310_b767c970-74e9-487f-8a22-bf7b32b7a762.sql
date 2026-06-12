@@ -1,0 +1,2 @@
+CREATE POLICY "Authenticated read signed contracts" ON storage.objects FOR SELECT TO authenticated USING (bucket_id = 'contratos-assinados');
+CREATE POLICY "Service role manage signed contracts" ON storage.objects FOR ALL TO service_role USING (bucket_id = 'contratos-assinados') WITH CHECK (bucket_id = 'contratos-assinados');
