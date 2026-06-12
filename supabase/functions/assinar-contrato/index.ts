@@ -212,12 +212,12 @@ serve(async (req) => {
 
       const estimatedHeight = lines.length * (size * lineHeight)
       
-      if (y - estimatedHeight < 80) {
+      if (y - estimatedHeight < 100) { // Aumentado de 80 para 100
         drawFooter(pageCount)
         page = pdfDoc.addPage([595.28, 841.89])
-        y = height - 120 // Space for header
         pageCount++
         drawHeaderDecoration()
+        y = height - 120 // Space for header
       }
 
       for (let i = 0; i < lines.length; i++) {
@@ -288,7 +288,16 @@ serve(async (req) => {
     // Seção Dinâmica de Cláusulas do Modelo
     if (modelo && Array.isArray(modelo.clausulas)) {
       for (const clausula of modelo.clausulas) {
-        page.drawRectangle({ x: margin, y: y + 15, width: 3, height: 15, color: purpleMedium })
+        // Verificar se cabe o título e pelo menos uma linha de conteúdo
+        if (y < 120) {
+          drawFooter(pageCount)
+          page = pdfDoc.addPage([595.28, 841.89])
+          pageCount++
+          drawHeaderDecoration()
+          y = height - 120
+        }
+
+        page.drawRectangle({ x: margin, y: y - 10, width: 3, height: 15, color: purpleMedium })
         addText(clausula.titulo.toUpperCase(), 11, { isBold: true, color: purpleDeep, indent: 8, paragraphSpacing: 12 })
         
         // Substituir variáveis no conteúdo
