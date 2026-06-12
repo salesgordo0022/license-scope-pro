@@ -536,61 +536,82 @@ export default function Contratos() {
       <div id="contract-document" className="bg-white text-black shadow-xl rounded-sm mx-auto print:shadow-none relative overflow-hidden" style={{ 
         width: '210mm', 
         padding: '0', 
-        fontFamily: "'Times New Roman', Times, serif", 
+        fontFamily: "Arial, sans-serif", 
         fontSize: '11pt', 
-        lineHeight: '1.5',
-        color: '#000',
+        lineHeight: '1.6',
+        color: '#1a1a2e',
         backgroundColor: '#fff',
         minHeight: '297mm',
-        WebkitFontSmoothing: 'antialiased',
-        MozOsxFontSmoothing: 'grayscale'
+        WebkitFontSmoothing: 'antialiased'
       }}>
 
+        {/* Barra Lateral Premium */}
+        <div className="absolute left-0 top-0 bottom-0 w-4 bg-[#331470]" />
+
+        {/* Elementos Abstratos no Cabeçalho */}
+        <div className="absolute -top-20 -right-20 w-64 h-64 bg-[#331470] opacity-[0.03] rounded-full" />
+        <div className="absolute top-10 right-10 w-32 h-32 bg-[#331470] opacity-[0.05] rounded-full" />
 
         {/* Marca d'água central */}
         {config.mostrar_marca_dagua && (
-          <div className="absolute inset-0 flex items-center justify-center opacity-[0.05] pointer-events-none" style={{ zIndex: 0 }}>
-            <img src={logoUrl} alt="" className="w-[460px]" crossOrigin="anonymous" />
+          <div className="absolute inset-0 flex items-center justify-center opacity-[0.03] pointer-events-none" style={{ zIndex: 0 }}>
+            <img src={logoUrl} alt="" className="w-[400px]" crossOrigin="anonymous" />
           </div>
         )}
 
         {/* Conteúdo do contrato */}
-        <div style={{ padding: '30mm 25mm', position: 'relative', zIndex: 10 }}>
-          {/* Cabeçalho centralizado — logo + pílula azul */}
-          <div className="flex flex-col items-center mb-12" style={{ zIndex: 10 }}>
-
-            <img
-              src={logoUrl}
-              alt="Logo"
-              crossOrigin="anonymous"
-              style={{ height: '64px', objectFit: 'contain', marginBottom: '14px' }}
-            />
-            <div
-              style={{
-                background: 'linear-gradient(135deg, #2a3f63 0%, #324b75 100%)',
-                padding: '12px 48px',
-                borderRadius: '9999px',
-                boxShadow: '0 4px 14px rgba(42,63,99,0.22)',
-                color: '#ffffff',
-                fontFamily: 'Arial, sans-serif',
-                fontSize: '9pt',
-                fontWeight: 600,
-                letterSpacing: '0.22em',
-                textAlign: 'center',
-              }}
-            >
-              VENDA DE SISTEMAS E SOLUÇÕES
+        <div style={{ padding: '25mm 25mm 25mm 35mm', position: 'relative', zIndex: 10 }}>
+          {/* Cabeçalho */}
+          <div className="flex justify-between items-start mb-12">
+            <div>
+              <img
+                src={logoUrl}
+                alt="Logo"
+                crossOrigin="anonymous"
+                style={{ height: '50px', objectFit: 'contain', marginBottom: '15px' }}
+              />
+              <div className="w-20 h-1 bg-[#331470] rounded-full" />
+            </div>
+            <div className="text-right">
+              <div
+                style={{
+                  background: '#331470',
+                  padding: '8px 24px',
+                  borderRadius: '4px',
+                  color: '#ffffff',
+                  fontSize: '9pt',
+                  fontWeight: 600,
+                  letterSpacing: '0.1em',
+                  display: 'inline-block',
+                  marginBottom: '10px'
+                }}
+              >
+                CONTRATO DE SERVIÇOS
+              </div>
+              {contrato.numero_contrato && (
+                <p className="text-xs font-bold text-[#331470]">DOC: {contrato.numero_contrato}</p>
+              )}
             </div>
           </div>
 
-          <div className="text-center mb-10">
-            <h1 className="text-2xl font-serif font-bold tracking-tight uppercase text-black mb-2">
-              Contrato de Prestação de Serviços de Software
+          <div className="mb-10 bg-[#9470db15] p-6 rounded-lg border-l-4 border-[#331470]">
+            <h1 className="text-xl font-sans font-bold tracking-tight uppercase text-[#331470] mb-4">
+              Prestação de Serviços de Software
             </h1>
-            <div className="w-32 h-1 mx-auto mb-3" style={{ background: '#2a3f63' }} />
-            {contrato.numero_contrato && (
-              <p className="text-sm font-semibold text-gray-800">DOCUMENTO Nº {contrato.numero_contrato}</p>
-            )}
+            <div className="grid grid-cols-3 gap-6 text-[9pt]">
+              <div>
+                <p className="font-bold text-[#331470] uppercase text-[7pt] mb-1">Contratante</p>
+                <p className="font-medium">{nomeContratante.substring(0, 35)}</p>
+              </div>
+              <div>
+                <p className="font-bold text-[#331470] uppercase text-[7pt] mb-1">CNPJ/CPF</p>
+                <p className="font-medium">{contrato.contratante_cnpj || '---'}</p>
+              </div>
+              <div>
+                <p className="font-bold text-[#331470] uppercase text-[7pt] mb-1">Emissão</p>
+                <p className="font-medium">{new Date().toLocaleDateString('pt-BR')}</p>
+              </div>
+            </div>
           </div>
 
 
@@ -619,7 +640,10 @@ export default function Contratos() {
         <div className="space-y-6" style={{ pageBreakInside: 'auto' }}>
           {/* CLÁUSULA PRIMEIRA */}
           <section className="relative z-10 mb-6">
-            <h2 className="font-bold uppercase text-base mb-4 text-black border-b-2 border-gray-900 pb-1">Cláusula Primeira — Do Objeto do Contrato</h2>
+            <h2 className="font-bold uppercase text-sm mb-4 text-[#331470] flex items-center gap-2">
+              <span className="w-6 h-6 bg-[#331470] text-white flex items-center justify-center rounded text-[10px]">01</span>
+              Do Objeto do Contrato
+            </h2>
 
             <p className="text-justify indent-10 mb-2">
               <strong>1.1.</strong> O presente contrato tem como objeto, a prestação, pelo CONTRATADO, de serviços de suporte técnico do Sistema <strong>{contrato.sistema || '……………...'}</strong>.
@@ -761,62 +785,66 @@ export default function Contratos() {
           )}
         </div>
 
-        {/* Assinaturas */}
+        {/* Assinaturas Modernas */}
         <div className="mt-16 border-t border-gray-100 pt-10 relative z-10">
-          <p className="text-center mb-10 italic">E por estarem assim justas e acertadas, as partes firmam o presente instrumento através de assinatura digital.</p>
+          <p className="text-center mb-12 italic text-gray-500 text-sm">E por estarem assim justas e acertadas, as partes firmam o presente instrumento.</p>
           
-          <div className="grid grid-cols-2 gap-20 mb-20 relative">
-            <div className="text-center">
-              <div className="border-t border-black pt-2 mx-4 relative">
-                {contrato.assinado && (
-                  <div className="absolute -top-24 left-1/2 -translate-x-1/2 pointer-events-none w-full max-w-[240px]">
-                    <div className="flex flex-col items-center bg-blue-50/95 border-2 border-blue-600 rounded-lg p-3 shadow-lg backdrop-blur-sm">
-                      <div className="bg-blue-600 w-full -mt-3 -mx-3 mb-2 rounded-t p-1">
-                         <span className="text-[8px] font-bold text-white uppercase tracking-widest">Assinado Digitalmente</span>
-                      </div>
-                      <ShieldCheck className="h-8 w-8 text-blue-600 mb-1" />
-                      <div className="text-[10px] text-gray-900 font-bold uppercase leading-tight">
-                        {nomeContratado.toUpperCase()}
-                      </div>
-                      <div className="text-[7px] text-gray-500 mt-1 italic">
-                        Padrao ICP-Brasil / MP 2.200-2
-                      </div>
-                      {contrato.data_assinatura && (
-                        <div className="text-[8px] text-blue-700 font-bold mt-1">
-                          {new Date(contrato.data_assinatura).toLocaleString('pt-BR')}
-                        </div>
-                      )}
+          <div className="grid grid-cols-2 gap-12 mb-20 relative">
+            <div className="relative">
+              {contrato.assinado && (
+                <div className="bg-[#f8f6ff] border-2 border-[#331470] rounded-lg p-4 shadow-sm relative overflow-hidden">
+                  <div className="absolute top-0 left-0 w-full h-1 bg-[#331470]" />
+                  <div className="flex items-center gap-3 mb-2">
+                    <ShieldCheck className="h-6 w-6 text-[#331470]" />
+                    <span className="text-[10px] font-bold text-[#331470] uppercase tracking-widest">Assinado Digitalmente</span>
+                  </div>
+                  <div className="text-[11px] text-[#1a1a2e] font-bold uppercase mb-1">
+                    {nomeContratado.toUpperCase()}
+                  </div>
+                  <div className="text-[8px] text-gray-500 mb-2">
+                    Certificado ICP-Brasil / MP 2.200-2
+                  </div>
+                  {contrato.data_assinatura && (
+                    <div className="text-[9px] text-[#331470] font-bold bg-[#33147015] px-2 py-1 rounded inline-block">
+                      {new Date(contrato.data_assinatura).toLocaleString('pt-BR')}
                     </div>
+                  )}
+                  <div className="absolute -right-4 -bottom-4 opacity-[0.05]">
+                    <ShieldCheck className="h-16 w-16 text-[#331470]" />
                   </div>
-                )}
-                <p className="font-bold uppercase tracking-wider text-sm">CONTRATADO</p>
-                <p className="text-xs mt-1">{nomeContratado}</p>
-              </div>
+                </div>
+              )}
+              {!contrato.assinado && (
+                <div className="h-24 border-b border-gray-400 flex items-end justify-center pb-2">
+                   <p className="text-[10px] text-gray-400">Assinatura do Contratado</p>
+                </div>
+              )}
+              <p className="font-bold uppercase tracking-wider text-[10px] text-[#331470] mt-3">CONTRATADO</p>
             </div>
-            <div className="text-center">
-              <div className="border-t border-black pt-2 mx-4 relative">
-                 <p className="font-bold uppercase tracking-wider text-sm">CONTRATANTE</p>
-                <p className="text-xs mt-1">{nomeContratante}</p>
-                {contrato.assinado && !contrato.is_digital_sign && (
-                  <div className="absolute -top-12 left-1/2 -translate-x-1/2 text-success font-bold text-[10px] uppercase border border-success px-2 py-1 rounded">
-                    Assinado
-                  </div>
-                )}
-              </div>
+
+            <div className="relative">
+               <div className="h-24 border-b border-gray-400 flex items-end justify-center pb-2">
+                  {contrato.assinado && !contrato.is_digital_sign && (
+                    <div className="text-[#331470] font-bold text-[10px] uppercase border border-[#331470] px-3 py-1 rounded-full bg-[#33147005]">
+                      Assinado Eletronicamente
+                    </div>
+                  )}
+                  {!contrato.assinado && <p className="text-[10px] text-gray-400">Assinatura do Contratante</p>}
+               </div>
+               <p className="font-bold uppercase tracking-wider text-[10px] text-[#331470] mt-3">CONTRATANTE</p>
+               <p className="text-[10px] mt-1 text-gray-600">{nomeContratante}</p>
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-20">
-            <div className="text-center">
-              <div className="border-t border-gray-400 pt-2 mx-4">
-                <p className="text-[10px] uppercase text-gray-500 mb-1">Testemunha 1</p>
-                <p className="text-[10px]">CPF: ___________________________</p>
+          <div className="grid grid-cols-2 gap-12 opacity-50">
+            <div>
+              <div className="border-b border-gray-300 pb-2">
+                <p className="text-[9px] uppercase text-gray-400">Testemunha 01</p>
               </div>
             </div>
-            <div className="text-center">
-              <div className="border-t border-gray-400 pt-2 mx-4">
-                <p className="text-[10px] uppercase text-gray-500 mb-1">Testemunha 2</p>
-                <p className="text-[10px]">CPF: ___________________________</p>
+            <div>
+              <div className="border-b border-gray-300 pb-2">
+                <p className="text-[9px] uppercase text-gray-400">Testemunha 02</p>
               </div>
             </div>
           </div>
