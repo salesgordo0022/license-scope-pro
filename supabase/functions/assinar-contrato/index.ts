@@ -166,6 +166,19 @@ serve(async (req) => {
     }
 
     const addText = (text: string, size = 10, options: any = {}) => {
+      if (!text) return;
+      const paragraphs = text.split('\n');
+      
+      for (const paragraph of paragraphs) {
+        if (!paragraph.trim() && paragraphs.length > 1) {
+          y -= (size * 0.5); // Espaço extra para linhas vazias
+          continue;
+        }
+        processParagraph(paragraph, size, options);
+      }
+    }
+
+    const processParagraph = (text: string, size = 10, options: any = {}) => {
       const { 
         isBold = false, 
         isItalic = false, 
