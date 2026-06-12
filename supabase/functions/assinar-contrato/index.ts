@@ -5,8 +5,14 @@ import { PDF, P12Signer } from 'https://esm.sh/@libpdf/core@0.3.6'
 import forge from 'https://esm.sh/node-forge@1.3.1'
 import { PDFDocument, rgb, StandardFonts } from 'https://esm.sh/pdf-lib@1.17.1'
 
-const binaryStringToUint8Array = (binary: string) =>
-  Uint8Array.from(binary, (char) => char.charCodeAt(0))
+const base64ToUint8Array = (base64: string) => {
+  const binaryString = atob(base64);
+  const bytes = new Uint8Array(binaryString.length);
+  for (let i = 0; i < binaryString.length; i++) {
+    bytes[i] = binaryString.charCodeAt(i);
+  }
+  return bytes;
+}
 
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
@@ -101,7 +107,7 @@ serve(async (req) => {
     const pdfBaseBytes = await pdfDoc.save()
 
     // 5. Assinatura Criptográfica PAdES com @libpdf/core (Padrão Adobe/Gov.br)
-    const pfxByteArray = binaryStringToUint8Array(pfxBytes)
+    const pfxByteArray = base64ToUint8Array(pfxBase64)
     const signer = await P12Signer.create(pfxByteArray, password);
     const pdfLibpdf = await PDF.load(pdfBaseBytes);
     
