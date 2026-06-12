@@ -167,12 +167,10 @@ serve(async (req) => {
 
     const addText = (text: string, size = 10, options: any = {}) => {
       if (!text) return;
-      // Normalizar quebras de linha para evitar problemas com diferentes sistemas
       const normalizedText = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
       const paragraphs = normalizedText.split('\n');
       
       for (const paragraph of paragraphs) {
-        // Se o parágrafo estiver vazio e não for o último, adiciona um pequeno espaço
         if (!paragraph.trim() && paragraphs.length > 1) {
           y -= (size * 0.8); 
           continue;
@@ -188,8 +186,8 @@ serve(async (req) => {
         align = 'left', 
         color = textColor, 
         indent = 0,
-        lineHeight = 1.5,
-        paragraphSpacing = 15
+        lineHeight = 1.3, // Reduzido de 1.5 para 1.3
+        paragraphSpacing = 10 // Reduzido de 15 para 10
       } = options
       
       let currentFont = isBold ? fontBold : font
@@ -216,7 +214,7 @@ serve(async (req) => {
       const estimatedHeight = lines.length * (size * lineHeight)
       
       // Se o bloco de texto não couber na página atual, move para a próxima
-      if (y - estimatedHeight < 70) { 
+      if (y - estimatedHeight < 60) { // Reduzido de 70 para 60 para aproveitar mais a página
         drawFooter(pageCount)
         page = pdfDoc.addPage([595.28, 841.89])
         pageCount++
@@ -293,7 +291,7 @@ serve(async (req) => {
     if (modelo && Array.isArray(modelo.clausulas)) {
       for (const clausula of modelo.clausulas) {
         // Garantir que o título e pelo menos o início do parágrafo caibam na página
-        if (y < 140) {
+        if (y < 100) { // Reduzido de 140 para 100
           drawFooter(pageCount)
           page = pdfDoc.addPage([595.28, 841.89])
           pageCount++
@@ -302,7 +300,7 @@ serve(async (req) => {
         }
 
         page.drawRectangle({ x: margin, y: y - 10, width: 3, height: 15, color: purpleMedium })
-        addText(clausula.titulo.toUpperCase(), 11, { isBold: true, color: purpleDeep, indent: 8, paragraphSpacing: 12 })
+        addText(clausula.titulo.toUpperCase(), 11, { isBold: true, color: purpleDeep, indent: 8, paragraphSpacing: 10 }) // Reduzido paragraphSpacing para 10
         
         // Substituir variáveis no conteúdo
         let conteudo = clausula.conteudo || ''
