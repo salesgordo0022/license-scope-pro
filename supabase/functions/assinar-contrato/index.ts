@@ -334,7 +334,7 @@ serve(async (req) => {
 
     // Seção de Assinaturas (Bloco Protegido contra Quebra)
     const signatureSectionHeight = 180
-    if (y < signatureSectionHeight + 85) { // Aumentado para 85
+    if (y < signatureSectionHeight + 40) { // Reduzido para aproveitar mais a página
       drawFooter(pageCount)
       page = pdfDoc.addPage([595.28, 841.89])
       y = height - 120
