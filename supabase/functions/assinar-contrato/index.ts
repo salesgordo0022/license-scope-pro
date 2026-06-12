@@ -2,7 +2,7 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 import { PDFDocument, rgb, StandardFonts } from 'https://esm.sh/pdf-lib@1.17.1'
 import forge from 'https://esm.sh/node-forge@1.3.1'
-import { sign } from 'https://esm.sh/@signpdf/signpdf@3.3.0'
+import { SignPdf } from 'https://esm.sh/@signpdf/signpdf@3.3.0'
 import { P12Signer } from 'https://esm.sh/@signpdf/signer-p12@3.3.0'
 import { pdflibAddPlaceholder as addPlaceholder } from 'https://esm.sh/@signpdf/placeholder-pdf-lib@3.3.0'
 import { Buffer } from "https://deno.land/std@0.168.0/node/buffer.ts"
@@ -161,7 +161,8 @@ serve(async (req) => {
     // Usamos o signer-p12 para gerar a assinatura real seguindo os padrões Adobe/ICP-Brasil
     // O Buffer.from é necessário para que a biblioteca @signpdf processe os bytes corretamente
     const signer = new P12Signer(Buffer.from(pfxDer, 'binary'), { password });
-    const signedPdfBytes = await sign(Buffer.from(pdfBytesWithPlaceholder), signer);
+    const signPdfProcessor = new SignPdf();
+    const signedPdfBytes = await signPdfProcessor.sign(Buffer.from(pdfBytesWithPlaceholder), signer);
 
     // Gerar Hash final para registro
     const md = forge.md.sha256.create()
