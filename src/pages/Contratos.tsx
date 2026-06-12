@@ -131,6 +131,7 @@ export default function Contratos() {
   const [certificateFile, setCertificateFile] = useState<File | null>(null);
   const [certPassword, setCertPassword] = useState('');
   const [isSigning, setIsSigning] = useState(false);
+  const [signatures, setSignatures] = useState<any[]>([]);
 
   const [formData, setFormData] = useState({
     cliente_id: '',
