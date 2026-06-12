@@ -550,9 +550,10 @@ export default function Contratos() {
         )}
 
         {/* Conteúdo do contrato */}
-        <div style={{ padding: '25mm 22mm', position: 'relative', zIndex: 10 }}>
+        <div style={{ padding: '30mm 25mm', position: 'relative', zIndex: 10 }}>
           {/* Cabeçalho centralizado — logo + pílula azul */}
-          <div className="flex flex-col items-center mb-10" style={{ zIndex: 10 }}>
+          <div className="flex flex-col items-center mb-12" style={{ zIndex: 10 }}>
+
             <img
               src={logoUrl}
               alt="Logo"
