@@ -67,9 +67,9 @@ serve(async (req) => {
     
     let page = pdfDoc.addPage([595.28, 841.89])
     const { width, height } = page.getSize()
-    // Margens A4 Padrão aumentadas para segurança total (90 pontos para garantir zero cortes)
-    const margin = 90 
-    const footerHeight = 100 
+    // Margens de segurança reforçadas (100 pontos em todos os lados)
+    const margin = 100 
+    const footerHeight = 110 
     const contentWidth = width - (margin * 2)
     let y = height - margin
 
@@ -85,21 +85,21 @@ serve(async (req) => {
     const secondaryTextColor = rgb(0.4, 0.4, 0.5)
 
     const drawHeaderDecoration = () => {
-      // 1. Barra Lateral Esquerda - Removida ou afastada da borda zero para evitar cortes de impressora
+      // 1. Barra Lateral Esquerda - Afastada da borda para segurança máxima
       page.drawRectangle({
-        x: margin / 2, // Posicionamento seguro baseado na margem dinâmica
+        x: margin - 20, 
         y: margin,
-        width: 4,
+        width: 3,
         height: height - (margin * 2),
         color: purpleDeep,
-        opacity: 0.5
+        opacity: 0.4
       })
 
-      // 2. Elementos decorativos (círculos) - Mais afastados das bordas
+      // 2. Elementos decorativos (círculos) - Recuados para evitar qualquer corte lateral
       page.drawCircle({
-        x: width - 80,
-        y: height - 80,
-        size: 60,
+        x: width - margin - 20,
+        y: height - margin + 20,
+        size: 40,
         color: purpleDeep,
         opacity: 0.03
       })
@@ -190,7 +190,7 @@ serve(async (req) => {
       let currentFont = isBold ? fontBold : font
       if (isItalic) currentFont = fontItalic
       
-      const effectiveMaxWidth = contentWidth - indent - 10 // Adicionando buffer extra de 10pt para segurança horizontal
+      const effectiveMaxWidth = contentWidth - indent - 15 // Buffer horizontal de 15pt adicional
       
       // Improved word wrapping for long strings without spaces
       const wrapText = (txt: string, maxWidth: number) => {
@@ -429,7 +429,7 @@ serve(async (req) => {
 
     // Lado do Contratante
     const lineY = y - 60
-    const sigLineWidth = 200
+    const sigLineWidth = 180 // Reduzido para garantir que caiba com margem de 100
     const lineX = width - margin - sigLineWidth
     page.drawLine({
       start: { x: lineX, y: lineY },
