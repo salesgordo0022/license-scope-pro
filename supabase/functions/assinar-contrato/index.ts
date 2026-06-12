@@ -167,11 +167,14 @@ serve(async (req) => {
 
     const addText = (text: string, size = 10, options: any = {}) => {
       if (!text) return;
-      const paragraphs = text.split('\n');
+      // Normalizar quebras de linha para evitar problemas com diferentes sistemas
+      const normalizedText = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+      const paragraphs = normalizedText.split('\n');
       
       for (const paragraph of paragraphs) {
+        // Se o parágrafo estiver vazio e não for o último, adiciona um pequeno espaço
         if (!paragraph.trim() && paragraphs.length > 1) {
-          y -= (size * 0.5); // Espaço extra para linhas vazias
+          y -= (size * 0.8); 
           continue;
         }
         processParagraph(paragraph, size, options);
