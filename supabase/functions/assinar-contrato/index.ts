@@ -67,9 +67,10 @@ serve(async (req) => {
     
     let page = pdfDoc.addPage([595.28, 841.89])
     const { width, height } = page.getSize()
-    const margin = 50
-    const footerHeight = 70 // Altura segura para o rodapé
+    const margin = 70 // Margem aumentada para evitar cortes laterais
+    const footerHeight = 80 // Altura segura para o rodapé
     const contentWidth = width - (margin * 2)
+
     let y = height - margin
     let pageCount = 1
     const valorFormatted = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(contrato.valor_mensalidade || 0)
@@ -113,7 +114,7 @@ serve(async (req) => {
       // 3. Cabeçalho com Título e Logo Placeholder
       const title = 'CONTRATO DE PRESTAÇÃO DE SERVIÇOS'
       page.drawText(title, {
-        x: 50,
+        x: margin,
         y: height - 60,
         size: 22,
         font: fontBold,
@@ -122,21 +123,23 @@ serve(async (req) => {
 
       // Linha de acento abaixo do título
       page.drawRectangle({
-        x: 50,
+        x: margin,
         y: height - 75,
         width: 100,
         height: 3,
         color: purpleMedium
       })
 
+
       const subHeader = configuration.contratado_nome?.toUpperCase() || 'DOCUMENTO DIGITAL'
       page.drawText(subHeader, {
-        x: 50,
+        x: margin,
         y: height - 95,
         size: 9,
         font: font,
         color: secondaryTextColor
       })
+
     }
 
     const drawFooter = (pageNum: number) => {
