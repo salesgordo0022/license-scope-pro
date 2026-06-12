@@ -423,6 +423,12 @@ export default function Contratos() {
         reader.readAsDataURL(certificateFile);
       });
 
+      console.log('Iniciando chamada à Edge Function com payload:', {
+        contratoId: viewingContrato.id,
+        pfxSize: pfxBase64.length,
+        nomeAssinante: viewingContrato.contratante_nome
+      });
+
       const { data, error } = await supabase.functions.invoke('assinar-contrato', {
         body: {
           contratoId: viewingContrato.id,
