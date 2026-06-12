@@ -405,32 +405,44 @@ export default function Contratos() {
       toast.error('Por favor, selecione o arquivo do certificado (.pfx ou .p12)');
       return;
     }
+    if (!certPassword) {
+      toast.error('Por favor, informe a senha do certificado');
+      return;
+    }
     
     setIsSigning(true);
-    // Simulação de processamento do certificado (já que não podemos usar bibliotecas nativas de criptografia complexas aqui facilmente sem dependências externas pesadas)
-    // Em um cenário real, usaríamos node-forge ou similar para ler o P12 e assinar o hash do PDF.
     try {
-      await new Promise(resolve => setTimeout(resolve, 2000));
-      
-      const { error } = await supabase.from('contratos')
-        .update({ 
-          assinado: true, 
-          data_assinatura: new Date().toISOString(),
-          is_digital_sign: true,
-          observacoes: (viewingContrato.observacoes || '') + '\n[Assinado Digitalmente via Certificado A1]'
-        })
-        .eq('id', viewingContrato.id);
-        
+      // Converter arquivo para base64
+      const reader = new FileReader();
+      const pfxBase64 = await new Promise<string>((resolve) => {
+        reader.onload = () => {
+          const result = reader.result as string;
+          resolve(result.split(',')[1]);
+        };
+        reader.readAsDataURL(certificateFile);
+      });
+
+      const { data, error } = await supabase.functions.invoke('assinar-contrato', {
+        body: {
+          contratoId: viewingContrato.id,
+          pfxBase64,
+          password: certPassword,
+          nomeAssinante: viewingContrato.contratante_nome || 'Assinante',
+          cpfCnpj: viewingContrato.contratante_cnpj || '000.000.000-00',
+        }
+      });
+
       if (error) throw error;
-      
+      if (data.error) throw new Error(data.error);
+        
       toast.success('Contrato assinado digitalmente com sucesso!');
       setIsDigitalSignDialogOpen(false);
       setCertificateFile(null);
       setCertPassword('');
       fetchData();
-    } catch (error) {
+    } catch (error: any) {
       console.error(error);
-      toast.error('Erro ao processar assinatura digital');
+      toast.error(error.message || 'Erro ao processar assinatura digital. Verifique a senha e o certificado.');
     } finally {
       setIsSigning(false);
     }
