@@ -161,7 +161,8 @@ serve(async (req) => {
     // Usamos o signer-p12 para gerar a assinatura real seguindo os padrões Adobe/ICP-Brasil
     // O Buffer.from é necessário para que a biblioteca @signpdf processe os bytes corretamente
     const signer = new P12Signer(Buffer.from(pfxDer, 'binary'), { password });
-    const signedPdfBytes = await sign(Buffer.from(pdfBytesWithPlaceholder), signer);
+    const signPdfProcessor = new SignPdf();
+    const signedPdfBytes = await signPdfProcessor.sign(Buffer.from(pdfBytesWithPlaceholder), signer);
 
     // Gerar Hash final para registro
     const md = forge.md.sha256.create()
