@@ -67,11 +67,12 @@ serve(async (req) => {
     
     let page = pdfDoc.addPage([595.28, 841.89])
     const { width, height } = page.getSize()
-    const margin = 70 // Margem aumentada para evitar cortes laterais
-    const footerHeight = 80 // Altura segura para o rodapé
+    // Margens A4 Padrão (aprox. 2.5cm = 72 pontos)
+    const margin = 72 
+    const footerHeight = 100 // Altura segura para o rodapé e margem inferior
     const contentWidth = width - (margin * 2)
-
     let y = height - margin
+
     let pageCount = 1
     const valorFormatted = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(contrato.valor_mensalidade || 0)
 
