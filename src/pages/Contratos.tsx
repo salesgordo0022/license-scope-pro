@@ -468,6 +468,12 @@ export default function Contratos() {
   const handlePrint = () => { window.print(); };
 
   const handleExportPDF = async () => {
+    // Se o contrato estiver assinado digitalmente, baixar o PDF original assinado do Storage
+    if (viewingContrato?.assinado && viewingContrato.link_documento && viewingContrato.is_digital_sign) {
+      window.open(viewingContrato.link_documento, '_blank');
+      return;
+    }
+
     const element = document.getElementById('contract-document');
     if (!element) return;
     
