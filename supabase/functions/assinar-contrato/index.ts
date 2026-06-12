@@ -195,7 +195,7 @@ serve(async (req) => {
           currentLine = testLine
         }
       }
-      lines.push(currentLine)
+      if (currentLine) lines.push(currentLine)
 
       const estimatedHeight = lines.length * (size * lineHeight)
       
