@@ -1,13 +1,12 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+import { corsHeaders } from 'npm:@supabase/supabase-js@2/cors'
 import { PDF, P12Signer } from 'https://esm.sh/@libpdf/core@0.3.6'
 import forge from 'https://esm.sh/node-forge@1.3.1'
 import { PDFDocument, rgb, StandardFonts } from 'https://esm.sh/pdf-lib@1.17.1'
 
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-}
+const binaryStringToUint8Array = (binary: string) =>
+  Uint8Array.from(binary, (char) => char.charCodeAt(0))
 
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
@@ -36,11 +35,17 @@ serve(async (req) => {
     if (contratoError || !contrato) throw new Error('Contrato não encontrado')
 
     // 2. Buscar configurações da empresa
-    const { data: config } = await supabaseAdmin
+    let configQuery = supabaseAdmin
       .from('configuracao_contrato')
       .select('*')
-      .eq('empresa_id', contrato.empresa_id)
-      .maybeSingle()
+
+    if (contrato.empresa_id) {
+      configQuery = configQuery.eq('empresa_id', contrato.empresa_id)
+    } else {
+      configQuery = configQuery.limit(1)
+    }
+
+    const { data: config } = await configQuery.maybeSingle()
     const configuration = config || {}
 
     // 3. Extrair dados para o selo visual usando forge (mais confiável para extração)
@@ -96,7 +101,8 @@ serve(async (req) => {
     const pdfBaseBytes = await pdfDoc.save()
 
     // 5. Assinatura Criptográfica PAdES com @libpdf/core (Padrão Adobe/Gov.br)
-    const signer = await P12Signer.create(new Uint8Array(pfxBytes), password);
+    const pfxByteArray = binaryStringToUint8Array(pfxBytes)
+    const signer = await P12Signer.create(pfxByteArray, password);
     const pdfLibpdf = await PDF.load(pdfBaseBytes);
     
     // Assina o PDF (isso gera uma assinatura invisível porém válida criptograficamente para o Adobe/Gov.br)
@@ -135,6 +141,6 @@ serve(async (req) => {
 
   } catch (error) {
     console.error('Erro na assinatura:', error)
-    return new Response(JSON.stringify({ error: error.message }), { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+    return new Response(JSON.stringify({ success: false, error: error.message }), { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
   }
 })
