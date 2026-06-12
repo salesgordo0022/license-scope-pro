@@ -134,18 +134,21 @@ serve(async (req) => {
       }
       lines.push(currentLine)
 
+      const estimatedHeight = lines.length * (size * lineHeight)
+      
+      // Check if text block fits, otherwise page break
+      if (y - estimatedHeight < margin + 40) {
+        drawFooter(pageCount)
+        page = pdfDoc.addPage([595.28, 841.89])
+        y = height - margin
+        pageCount++
+        drawHeader()
+      }
+
       for (let i = 0; i < lines.length; i++) {
         const line = lines[i]
         const isLastLine = i === lines.length - 1
         
-        if (y < margin + 40) {
-          drawFooter(pageCount)
-          page = pdfDoc.addPage([595.28, 841.89])
-          y = height - margin
-          pageCount++
-          drawHeader()
-        }
-
         let xPos = margin + indent
         
         if (align === 'center') {
@@ -203,7 +206,8 @@ serve(async (req) => {
     addText(`3.1. O presente contrato entra em vigor na data de sua assinatura, com prazo de vigência de ${contrato.vigencia_meses || 12} meses, podendo ser renovado automaticamente por iguais períodos.`, 10, { align: 'justify', paragraphSpacing: 40 })
 
     // Seção de Assinaturas
-    if (y < 280) {
+    const signatureSectionHeight = 150
+    if (y < signatureSectionHeight + margin + 40) {
       drawFooter(pageCount)
       page = pdfDoc.addPage([595.28, 841.89])
       y = height - margin
@@ -211,7 +215,7 @@ serve(async (req) => {
       drawHeader()
     }
 
-    addText('E, por estarem assim justos e contratados, as partes firmam o presente instrumento.', 10, { align: 'center', isItalic: true, paragraphSpacing: 30 })
+    addText('E, por estarem assim justos e contratados, as partes firmam o presente instrumento.', 10, { align: 'center', isItalic: true, paragraphSpacing: 40 })
 
     // Box de Assinatura Digital (Estilo Profissional Adobe)
     const boxWidth = 240
