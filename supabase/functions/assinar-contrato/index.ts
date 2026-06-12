@@ -28,6 +28,14 @@ serve(async (req) => {
       .select('*, empresa:empresas(*)')
       .eq('id', contratoId)
       .single()
+    
+    // Buscar cláusulas do modelo
+    const { data: modelo } = await supabaseAdmin
+      .from('modelos_contrato')
+      .select('clausulas')
+      .eq('ativo', true)
+      .limit(1)
+      .maybeSingle()
 
     if (contratoError || !contrato) throw new Error('Contrato não encontrado')
 
@@ -191,7 +199,7 @@ serve(async (req) => {
 
       const estimatedHeight = lines.length * (size * lineHeight)
       
-      if (y - estimatedHeight < 60) {
+      if (y - estimatedHeight < 80) {
         drawFooter(pageCount)
         page = pdfDoc.addPage([595.28, 841.89])
         y = height - 120 // Space for header
@@ -264,24 +272,41 @@ serve(async (req) => {
     
     addText(textoPartes, 10, { align: 'justify', paragraphSpacing: 25 })
 
-    // Seção Objeto com Ícone/Marcador
-    page.drawRectangle({ x: margin, y: y + 15, width: 3, height: 15, color: purpleLight })
-    addText('CLÁUSULA PRIMEIRA – DO OBJETO', 11, { isBold: true, color: purpleDeep, indent: 8, paragraphSpacing: 12 })
-    addText(`1.1. O presente contrato tem como objeto a prestação de serviços de software e suporte técnico para o sistema ${contrato.sistema || '---'}, de propriedade da CONTRATADA.`, 10, { align: 'justify', indent: 8 })
-    addText(`1.2. A prestação dos serviços compreende o licenciamento de uso, manutenção e suporte técnico conforme as especificações do sistema contratado.`, 10, { align: 'justify', indent: 8, paragraphSpacing: 25 })
+    // Seção Dinâmica de Cláusulas do Modelo
+    if (modelo && Array.isArray(modelo.clausulas)) {
+      for (const clausula of modelo.clausulas) {
+        page.drawRectangle({ x: margin, y: y + 15, width: 3, height: 15, color: purpleMedium })
+        addText(clausula.titulo.toUpperCase(), 11, { isBold: true, color: purpleDeep, indent: 8, paragraphSpacing: 12 })
+        
+        // Substituir variáveis no conteúdo
+        let conteudo = clausula.conteudo || ''
+        conteudo = conteudo.replace(/{{sistema}}/g, contrato.sistema || '---')
+        conteudo = conteudo.replace(/{{valor_mensalidade}}/g, valorFormatted)
+        conteudo = conteudo.replace(/{{vigencia_meses}}/g, contrato.vigencia_meses?.toString() || '12')
+        conteudo = conteudo.replace(/{{contratante_nome}}/g, contrato.contratante_nome || '---')
+        conteudo = conteudo.replace(/{{contratante_cnpj}}/g, contrato.contratante_cnpj || '---')
+        
+        addText(conteudo, 10, { align: 'justify', indent: 8, paragraphSpacing: 25 })
+      }
+    } else {
+      // Fallback para cláusulas padrão se não houver modelo
+      page.drawRectangle({ x: margin, y: y + 15, width: 3, height: 15, color: purpleLight })
+      addText('CLÁUSULA PRIMEIRA – DO OBJETO', 11, { isBold: true, color: purpleDeep, indent: 8, paragraphSpacing: 12 })
+      addText(`1.1. O presente contrato tem como objeto a prestação de serviços de software e suporte técnico para o sistema ${contrato.sistema || '---'}, de propriedade da CONTRATADA.`, 10, { align: 'justify', indent: 8 })
+      addText(`1.2. A prestação dos serviços compreende o licenciamento de uso, manutenção e suporte técnico conforme as especificações do sistema contratado.`, 10, { align: 'justify', indent: 8, paragraphSpacing: 25 })
 
-    // Seção Valores
-    page.drawRectangle({ x: margin, y: y + 15, width: 3, height: 15, color: purpleLight })
-    addText('CLÁUSULA SEGUNDA – DOS VALORES E FORMA DE PAGAMENTO', 11, { isBold: true, color: purpleDeep, indent: 8, paragraphSpacing: 12 })
-    
-    const valorFormatted = contrato.valor_mensalidade?.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }) || 'R$ 0,00'
-    addText(`2.1. Pela prestação dos serviços ora contratados, o CONTRATANTE pagará à CONTRATADA o valor mensal de ${valorFormatted}, com vencimento conforme pactuado em sistema.`, 10, { align: 'justify', indent: 8 })
-    addText(`2.2. Eventuais serviços adicionais ou deslocamentos serão cobrados à parte, conforme tabela vigente ou negociação específica.`, 10, { align: 'justify', indent: 8, paragraphSpacing: 25 })
+      // Seção Valores
+      page.drawRectangle({ x: margin, y: y + 15, width: 3, height: 15, color: purpleLight })
+      addText('CLÁUSULA SEGUNDA – DOS VALORES E FORMA DE PAGAMENTO', 11, { isBold: true, color: purpleDeep, indent: 8, paragraphSpacing: 12 })
+      
+      addText(`2.1. Pela prestação dos serviços ora contratados, o CONTRATANTE pagará à CONTRATADA o valor mensal de ${valorFormatted}, com vencimento conforme pactuado em sistema.`, 10, { align: 'justify', indent: 8 })
+      addText(`2.2. Eventuais serviços adicionais ou deslocamentos serão cobrados à parte, conforme tabela vigente ou negociação específica.`, 10, { align: 'justify', indent: 8, paragraphSpacing: 25 })
 
-    // Seção Vigência
-    page.drawRectangle({ x: margin, y: y + 15, width: 3, height: 15, color: purpleLight })
-    addText('CLÁUSULA TERCEIRA – DA VIGÊNCIA', 11, { isBold: true, color: purpleDeep, indent: 8, paragraphSpacing: 12 })
-    addText(`3.1. O presente contrato entra em vigor na data de sua assinatura, com prazo de vigência de ${contrato.vigencia_meses || 12} meses, podendo ser renovado automaticamente por iguais períodos.`, 10, { align: 'justify', indent: 8, paragraphSpacing: 40 })
+      // Seção Vigência
+      page.drawRectangle({ x: margin, y: y + 15, width: 3, height: 15, color: purpleLight })
+      addText('CLÁUSULA TERCEIRA – DA VIGÊNCIA', 11, { isBold: true, color: purpleDeep, indent: 8, paragraphSpacing: 12 })
+      addText(`3.1. O presente contrato entra em vigor na data de sua assinatura, com prazo de vigência de ${contrato.vigencia_meses || 12} meses, podendo ser renovado automaticamente por iguais períodos.`, 10, { align: 'justify', indent: 8, paragraphSpacing: 40 })
+    }
 
     // Seção de Assinaturas (Bloco Protegido contra Quebra)
     const signatureSectionHeight = 180
