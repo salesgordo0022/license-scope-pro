@@ -532,14 +532,16 @@ export default function Contratos() {
 
     return (
       <div id="contract-document" className="bg-white text-black shadow-xl rounded-sm mx-auto print:shadow-none relative overflow-hidden" style={{ 
-        maxWidth: '210mm', 
+        width: '210mm', 
         padding: '0', 
         fontFamily: "'Times New Roman', Times, serif", 
         fontSize: '11pt', 
         lineHeight: '1.6',
-        border: '1px solid #e2e8f0',
+        color: '#000000',
+        backgroundColor: '#ffffff',
         minHeight: '297mm'
       }}>
+
         {/* Marca d'água central */}
         {config.mostrar_marca_dagua && (
           <div className="absolute inset-0 flex items-center justify-center opacity-[0.05] pointer-events-none" style={{ zIndex: 0 }}>
