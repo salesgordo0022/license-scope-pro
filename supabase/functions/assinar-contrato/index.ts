@@ -292,8 +292,8 @@ serve(async (req) => {
     // Seção Dinâmica de Cláusulas do Modelo
     if (modelo && Array.isArray(modelo.clausulas)) {
       for (const clausula of modelo.clausulas) {
-        // Verificar se cabe o título e pelo menos uma linha de conteúdo
-        if (y < 120) {
+        // Garantir que o título e pelo menos o início do parágrafo caibam na página
+        if (y < 140) {
           drawFooter(pageCount)
           page = pdfDoc.addPage([595.28, 841.89])
           pageCount++
