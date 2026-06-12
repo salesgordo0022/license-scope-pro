@@ -294,13 +294,14 @@ serve(async (req) => {
     if (modelo && Array.isArray(modelo.clausulas)) {
       for (const clausula of modelo.clausulas) {
         // Garantir que o título e pelo menos o início do parágrafo caibam na página
-        if (y < 100) { // Reduzido de 140 para 100
+        if (y < footerHeight + 40) { 
           drawFooter(pageCount)
           page = pdfDoc.addPage([595.28, 841.89])
           pageCount++
           drawHeaderDecoration()
           y = height - 120
         }
+
 
         page.drawRectangle({ x: margin, y: y - 10, width: 3, height: 15, color: purpleMedium })
         addText(clausula.titulo.toUpperCase(), 11, { isBold: true, color: purpleDeep, indent: 8, paragraphSpacing: 10 }) // Reduzido paragraphSpacing para 10
