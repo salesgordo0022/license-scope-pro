@@ -298,6 +298,47 @@ export type Database = {
           },
         ]
       }
+      contratos_assinados: {
+        Row: {
+          contrato_id: string
+          cpf_cnpj: string
+          created_at: string | null
+          data_assinatura: string | null
+          hash_documento: string
+          id: string
+          nome_assinante: string
+          url_pdf: string
+        }
+        Insert: {
+          contrato_id: string
+          cpf_cnpj: string
+          created_at?: string | null
+          data_assinatura?: string | null
+          hash_documento: string
+          id?: string
+          nome_assinante: string
+          url_pdf: string
+        }
+        Update: {
+          contrato_id?: string
+          cpf_cnpj?: string
+          created_at?: string | null
+          data_assinatura?: string | null
+          hash_documento?: string
+          id?: string
+          nome_assinante?: string
+          url_pdf?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "contratos_assinados_contrato_id_fkey"
+            columns: ["contrato_id"]
+            isOneToOne: false
+            referencedRelation: "contratos"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       empresas: {
         Row: {
           created_at: string | null
