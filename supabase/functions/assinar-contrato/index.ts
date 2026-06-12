@@ -167,11 +167,14 @@ serve(async (req) => {
 
     const addText = (text: string, size = 10, options: any = {}) => {
       if (!text) return;
-      const paragraphs = text.split('\n');
+      // Normalizar quebras de linha para evitar problemas com diferentes sistemas
+      const normalizedText = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+      const paragraphs = normalizedText.split('\n');
       
       for (const paragraph of paragraphs) {
+        // Se o parágrafo estiver vazio e não for o último, adiciona um pequeno espaço
         if (!paragraph.trim() && paragraphs.length > 1) {
-          y -= (size * 0.5); // Espaço extra para linhas vazias
+          y -= (size * 0.8); 
           continue;
         }
         processParagraph(paragraph, size, options);
@@ -212,12 +215,13 @@ serve(async (req) => {
 
       const estimatedHeight = lines.length * (size * lineHeight)
       
-      if (y - estimatedHeight < 100) { // Aumentado de 80 para 100
+      // Se o bloco de texto não couber na página atual, move para a próxima
+      if (y - estimatedHeight < 70) { 
         drawFooter(pageCount)
         page = pdfDoc.addPage([595.28, 841.89])
         pageCount++
         drawHeaderDecoration()
-        y = height - 120 // Space for header
+        y = height - 120 
       }
 
       for (let i = 0; i < lines.length; i++) {
@@ -288,8 +292,8 @@ serve(async (req) => {
     // Seção Dinâmica de Cláusulas do Modelo
     if (modelo && Array.isArray(modelo.clausulas)) {
       for (const clausula of modelo.clausulas) {
-        // Verificar se cabe o título e pelo menos uma linha de conteúdo
-        if (y < 120) {
+        // Garantir que o título e pelo menos o início do parágrafo caibam na página
+        if (y < 140) {
           drawFooter(pageCount)
           page = pdfDoc.addPage([595.28, 841.89])
           pageCount++
