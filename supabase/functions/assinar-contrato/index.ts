@@ -116,11 +116,12 @@ serve(async (req) => {
       const title = 'CONTRATO DE PRESTAÇÃO DE SERVIÇOS'
       page.drawText(title, {
         x: margin,
-        y: height - 60,
-        size: 22,
+        y: height - 120, // Descido para não bater no topo
+        size: 18, // Tamanho mais equilibrado
         font: fontBold,
         color: purpleDeep
       })
+
 
       // Linha de acento abaixo do título
       page.drawRectangle({
