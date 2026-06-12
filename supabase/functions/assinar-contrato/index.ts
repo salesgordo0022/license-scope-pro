@@ -193,8 +193,8 @@ serve(async (req) => {
         align = 'left', 
         color = textColor, 
         indent = 0,
-        lineHeight = 1.3, // Reduzido de 1.5 para 1.3
-        paragraphSpacing = 10 // Reduzido de 15 para 10
+        lineHeight = 1.3,
+        paragraphSpacing = 8 // Reduzido ligeiramente
       } = options
       
       let currentFont = isBold ? fontBold : font
