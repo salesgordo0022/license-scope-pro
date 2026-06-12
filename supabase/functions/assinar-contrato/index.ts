@@ -219,13 +219,14 @@ serve(async (req) => {
         
         // Verificar se a linha cabe na página, considerando o rodapé
         // y é o ponto base da linha, subtraímos size * lineHeight para ver onde a linha termina
-        if (y - (size * lineHeight) < footerHeight) {
+        if (y - (size * lineHeight) < footerHeight + 10) {
           drawFooter(pageCount)
           page = pdfDoc.addPage([595.28, 841.89])
           pageCount++
           drawHeaderDecoration()
           y = height - 120 
         }
+
 
         const isLastLine = i === lines.length - 1
         let xPos = margin + indent
@@ -293,13 +294,14 @@ serve(async (req) => {
     if (modelo && Array.isArray(modelo.clausulas)) {
       for (const clausula of modelo.clausulas) {
         // Garantir que o título e pelo menos o início do parágrafo caibam na página
-        if (y < 100) { // Reduzido de 140 para 100
+        if (y < footerHeight + 40) { 
           drawFooter(pageCount)
           page = pdfDoc.addPage([595.28, 841.89])
           pageCount++
           drawHeaderDecoration()
           y = height - 120
         }
+
 
         page.drawRectangle({ x: margin, y: y - 10, width: 3, height: 15, color: purpleMedium })
         addText(clausula.titulo.toUpperCase(), 11, { isBold: true, color: purpleDeep, indent: 8, paragraphSpacing: 10 }) // Reduzido paragraphSpacing para 10
@@ -338,13 +340,14 @@ serve(async (req) => {
 
     // Seção de Assinaturas (Bloco Protegido contra Quebra)
     const signatureSectionHeight = 180
-    if (y < signatureSectionHeight + 40) { // Reduzido para aproveitar mais a página
+    if (y < footerHeight + signatureSectionHeight) { 
       drawFooter(pageCount)
       page = pdfDoc.addPage([595.28, 841.89])
       y = height - 120
       pageCount++
       drawHeaderDecoration()
     }
+
 
     addText('E, por estarem assim justos e contratados, as partes firmam o presente instrumento.', 10, { align: 'center', isItalic: true, paragraphSpacing: 40 })
 
