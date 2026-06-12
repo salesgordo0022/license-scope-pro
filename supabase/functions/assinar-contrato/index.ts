@@ -215,12 +215,13 @@ serve(async (req) => {
 
       const estimatedHeight = lines.length * (size * lineHeight)
       
-      if (y - estimatedHeight < 100) { // Aumentado de 80 para 100
+      // Se o bloco de texto não couber na página atual, move para a próxima
+      if (y - estimatedHeight < 70) { 
         drawFooter(pageCount)
         page = pdfDoc.addPage([595.28, 841.89])
         pageCount++
         drawHeaderDecoration()
-        y = height - 120 // Space for header
+        y = height - 120 
       }
 
       for (let i = 0; i < lines.length; i++) {
