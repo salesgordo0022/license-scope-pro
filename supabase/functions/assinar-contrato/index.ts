@@ -340,13 +340,14 @@ serve(async (req) => {
 
     // Seção de Assinaturas (Bloco Protegido contra Quebra)
     const signatureSectionHeight = 180
-    if (y < signatureSectionHeight + 40) { // Reduzido para aproveitar mais a página
+    if (y < footerHeight + signatureSectionHeight) { 
       drawFooter(pageCount)
       page = pdfDoc.addPage([595.28, 841.89])
       y = height - 120
       pageCount++
       drawHeaderDecoration()
     }
+
 
     addText('E, por estarem assim justos e contratados, as partes firmam o presente instrumento.', 10, { align: 'center', isItalic: true, paragraphSpacing: 40 })
 
