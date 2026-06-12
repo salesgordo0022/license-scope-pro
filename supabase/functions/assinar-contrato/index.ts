@@ -264,7 +264,8 @@ serve(async (req) => {
     }
 
     drawHeaderDecoration()
-    y = height - 120
+    y = height - 190 // Espaço após o cabeçalho
+
 
     // Seção de Cabeçalho / Resumo (Estilo Proposta - Tabela limpa)
     page.drawRectangle({
