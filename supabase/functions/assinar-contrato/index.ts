@@ -66,50 +66,65 @@ serve(async (req) => {
 
     // Cores Premium (Roxo Deep e Acentos)
     const purpleDeep = rgb(0.2, 0.08, 0.44) // #331470
-    const purpleLight = rgb(0.58, 0.44, 0.86) // #9470db
+    const purpleMedium = rgb(0.4, 0.2, 0.6)
+    const purpleLight = rgb(0.9, 0.85, 0.95) // Fundo suave para contraste
     const grayBg = rgb(0.98, 0.98, 1.0)
-    const textColor = rgb(0.15, 0.15, 0.2)
+    const textColor = rgb(0.1, 0.1, 0.15)
     const secondaryTextColor = rgb(0.4, 0.4, 0.5)
 
     const drawHeaderDecoration = () => {
-      // Top accent bar with gradient-like effect
+      // 1. Barra Lateral Esquerda (Elemento de Design do PDF laranja adaptado)
       page.drawRectangle({
         x: 0,
-        y: height - 80,
-        width: width,
-        height: 80,
+        y: 0,
+        width: 15,
+        height: height,
         color: purpleDeep
       })
 
-      // Abstract pattern (waves/lines similar to the orange reference but in purple)
-      for (let i = 0; i < 5; i++) {
-        page.drawEllipse({
-          x: width - 20,
-          y: height - 10,
-          xScale: 100 + (i * 40),
-          yScale: 100 + (i * 40),
-          borderWidth: 0.5,
-          borderColor: rgb(1, 1, 1),
-          opacity: 0.1
-        })
-      }
+      // 2. Elemento Circular no Topo Direito (Abstract pattern)
+      page.drawCircle({
+        x: width - 20,
+        y: height - 20,
+        size: 150,
+        color: purpleDeep,
+        opacity: 0.05
+      })
+      
+      page.drawCircle({
+        x: width,
+        y: height,
+        size: 80,
+        color: purpleDeep,
+        opacity: 0.1
+      })
 
+      // 3. Cabeçalho com Título e Logo Placeholder
       const title = 'CONTRATO DE PRESTAÇÃO DE SERVIÇOS'
       page.drawText(title, {
-        x: margin,
-        y: height - 45,
-        size: 18,
+        x: 50,
+        y: height - 60,
+        size: 22,
         font: fontBold,
-        color: rgb(1, 1, 1)
+        color: purpleDeep
+      })
+
+      // Linha de acento abaixo do título
+      page.drawRectangle({
+        x: 50,
+        y: height - 75,
+        width: 100,
+        height: 3,
+        color: purpleMedium
       })
 
       const subHeader = configuration.contratado_nome?.toUpperCase() || 'DOCUMENTO DIGITAL'
       page.drawText(subHeader, {
-        x: margin,
-        y: height - 60,
-        size: 8,
+        x: 50,
+        y: height - 95,
+        size: 9,
         font: font,
-        color: rgb(0.9, 0.9, 1)
+        color: secondaryTextColor
       })
     }
 
