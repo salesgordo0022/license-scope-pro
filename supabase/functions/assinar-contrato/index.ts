@@ -51,7 +51,7 @@ serve(async (req) => {
     const cnAttr = certBag.cert.subject.attributes.find((attr: any) => attr.shortName === 'CN')
     const certName = cnAttr ? cnAttr.value : (nomeAssinante || configuration.contratado_nome)
 
-    // 4. Gerar PDF Estilo Adobe/ICP-Brasil
+    // 4. Gerar PDF Estilo Moderno Premium (Adobe-like + Custom Design)
     const pdfDoc = await PDFDocument.create()
     const font = await pdfDoc.embedFont(StandardFonts.Helvetica)
     const fontBold = await pdfDoc.embedFont(StandardFonts.HelveticaBold)
@@ -59,46 +59,86 @@ serve(async (req) => {
     
     let page = pdfDoc.addPage([595.28, 841.89])
     const { width, height } = page.getSize()
-    const margin = 70
+    const margin = 50
     const contentWidth = width - (margin * 2)
     let y = height - margin
     let pageCount = 1
 
-    const drawHeader = () => {
-      page.drawRectangle({ x: margin, y: height - 60, width: contentWidth, height: 0.5, color: rgb(0.7, 0.7, 0.7) })
-      page.drawText(configuration.contratado_nome?.toUpperCase() || 'EMPRESA', { 
-        x: margin, 
-        y: height - 50, 
-        size: 9, 
-        font: fontBold, 
-        color: rgb(0.3, 0.3, 0.3) 
+    // Cores Premium (Roxo Deep e Acentos)
+    const purpleDeep = rgb(0.2, 0.08, 0.44) // #331470
+    const purpleLight = rgb(0.58, 0.44, 0.86) // #9470db
+    const grayBg = rgb(0.98, 0.98, 1.0)
+    const textColor = rgb(0.15, 0.15, 0.2)
+    const secondaryTextColor = rgb(0.4, 0.4, 0.5)
+
+    const drawHeaderDecoration = () => {
+      // Top accent bar with gradient-like effect
+      page.drawRectangle({
+        x: 0,
+        y: height - 80,
+        width: width,
+        height: 80,
+        color: purpleDeep
       })
-      page.drawText('CONTRATO DE PRESTAÇÃO DE SERVIÇOS', { 
-        x: width - margin - fontBold.widthOfTextAtSize('CONTRATO DE PRESTAÇÃO DE SERVIÇOS', 8), 
-        y: height - 50, 
-        size: 8, 
-        font: fontBold, 
-        color: rgb(0.5, 0.5, 0.5) 
+
+      // Abstract pattern (waves/lines similar to the orange reference but in purple)
+      for (let i = 0; i < 5; i++) {
+        page.drawEllipse({
+          x: width - 20,
+          y: height - 10,
+          xScale: 100 + (i * 40),
+          yScale: 100 + (i * 40),
+          borderWidth: 0.5,
+          borderColor: rgb(1, 1, 1),
+          opacity: 0.1
+        })
+      }
+
+      const title = 'CONTRATO DE PRESTAÇÃO DE SERVIÇOS'
+      page.drawText(title, {
+        x: margin,
+        y: height - 45,
+        size: 18,
+        font: fontBold,
+        color: rgb(1, 1, 1)
+      })
+
+      const subHeader = configuration.contratado_nome?.toUpperCase() || 'DOCUMENTO DIGITAL'
+      page.drawText(subHeader, {
+        x: margin,
+        y: height - 60,
+        size: 8,
+        font: font,
+        color: rgb(0.9, 0.9, 1)
       })
     }
 
     const drawFooter = (pageNum: number) => {
+      // Bottom accent
+      page.drawRectangle({
+        x: 0,
+        y: 0,
+        width: width,
+        height: 40,
+        color: grayBg
+      })
+
       const footerText = `Página ${pageNum}`
       page.drawText(footerText, {
-        x: (width - font.widthOfTextAtSize(footerText, 8)) / 2,
-        y: 30,
+        x: width - margin - font.widthOfTextAtSize(footerText, 8),
+        y: 15,
         size: 8,
         font: font,
-        color: rgb(0.6, 0.6, 0.6)
+        color: secondaryTextColor
       })
       
-      const idText = `ID: ${contratoId}`
-      page.drawText(idText, {
+      const branding = 'Gerado por Imperial Contabilidade - Documento com Validade Jurídica'
+      page.drawText(branding, {
         x: margin,
-        y: 30,
-        size: 6,
-        font: font,
-        color: rgb(0.8, 0.8, 0.8)
+        y: 15,
+        size: 7,
+        font: fontItalic,
+        color: secondaryTextColor
       })
     }
 
@@ -107,10 +147,10 @@ serve(async (req) => {
         isBold = false, 
         isItalic = false, 
         align = 'left', 
-        color = rgb(0.1, 0.1, 0.1), 
+        color = textColor, 
         indent = 0,
-        lineHeight = 1.4,
-        paragraphSpacing = 12
+        lineHeight = 1.5,
+        paragraphSpacing = 15
       } = options
       
       let currentFont = isBold ? fontBold : font
@@ -136,13 +176,12 @@ serve(async (req) => {
 
       const estimatedHeight = lines.length * (size * lineHeight)
       
-      // Check if text block fits, otherwise page break
-      if (y - estimatedHeight < margin + 40) {
+      if (y - estimatedHeight < 60) {
         drawFooter(pageCount)
         page = pdfDoc.addPage([595.28, 841.89])
-        y = height - margin
+        y = height - 120 // Space for header
         pageCount++
-        drawHeader()
+        drawHeaderDecoration()
       }
 
       for (let i = 0; i < lines.length; i++) {
@@ -178,108 +217,132 @@ serve(async (req) => {
       y -= paragraphSpacing
     }
 
-    drawHeader()
-    y -= 30
+    drawHeaderDecoration()
+    y = height - 120
 
-    // Título Principal
-    addText('INSTRUMENTO PARTICULAR DE CONTRATO DE PRESTAÇÃO DE SERVIÇOS', 14, { isBold: true, align: 'center', paragraphSpacing: 30 })
+    // Seção de Cabeçalho / Resumo (Estilo Proposta)
+    page.drawRectangle({
+      x: margin,
+      y: y - 80,
+      width: contentWidth,
+      height: 80,
+      color: grayBg,
+      borderColor: purpleLight,
+      borderWidth: 0.5
+    })
 
-    // Identificação das Partes
-    addText('DAS PARTES', 11, { isBold: true, paragraphSpacing: 10 })
+    const infoY = y - 25
+    page.drawText('CONTRATANTE:', { x: margin + 15, y: infoY, size: 8, font: fontBold, color: purpleDeep })
+    page.drawText(contrato.contratante_nome?.substring(0, 45) || '---', { x: margin + 15, y: infoY - 15, size: 10, font: font, color: textColor })
+    
+    page.drawText('IDENTIFICAÇÃO:', { x: margin + 250, y: infoY, size: 8, font: fontBold, color: purpleDeep })
+    page.drawText(contrato.contratante_cnpj || '---', { x: margin + 250, y: infoY - 15, size: 10, font: font, color: textColor })
+    
+    page.drawText('DATA DE EMISSÃO:', { x: margin + 400, y: infoY, size: 8, font: fontBold, color: purpleDeep })
+    page.drawText(new Date().toLocaleDateString('pt-BR'), { x: margin + 400, y: infoY - 15, size: 10, font: font, color: textColor })
+
+    y -= 110
+
+    // Conteúdo Principal
+    addText('DAS PARTES', 12, { isBold: true, color: purpleDeep, paragraphSpacing: 10 })
     
     const textoPartes = `Pelo presente instrumento particular, de um lado ${configuration.contratado_nome || 'A CONTRATADA'}, pessoa jurídica de direito privado, inscrita no CNPJ sob o nº ${configuration.contratado_cnpj || '---'}, com sede em ${configuration.contratado_endereco || '---'}, doravante denominada CONTRATADA; e, de outro lado, ${contrato.contratante_nome || 'O CONTRATANTE'}, inscrito no CPF/CNPJ sob o nº ${contrato.contratante_cnpj || '---'}, residente e domiciliado em ${contrato.contratante_endereco || '---'}, doravante denominado CONTRATANTE.`
     
-    addText(textoPartes, 10, { align: 'justify', paragraphSpacing: 20 })
+    addText(textoPartes, 10, { align: 'justify', paragraphSpacing: 25 })
 
-    // Objeto
-    addText('CLÁUSULA PRIMEIRA – DO OBJETO', 11, { isBold: true, paragraphSpacing: 8 })
-    addText(`1.1. O presente contrato tem como objeto a prestação de serviços de software e suporte técnico para o sistema ${contrato.sistema || '---'}, de propriedade da CONTRATADA.`, 10, { align: 'justify' })
-    addText(`1.2. A prestação dos serviços compreende o licenciamento de uso, manutenção e suporte técnico conforme as especificações do sistema contratado.`, 10, { align: 'justify', paragraphSpacing: 20 })
+    // Seção Objeto com Ícone/Marcador
+    page.drawRectangle({ x: margin, y: y + 15, width: 3, height: 15, color: purpleLight })
+    addText('CLÁUSULA PRIMEIRA – DO OBJETO', 11, { isBold: true, color: purpleDeep, indent: 8, paragraphSpacing: 12 })
+    addText(`1.1. O presente contrato tem como objeto a prestação de serviços de software e suporte técnico para o sistema ${contrato.sistema || '---'}, de propriedade da CONTRATADA.`, 10, { align: 'justify', indent: 8 })
+    addText(`1.2. A prestação dos serviços compreende o licenciamento de uso, manutenção e suporte técnico conforme as especificações do sistema contratado.`, 10, { align: 'justify', indent: 8, paragraphSpacing: 25 })
 
-    // Valores e Pagamento
-    addText('CLÁUSULA SEGUNDA – DOS VALORES AND FORMA DE PAGAMENTO', 11, { isBold: true, paragraphSpacing: 8 })
-    addText(`2.1. Pela prestação dos serviços ora contratados, o CONTRATANTE pagará à CONTRATADA o valor mensal de R$ ${contrato.valor_mensalidade?.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) || '0,00'}, com vencimento conforme pactuado.`, 10, { align: 'justify' })
-    addText(`2.2. Eventuais serviços adicionais ou deslocamentos serão cobrados à parte, conforme tabela vigente ou negociação específica.`, 10, { align: 'justify', paragraphSpacing: 20 })
+    // Seção Valores
+    page.drawRectangle({ x: margin, y: y + 15, width: 3, height: 15, color: purpleLight })
+    addText('CLÁUSULA SEGUNDA – DOS VALORES E FORMA DE PAGAMENTO', 11, { isBold: true, color: purpleDeep, indent: 8, paragraphSpacing: 12 })
+    
+    const valorFormatted = contrato.valor_mensalidade?.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }) || 'R$ 0,00'
+    addText(`2.1. Pela prestação dos serviços ora contratados, o CONTRATANTE pagará à CONTRATADA o valor mensal de ${valorFormatted}, com vencimento conforme pactuado em sistema.`, 10, { align: 'justify', indent: 8 })
+    addText(`2.2. Eventuais serviços adicionais ou deslocamentos serão cobrados à parte, conforme tabela vigente ou negociação específica.`, 10, { align: 'justify', indent: 8, paragraphSpacing: 25 })
 
-    // Vigência
-    addText('CLÁUSULA TERCEIRA – DA VIGÊNCIA', 11, { isBold: true, paragraphSpacing: 8 })
-    addText(`3.1. O presente contrato entra em vigor na data de sua assinatura, com prazo de vigência de ${contrato.vigencia_meses || 12} meses, podendo ser renovado automaticamente por iguais períodos.`, 10, { align: 'justify', paragraphSpacing: 40 })
+    // Seção Vigência
+    page.drawRectangle({ x: margin, y: y + 15, width: 3, height: 15, color: purpleLight })
+    addText('CLÁUSULA TERCEIRA – DA VIGÊNCIA', 11, { isBold: true, color: purpleDeep, indent: 8, paragraphSpacing: 12 })
+    addText(`3.1. O presente contrato entra em vigor na data de sua assinatura, com prazo de vigência de ${contrato.vigencia_meses || 12} meses, podendo ser renovado automaticamente por iguais períodos.`, 10, { align: 'justify', indent: 8, paragraphSpacing: 40 })
 
-    // Seção de Assinaturas
-    const signatureSectionHeight = 150
-    if (y < signatureSectionHeight + margin + 40) {
+    // Seção de Assinaturas (Bloco Protegido contra Quebra)
+    const signatureSectionHeight = 180
+    if (y < signatureSectionHeight + 60) {
       drawFooter(pageCount)
       page = pdfDoc.addPage([595.28, 841.89])
-      y = height - margin
+      y = height - 120
       pageCount++
-      drawHeader()
+      drawHeaderDecoration()
     }
 
     addText('E, por estarem assim justos e contratados, as partes firmam o presente instrumento.', 10, { align: 'center', isItalic: true, paragraphSpacing: 40 })
 
-    // Box de Assinatura Digital (Estilo Profissional Adobe)
-    const boxWidth = 240
-    const boxHeight = 80
+    // Box de Assinatura Digital Premium
+    const boxWidth = 260
+    const boxHeight = 100
     const boxX = margin
     
-    // Background suave e borda
+    // Sombra suave / Background
     page.drawRectangle({
       x: boxX,
       y: y - boxHeight,
       width: boxWidth,
       height: boxHeight,
-      color: rgb(0.97, 0.98, 1.0),
-      borderColor: rgb(0.1, 0.3, 0.6),
-      borderWidth: 1.5
+      color: grayBg,
+      borderColor: purpleDeep,
+      borderWidth: 1
     })
 
-    // Cabeçalho do selo
+    // Header do Selo de Assinatura
     page.drawRectangle({
       x: boxX,
-      y: y - 20,
+      y: y - 25,
       width: boxWidth,
-      height: 20,
-      color: rgb(0.1, 0.3, 0.6)
+      height: 25,
+      color: purpleDeep
     })
     
-    page.drawText('ASSINADO DIGITALMENTE', {
-      x: boxX + 10,
-      y: y - 13,
-      size: 8,
+    page.drawText('✓ ASSINADO DIGITALMENTE', {
+      x: boxX + 15,
+      y: y - 17,
+      size: 9,
       font: fontBold,
       color: rgb(1, 1, 1)
     })
 
-    // Conteúdo do selo
     const sigDate = new Date().toLocaleString('pt-BR')
     const certText = certName.toUpperCase()
     
-    page.drawText('Assinante:', { x: boxX + 10, y: y - 35, size: 7, font: font, color: rgb(0.3, 0.3, 0.3) })
-    page.drawText(certText.length > 40 ? certText.substring(0, 37) + '...' : certText, { 
-      x: boxX + 10, 
-      y: y - 48, 
-      size: 9, 
+    page.drawText('ASSINANTE:', { x: boxX + 15, y: y - 40, size: 7, font: font, color: secondaryTextColor })
+    page.drawText(certText.length > 35 ? certText.substring(0, 32) + '...' : certText, { 
+      x: boxX + 15, 
+      y: y - 55, 
+      size: 10, 
       font: fontBold, 
-      color: rgb(0, 0, 0) 
+      color: textColor 
     })
     
-    page.drawText(`Data: ${sigDate}`, { x: boxX + 10, y: y - 62, size: 7, font: font, color: rgb(0.3, 0.3, 0.3) })
-    page.drawText('Validade Jurídica: ICP-Brasil / Medida Provisória 2.200-2', { 
-      x: boxX + 10, 
-      y: y - 73, 
-      size: 6, 
-      font: fontItalic, 
-      color: rgb(0.4, 0.4, 0.4) 
+    page.drawText(`DATA: ${sigDate}`, { x: boxX + 15, y: y - 72, size: 7, font: font, color: secondaryTextColor })
+    page.drawText('VALIDADE JURÍDICA: ICP-BRASIL / MP 2.200-2', { 
+      x: boxX + 15, 
+      y: y - 88, 
+      size: 7, 
+      font: fontBold, 
+      color: purpleLight 
     })
 
     // Lado do Contratante
-    const lineY = y - 55
-    const lineX = width - margin - 200
+    const lineY = y - 60
+    const lineX = width - margin - 220
     page.drawLine({
       start: { x: lineX, y: lineY },
       end: { x: width - margin, y: lineY },
-      thickness: 0.5,
-      color: rgb(0.5, 0.5, 0.5)
+      thickness: 1,
+      color: purpleLight
     })
     
     page.drawText(contrato.contratante_nome?.toUpperCase() || 'CONTRATANTE', {
@@ -287,19 +350,18 @@ serve(async (req) => {
       y: lineY - 15,
       size: 9,
       font: fontBold,
-      color: rgb(0.2, 0.2, 0.2)
+      color: textColor
     })
     
-    page.drawText('Assinatura Eletrônica', {
+    page.drawText('ASSINATURA ELETRÔNICA', {
       x: lineX,
       y: lineY - 28,
       size: 8,
-      font: fontItalic,
-      color: rgb(0.6, 0.6, 0.6)
+      font: font,
+      color: secondaryTextColor
     })
 
     drawFooter(pageCount)
-
 
     const pdfBytes = await pdfDoc.save()
     const fileName = `contrato_${contratoId}_final.pdf`
@@ -336,3 +398,4 @@ serve(async (req) => {
     })
   }
 })
+
