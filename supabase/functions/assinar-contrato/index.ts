@@ -28,6 +28,14 @@ serve(async (req) => {
       .select('*, empresa:empresas(*)')
       .eq('id', contratoId)
       .single()
+    
+    // Buscar cláusulas do modelo
+    const { data: modelo } = await supabaseAdmin
+      .from('modelos_contrato')
+      .select('clausulas')
+      .eq('ativo', true)
+      .limit(1)
+      .maybeSingle()
 
     if (contratoError || !contrato) throw new Error('Contrato não encontrado')
 
