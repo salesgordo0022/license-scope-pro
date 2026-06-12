@@ -10,7 +10,10 @@ serve(async (req) => {
   }
 
   try {
-    const { contratoId, pfxBase64, password, nomeAssinante } = await req.json()
+    const rawBody = await req.text();
+    console.log('Recebido body de tamanho:', rawBody.length);
+    const { contratoId, pfxBase64, password, nomeAssinante } = JSON.parse(rawBody);
+
 
     if (!pfxBase64 || !password) {
       throw new Error('Certificado e senha são obrigatórios')
