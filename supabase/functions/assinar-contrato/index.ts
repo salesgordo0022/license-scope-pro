@@ -87,9 +87,9 @@ serve(async (req) => {
     const drawHeaderDecoration = () => {
       // 1. Barra Lateral Esquerda - Removida ou afastada da borda zero para evitar cortes de impressora
       page.drawRectangle({
-        x: 20, // Começar em 20 pontos, não em zero
+        x: margin / 2, // Posicionamento seguro baseado na margem dinâmica
         y: margin,
-        width: 5,
+        width: 4,
         height: height - (margin * 2),
         color: purpleDeep,
         opacity: 0.5
