@@ -67,8 +67,8 @@ serve(async (req) => {
     
     let page = pdfDoc.addPage([595.28, 841.89])
     const { width, height } = page.getSize()
-    // Margens A4 Padrão aumentadas para segurança total (80 pontos)
-    const margin = 80 
+    // Margens A4 Padrão aumentadas para segurança total (90 pontos para garantir zero cortes)
+    const margin = 90 
     const footerHeight = 100 
     const contentWidth = width - (margin * 2)
     let y = height - margin
@@ -190,7 +190,7 @@ serve(async (req) => {
       let currentFont = isBold ? fontBold : font
       if (isItalic) currentFont = fontItalic
       
-      const effectiveMaxWidth = contentWidth - indent
+      const effectiveMaxWidth = contentWidth - indent - 10 // Adicionando buffer extra de 10pt para segurança horizontal
       
       // Improved word wrapping for long strings without spaces
       const wrapText = (txt: string, maxWidth: number) => {
@@ -286,15 +286,19 @@ serve(async (req) => {
       opacity: 0.3
     })
 
+    const col1 = margin + 15
+    const col2 = margin + (contentWidth * 0.45)
+    const col3 = margin + (contentWidth * 0.75)
     const infoY = y - 25
-    page.drawText('CONTRATANTE', { x: margin + 15, y: infoY, size: 8, font: fontBold, color: purpleDeep })
-    page.drawText(contrato.contratante_nome?.substring(0, 45) || '---', { x: margin + 15, y: infoY - 15, size: 10, font: font, color: textColor })
+
+    page.drawText('CONTRATANTE', { x: col1, y: infoY, size: 8, font: fontBold, color: purpleDeep })
+    page.drawText(contrato.contratante_nome?.substring(0, 40) || '---', { x: col1, y: infoY - 15, size: 10, font: font, color: textColor })
     
-    page.drawText('CNPJ/CPF', { x: margin + 250, y: infoY, size: 8, font: fontBold, color: purpleDeep })
-    page.drawText(contrato.contratante_cnpj || '---', { x: margin + 250, y: infoY - 15, size: 10, font: font, color: textColor })
+    page.drawText('CNPJ/CPF', { x: col2, y: infoY, size: 8, font: fontBold, color: purpleDeep })
+    page.drawText(contrato.contratante_cnpj || '---', { x: col2, y: infoY - 15, size: 10, font: font, color: textColor })
     
-    page.drawText('EMISSÃO', { x: margin + 400, y: infoY, size: 8, font: fontBold, color: purpleDeep })
-    page.drawText(new Date().toLocaleDateString('pt-BR'), { x: margin + 400, y: infoY - 15, size: 10, font: font, color: textColor })
+    page.drawText('EMISSÃO', { x: col3, y: infoY, size: 8, font: fontBold, color: purpleDeep })
+    page.drawText(new Date().toLocaleDateString('pt-BR'), { x: col3, y: infoY - 15, size: 10, font: font, color: textColor })
 
     y -= 100
 
@@ -425,7 +429,8 @@ serve(async (req) => {
 
     // Lado do Contratante
     const lineY = y - 60
-    const lineX = width - margin - 220
+    const sigLineWidth = 200
+    const lineX = width - margin - sigLineWidth
     page.drawLine({
       start: { x: lineX, y: lineY },
       end: { x: width - margin, y: lineY },
