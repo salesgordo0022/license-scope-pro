@@ -68,6 +68,7 @@ serve(async (req) => {
     let page = pdfDoc.addPage([595.28, 841.89])
     const { width, height } = page.getSize()
     const margin = 50
+    const footerHeight = 60 // Altura reservada para o rodapé
     const contentWidth = width - (margin * 2)
     let y = height - margin
     let pageCount = 1
@@ -137,19 +138,19 @@ serve(async (req) => {
     }
 
     const drawFooter = (pageNum: number) => {
-      // Bottom accent
+      // Background do rodapé
       page.drawRectangle({
         x: 0,
         y: 0,
         width: width,
-        height: 40,
+        height: footerHeight - 10,
         color: grayBg
       })
 
       const footerText = `Página ${pageNum}`
       page.drawText(footerText, {
         x: width - margin - font.widthOfTextAtSize(footerText, 8),
-        y: 15,
+        y: 20,
         size: 8,
         font: font,
         color: secondaryTextColor
@@ -158,7 +159,7 @@ serve(async (req) => {
       const branding = 'Gerado por Imperial Contabilidade - Documento com Validade Jurídica'
       page.drawText(branding, {
         x: margin,
-        y: 15,
+        y: 20,
         size: 7,
         font: fontItalic,
         color: secondaryTextColor
@@ -212,8 +213,8 @@ serve(async (req) => {
       if (currentLine) lines.push(currentLine)
 
       for (let i = 0; i < lines.length; i++) {
-        // Verificar antes de cada linha se há espaço (limite de segurança 65 para caber o rodapé)
-        if (y < 65) {
+        // Verificar se a linha cabe na página, considerando o rodapé
+        if (y < footerHeight + size) {
           drawFooter(pageCount)
           page = pdfDoc.addPage([595.28, 841.89])
           pageCount++
