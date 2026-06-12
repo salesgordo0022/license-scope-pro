@@ -134,19 +134,19 @@ serve(async (req) => {
     }
 
     const drawFooter = (pageNum: number) => {
-      // Background do rodapé
+      // Background do rodapé - Posicionado de forma segura
       page.drawRectangle({
-        x: margin, // Respeitar margem lateral no rodapé também
-        y: 10,
+        x: margin,
+        y: 40,
         width: contentWidth,
-        height: footerHeight - 40,
+        height: 25,
         color: grayBg
       })
 
       const footerText = `Página ${pageNum}`
       page.drawText(footerText, {
-        x: width - margin - font.widthOfTextAtSize(footerText, 8),
-        y: 20,
+        x: width - margin - font.widthOfTextAtSize(footerText, 8) - 10,
+        y: 48,
         size: 8,
         font: font,
         color: secondaryTextColor
@@ -155,7 +155,7 @@ serve(async (req) => {
       const branding = 'Gerado por Imperial Contabilidade - Documento com Validade Jurídica'
       page.drawText(branding, {
         x: margin + 10,
-        y: 20,
+        y: 48,
         size: 7,
         font: fontItalic,
         color: secondaryTextColor
