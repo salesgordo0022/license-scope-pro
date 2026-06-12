@@ -67,9 +67,9 @@ serve(async (req) => {
     
     let page = pdfDoc.addPage([595.28, 841.89])
     const { width, height } = page.getSize()
-    // Margens de segurança reforçadas (100 pontos em todos os lados)
-    const margin = 100 
-    const footerHeight = 110 
+    // Reduzindo drasticamente as margens e ajustando o cálculo de largura útil
+    const margin = 50 
+    const footerHeight = 80 
     const contentWidth = width - (margin * 2)
     let y = height - margin
 
@@ -85,30 +85,17 @@ serve(async (req) => {
     const secondaryTextColor = rgb(0.4, 0.4, 0.5)
 
     const drawHeaderDecoration = () => {
-      // 1. Barra Lateral Esquerda - Afastada da borda para segurança máxima
-      page.drawRectangle({
-        x: margin - 20, 
-        y: margin,
-        width: 3,
-        height: height - (margin * 2),
-        color: purpleDeep,
-        opacity: 0.4
-      })
+      // 1. Barra Lateral Esquerda - Removida para evitar qualquer corte
+      // page.drawRectangle(...)
 
-      // 2. Elementos decorativos (círculos) - Recuados para evitar qualquer corte lateral
-      page.drawCircle({
-        x: width - margin - 20,
-        y: height - margin + 20,
-        size: 40,
-        color: purpleDeep,
-        opacity: 0.03
-      })
+      // 2. Elementos decorativos (círculos) - Removidos para garantir página limpa e sem cortes
+      // page.drawCircle(...)
 
       // 3. Cabeçalho - RESPEITANDO RIGIDAMENTE AS MARGENS
       const title = 'CONTRATO DE PRESTAÇÃO DE SERVIÇOS'
       page.drawText(title, {
         x: margin,
-        y: height - margin - 40, // Mais espaço do topo
+        y: height - margin - 30, // Mais espaço do topo
         size: 16,
         font: fontBold,
         color: purpleDeep
@@ -117,7 +104,7 @@ serve(async (req) => {
       // Linha de acento abaixo do título
       page.drawRectangle({
         x: margin,
-        y: height - margin - 55,
+        y: height - margin - 45,
         width: 100,
         height: 2,
         color: purpleMedium
@@ -126,7 +113,7 @@ serve(async (req) => {
       const subHeader = (configuration.contratado_nome || 'DOCUMENTO DIGITAL').toUpperCase()
       page.drawText(subHeader, {
         x: margin,
-        y: height - margin - 75,
+        y: height - margin - 65,
         size: 9,
         font: font,
         color: secondaryTextColor
@@ -137,7 +124,7 @@ serve(async (req) => {
       // Background do rodapé - Posicionado de forma segura
       page.drawRectangle({
         x: margin,
-        y: 40,
+        y: 30,
         width: contentWidth,
         height: 25,
         color: grayBg
@@ -145,8 +132,8 @@ serve(async (req) => {
 
       const footerText = `Página ${pageNum}`
       page.drawText(footerText, {
-        x: width - margin - font.widthOfTextAtSize(footerText, 8) - 10,
-        y: 48,
+        x: width - margin - font.widthOfTextAtSize(footerText, 8),
+        y: 38,
         size: 8,
         font: font,
         color: secondaryTextColor
@@ -155,7 +142,7 @@ serve(async (req) => {
       const branding = 'Gerado por Imperial Contabilidade - Documento com Validade Jurídica'
       page.drawText(branding, {
         x: margin + 10,
-        y: 48,
+        y: 38,
         size: 7,
         font: fontItalic,
         color: secondaryTextColor
@@ -190,7 +177,7 @@ serve(async (req) => {
       let currentFont = isBold ? fontBold : font
       if (isItalic) currentFont = fontItalic
       
-      const effectiveMaxWidth = contentWidth - indent - 15 // Buffer horizontal de 15pt adicional
+      const effectiveMaxWidth = contentWidth - indent - 5 // Buffer mínimo
       
       // Improved word wrapping for long strings without spaces
       const wrapText = (txt: string, maxWidth: number) => {
@@ -374,7 +361,7 @@ serve(async (req) => {
     addText('E, por estarem assim justos e contratados, as partes firmam o presente instrumento.', 10, { align: 'center', isItalic: true, paragraphSpacing: 40 })
 
     // Box de Assinatura Digital Premium
-    const boxWidth = 260
+    const boxWidth = 240 // Reduzido
     const boxHeight = 100
     const boxX = margin
     
@@ -429,7 +416,7 @@ serve(async (req) => {
 
     // Lado do Contratante
     const lineY = y - 60
-    const sigLineWidth = 180 // Reduzido para garantir que caiba com margem de 100
+    const sigLineWidth = 160 // Reduzido
     const lineX = width - margin - sigLineWidth
     page.drawLine({
       start: { x: lineX, y: lineY },
