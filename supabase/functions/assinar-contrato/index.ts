@@ -2,6 +2,10 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 import { PDFDocument, rgb, StandardFonts } from 'https://esm.sh/pdf-lib@1.17.1'
 import forge from 'https://esm.sh/node-forge@1.3.1'
+import { sign } from 'https://esm.sh/@signpdf/signpdf@3.3.0'
+import { P12Signer } from 'https://esm.sh/@signpdf/signer-p12@3.3.0'
+import { addPlaceholder } from 'https://esm.sh/@signpdf/placeholder-pdf-lib@3.3.0'
+import { Buffer } from "https://deno.land/std@0.168.0/node/buffer.ts"
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -51,7 +55,7 @@ serve(async (req) => {
       configuration = config || {}
     }
 
-    // 2. Carregar Certificado para extrair informações reais (Gov/Adobe style)
+    // 2. Carregar Certificado para extrair informações reais
     const pfxDer = forge.util.decode64(pfxBase64)
     const p12Asn1 = forge.asn1.fromDer(pfxDer)
     const p12 = forge.pkcs12.pkcs12FromAsn1(p12Asn1, password)
@@ -63,15 +67,13 @@ serve(async (req) => {
     const certificate = certBag.cert
     const subject = certificate.subject.attributes
     
-    // Tenta extrair o Common Name (CN) que geralmente contém o nome da empresa ou pessoa no certificado
     const cnAttr = subject.find(attr => attr.shortName === 'CN')
     const certName = cnAttr ? cnAttr.value : (configuration.contratado_nome || nomeAssinante)
     
-    // Tenta extrair a organização (O)
     const oAttr = subject.find(attr => attr.shortName === 'O')
     const orgName = oAttr ? oAttr.value : 'ICP-Brasil'
 
-    // 3. Gerar PDF Profissional
+    // 3. Gerar PDF com pdf-lib
     const pdfDoc = await PDFDocument.create()
     const font = await pdfDoc.embedFont(StandardFonts.Helvetica)
     const fontBold = await pdfDoc.embedFont(StandardFonts.HelveticaBold)
@@ -115,12 +117,11 @@ serve(async (req) => {
     drawText(`O CONTRATADO prestará serviços de suporte para o sistema ${contrato.sistema || '---'}.\nValor da Mensalidade: ${valorMensal}\nVigência: ${new Date(contrato.data_inicio).toLocaleDateString('pt-BR')} a ${new Date(contrato.data_fim).toLocaleDateString('pt-BR')}`, { indent: 20 })
     y -= 30
 
-    // 4. Selo de Assinatura Digital (GOV.BR / Adobe Style)
+    // Selo de Assinatura Visual (Gov.br / Adobe Style)
     y -= 40
     const signatureY = y
     const signatureDate = new Date().toLocaleString('pt-BR')
     
-    // Desenhar retângulo de fundo (estilo Gov.br/Adobe)
     page.drawRectangle({
       x: 50, y: signatureY - 85, width: 320, height: 75,
       color: rgb(0.96, 0.97, 0.98),
@@ -128,7 +129,6 @@ serve(async (req) => {
       borderWidth: 1
     })
 
-    // Barra lateral de destaque
     page.drawRectangle({
       x: 50, y: signatureY - 85, width: 4, height: 75,
       color: rgb(0.1, 0.3, 0.6)
@@ -136,7 +136,6 @@ serve(async (req) => {
 
     page.drawText('ASSINADO DIGITALMENTE', { x: 65, y: signatureY - 25, size: 10, font: fontBold, color: rgb(0.1, 0.3, 0.6) })
     
-    // Nome extraído do certificado (Prioridade) ou da empresa
     const displayName = certName.toUpperCase()
     page.drawText(displayName, { x: 65, y: signatureY - 40, size: 9, font: fontBold })
     
@@ -144,17 +143,34 @@ serve(async (req) => {
     page.drawText(`Data/Hora: ${signatureDate}`, { x: 65, y: signatureY - 64, size: 8, font })
     page.drawText(`Verificado por: ${orgName} (Padrão ICP-Brasil)`, { x: 65, y: signatureY - 76, size: 7, font, color: rgb(0.4, 0.4, 0.4) })
 
-    // Hash de integridade (SHA-256)
-    const pdfBytesTemp = await pdfDoc.save()
-    const md = forge.md.sha256.create()
-    md.update(forge.util.binary.raw.encode(pdfBytesTemp))
-    const docHash = md.digest().toHex()
+    // 4. ADICIONAR PLACEHOLDER DE ASSINATURA CRIPTOGRÁFICA
+    // Isso prepara o PDF para receber a assinatura real que o Adobe reconhece
+    addPlaceholder({
+      pdfDoc,
+      reason: 'Assinatura Digital de Contrato - Imperial Tech',
+      contactInfo: configuration.contratado_email || 'contato@imperialtech.com',
+      name: certName,
+      location: configuration.contratado_cidade || 'Brasil',
+      signatureLength: 8192, // Espaço para o certificado e assinatura PKCS#7
+    });
 
-    // 5. Salvar e Atualizar
-    const fileName = `${contratoId}_${Date.now()}.pdf`
+    const pdfBytesWithPlaceholder = await pdfDoc.save()
+
+    // 5. ASSINAR DIGITALMENTE (CRIPTO)
+    // Usamos o signer-p12 para gerar a assinatura real seguindo os padrões Adobe/ICP-Brasil
+    const signer = new P12Signer(Buffer.from(pfxDer, 'binary'), { password });
+    const signedPdfBytes = await sign(Buffer.from(pdfBytesWithPlaceholder), signer);
+
+    // Gerar Hash final para registro
+    const md = forge.md.sha256.create()
+    md.update(forge.util.binary.raw.encode(signedPdfBytes))
+    const finalHash = md.digest().toHex()
+
+    // 6. Salvar no Storage
+    const fileName = `${contratoId}_signed_${Date.now()}.pdf`
     const { error: uploadError } = await supabaseAdmin.storage
       .from('contratos-assinados')
-      .upload(fileName, pdfBytesTemp, { contentType: 'application/pdf', upsert: true })
+      .upload(fileName, signedPdfBytes, { contentType: 'application/pdf', upsert: true })
 
     if (uploadError) throw uploadError
 
@@ -164,11 +180,12 @@ serve(async (req) => {
     
     const publicUrl = signedUrlData?.signedUrl || ''
 
+    // 7. Atualizar Banco de Dados
     await supabaseAdmin.from('contratos_assinados').insert({
       contrato_id: contratoId,
       nome_assinante: certName,
       cpf_cnpj: configuration.contratado_cnpj,
-      hash_documento: docHash,
+      hash_documento: finalHash,
       url_pdf: publicUrl,
       data_assinatura: new Date().toISOString()
     })
@@ -181,11 +198,12 @@ serve(async (req) => {
     }).eq('id', contratoId)
 
     return new Response(
-      JSON.stringify({ success: true, url: publicUrl, hash: docHash }),
+      JSON.stringify({ success: true, url: publicUrl, hash: finalHash }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     )
 
   } catch (error) {
+    console.error('Erro na assinatura:', error)
     return new Response(
       JSON.stringify({ error: error.message }),
       { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
