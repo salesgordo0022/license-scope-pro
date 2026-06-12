@@ -1494,7 +1494,7 @@ export default function Contratos() {
                 )}
               </div>
               <div className="flex-1 overflow-auto border border-gray-100 rounded-lg p-4 bg-muted/10">
-                <div id="contract-document">
+                <div>
                   <ContractDocument contrato={viewingContrato} />
                 </div>
               </div>
