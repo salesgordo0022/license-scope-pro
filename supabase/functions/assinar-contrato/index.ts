@@ -126,21 +126,21 @@ serve(async (req) => {
       // Linha de acento abaixo do título
       page.drawRectangle({
         x: margin,
-        y: height - 75,
+        y: height - 135,
         width: 100,
         height: 3,
         color: purpleMedium
       })
 
-
       const subHeader = configuration.contratado_nome?.toUpperCase() || 'DOCUMENTO DIGITAL'
       page.drawText(subHeader, {
         x: margin,
-        y: height - 95,
+        y: height - 155,
         size: 9,
         font: font,
         color: secondaryTextColor
       })
+
 
     }
 
