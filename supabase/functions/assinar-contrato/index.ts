@@ -171,15 +171,8 @@ serve(async (req) => {
       const paragraphs = normalizedText.split('\n');
       
       for (const paragraph of paragraphs) {
-        if (!paragraph.trim() && paragraphs.length > 1) {
-          y -= (size * 0.8); 
-          if (y < 85) { // Aumentado limite para segurança
-            drawFooter(pageCount)
-            page = pdfDoc.addPage([595.28, 841.89])
-            pageCount++
-            drawHeaderDecoration()
-            y = height - 120
-          }
+        if (!paragraph.trim()) {
+          y -= (size * 0.6); 
           continue;
         }
         processParagraph(paragraph, size, options);
