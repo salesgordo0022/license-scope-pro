@@ -291,7 +291,7 @@ serve(async (req) => {
     if (modelo && Array.isArray(modelo.clausulas)) {
       for (const clausula of modelo.clausulas) {
         // Garantir que o título e pelo menos o início do parágrafo caibam na página
-        if (y < 140) {
+        if (y < 100) { // Reduzido de 140 para 100
           drawFooter(pageCount)
           page = pdfDoc.addPage([595.28, 841.89])
           pageCount++
@@ -300,7 +300,7 @@ serve(async (req) => {
         }
 
         page.drawRectangle({ x: margin, y: y - 10, width: 3, height: 15, color: purpleMedium })
-        addText(clausula.titulo.toUpperCase(), 11, { isBold: true, color: purpleDeep, indent: 8, paragraphSpacing: 12 })
+        addText(clausula.titulo.toUpperCase(), 11, { isBold: true, color: purpleDeep, indent: 8, paragraphSpacing: 10 }) // Reduzido paragraphSpacing para 10
         
         // Substituir variáveis no conteúdo
         let conteudo = clausula.conteudo || ''
