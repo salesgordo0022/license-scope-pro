@@ -4,7 +4,7 @@ import { PDFDocument, rgb, StandardFonts } from 'https://esm.sh/pdf-lib@1.17.1'
 import forge from 'https://esm.sh/node-forge@1.3.1'
 import { sign } from 'https://esm.sh/@signpdf/signpdf@3.3.0'
 import { P12Signer } from 'https://esm.sh/@signpdf/signer-p12@3.3.0'
-import { addPlaceholder } from 'https://esm.sh/@signpdf/placeholder-pdf-lib@3.3.0'
+import { pdflibAddPlaceholder as addPlaceholder } from 'https://esm.sh/@signpdf/placeholder-pdf-lib@3.3.0'
 import { Buffer } from "https://deno.land/std@0.168.0/node/buffer.ts"
 
 const corsHeaders = {
