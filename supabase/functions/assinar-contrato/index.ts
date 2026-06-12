@@ -143,7 +143,7 @@ serve(async (req) => {
     const finalHash = md.digest().toHex();
 
     // 6. Salvar e Registrar
-    const fileName = `\${contratoId}_signed_\${Date.now()}.pdf`
+    const fileName = `${contratoId}_signed_${Date.now()}.pdf`
     const { error: uploadError } = await supabaseAdmin.storage
       .from('contratos-assinados')
       .upload(fileName, pdfBytes, { contentType: 'application/pdf', upsert: true })
