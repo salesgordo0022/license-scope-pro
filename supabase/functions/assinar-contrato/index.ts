@@ -350,8 +350,9 @@ serve(async (req) => {
     if (y < footerHeight + signatureSectionHeight) { 
       drawFooter(pageCount)
       page = pdfDoc.addPage([595.28, 841.89])
-      y = height - 120
+      y = height - 190
       pageCount++
+
       drawHeaderDecoration()
     }
 
