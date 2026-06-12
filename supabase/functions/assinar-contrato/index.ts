@@ -67,8 +67,8 @@ serve(async (req) => {
     
     let page = pdfDoc.addPage([595.28, 841.89])
     const { width, height } = page.getSize()
-    // Margens A4 Padrão (72 pontos = 1 polegada)
-    const margin = 72 
+    // Margens A4 Padrão aumentadas para segurança total (80 pontos)
+    const margin = 80 
     const footerHeight = 100 
     const contentWidth = width - (margin * 2)
     let y = height - margin
@@ -85,37 +85,30 @@ serve(async (req) => {
     const secondaryTextColor = rgb(0.4, 0.4, 0.5)
 
     const drawHeaderDecoration = () => {
-      // 1. Barra Lateral Esquerda - GARANTIR QUE NÃO CORTE (X: 0 a 15)
+      // 1. Barra Lateral Esquerda - Removida ou afastada da borda zero para evitar cortes de impressora
       page.drawRectangle({
-        x: 0,
-        y: 0,
-        width: 15,
-        height: height,
-        color: purpleDeep
+        x: 20, // Começar em 20 pontos, não em zero
+        y: margin,
+        width: 5,
+        height: height - (margin * 2),
+        color: purpleDeep,
+        opacity: 0.5
       })
 
-      // 2. Elementos decorativos (círculos) - REDUZIDOS E AFASTADOS DAS BORDAS
+      // 2. Elementos decorativos (círculos) - Mais afastados das bordas
       page.drawCircle({
-        x: width - 40,
-        y: height - 40,
-        size: 100,
+        x: width - 80,
+        y: height - 80,
+        size: 60,
         color: purpleDeep,
-        opacity: 0.05
-      })
-      
-      page.drawCircle({
-        x: width - 20,
-        y: height - 20,
-        size: 50,
-        color: purpleDeep,
-        opacity: 0.1
+        opacity: 0.03
       })
 
       // 3. Cabeçalho - RESPEITANDO RIGIDAMENTE AS MARGENS
       const title = 'CONTRATO DE PRESTAÇÃO DE SERVIÇOS'
       page.drawText(title, {
         x: margin,
-        y: height - margin - 20,
+        y: height - margin - 40, // Mais espaço do topo
         size: 16,
         font: fontBold,
         color: purpleDeep
@@ -124,7 +117,7 @@ serve(async (req) => {
       // Linha de acento abaixo do título
       page.drawRectangle({
         x: margin,
-        y: height - margin - 35,
+        y: height - margin - 55,
         width: 100,
         height: 2,
         color: purpleMedium
@@ -133,7 +126,7 @@ serve(async (req) => {
       const subHeader = (configuration.contratado_nome || 'DOCUMENTO DIGITAL').toUpperCase()
       page.drawText(subHeader, {
         x: margin,
-        y: height - margin - 55,
+        y: height - margin - 75,
         size: 9,
         font: font,
         color: secondaryTextColor
@@ -143,10 +136,10 @@ serve(async (req) => {
     const drawFooter = (pageNum: number) => {
       // Background do rodapé
       page.drawRectangle({
-        x: 0,
-        y: 0,
-        width: width,
-        height: footerHeight - 10,
+        x: margin, // Respeitar margem lateral no rodapé também
+        y: 10,
+        width: contentWidth,
+        height: footerHeight - 40,
         color: grayBg
       })
 
@@ -161,7 +154,7 @@ serve(async (req) => {
       
       const branding = 'Gerado por Imperial Contabilidade - Documento com Validade Jurídica'
       page.drawText(branding, {
-        x: margin,
+        x: margin + 10,
         y: 20,
         size: 7,
         font: fontItalic,
@@ -224,7 +217,7 @@ serve(async (req) => {
           page = pdfDoc.addPage([595.28, 841.89])
           pageCount++
           drawHeaderDecoration()
-          y = height - margin - 100 
+          y = height - margin - 140 // Mais espaço no topo em novas páginas
 
         }
 
@@ -261,7 +254,7 @@ serve(async (req) => {
     }
 
     drawHeaderDecoration()
-    y = height - margin - 100 // Espaço após o cabeçalho
+    y = height - margin - 140 // Espaço após o cabeçalho inicial
 
 
     // Seção de Cabeçalho / Resumo (Estilo Proposta - Tabela limpa)
@@ -302,7 +295,7 @@ serve(async (req) => {
           page = pdfDoc.addPage([595.28, 841.89])
           pageCount++
           drawHeaderDecoration()
-          y = height - margin - 100
+          y = height - margin - 140
 
         }
 
@@ -348,7 +341,7 @@ serve(async (req) => {
     if (y < footerHeight + signatureSectionHeight) { 
       drawFooter(pageCount)
       page = pdfDoc.addPage([595.28, 841.89])
-      y = height - margin - 100
+      y = height - margin - 140
       pageCount++
 
       drawHeaderDecoration()
