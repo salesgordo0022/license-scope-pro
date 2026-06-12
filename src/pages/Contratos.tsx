@@ -611,10 +611,11 @@ export default function Contratos() {
           As partes acima identificadas têm, entre si, justas e acertadas o presente Contrato de prestação de serviços de Software, que se regerá pelas seguintes cláusulas e condições:
         </p>
 
-        <div className="space-y-4" style={{ pageBreakInside: 'auto' }}>
+        <div className="space-y-6" style={{ pageBreakInside: 'auto' }}>
           {/* CLÁUSULA PRIMEIRA */}
-          <section className="relative z-10">
-            <h2 className="font-bold uppercase text-base mb-3 text-black border-b border-gray-100 pb-1">Cláusula Primeira — Do Objeto do Contrato</h2>
+          <section className="relative z-10 mb-6">
+            <h2 className="font-bold uppercase text-base mb-4 text-black border-b-2 border-gray-900 pb-1">Cláusula Primeira — Do Objeto do Contrato</h2>
+
             <p className="text-justify indent-10 mb-2">
               <strong>1.1.</strong> O presente contrato tem como objeto, a prestação, pelo CONTRATADO, de serviços de suporte técnico do Sistema <strong>{contrato.sistema || '……………...'}</strong>.
             </p>
