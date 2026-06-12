@@ -67,26 +67,25 @@ serve(async (req) => {
     
     let page = pdfDoc.addPage([595.28, 841.89])
     const { width, height } = page.getSize()
-    // Margens A4 Padrão (aprox. 2.5cm = 72 pontos)
+    // Margens A4 Padrão (72 pontos = 1 polegada)
     const margin = 72 
-    const footerHeight = 100 // Altura segura para o rodapé e margem inferior
+    const footerHeight = 100 
     const contentWidth = width - (margin * 2)
     let y = height - margin
 
     let pageCount = 1
     const valorFormatted = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(contrato.valor_mensalidade || 0)
 
-
-    // Cores Premium (Roxo Deep e Acentos)
-    const purpleDeep = rgb(0.2, 0.08, 0.44) // #331470
+    // Cores Premium
+    const purpleDeep = rgb(0.2, 0.08, 0.44)
     const purpleMedium = rgb(0.4, 0.2, 0.6)
-    const purpleLight = rgb(0.9, 0.85, 0.95) // Fundo suave para contraste
+    const purpleLight = rgb(0.9, 0.85, 0.95)
     const grayBg = rgb(0.98, 0.98, 1.0)
     const textColor = rgb(0.1, 0.1, 0.15)
     const secondaryTextColor = rgb(0.4, 0.4, 0.5)
 
     const drawHeaderDecoration = () => {
-      // 1. Barra Lateral Esquerda (Elemento de Design do PDF laranja adaptado)
+      // 1. Barra Lateral Esquerda - GARANTIR QUE NÃO CORTE (X: 0 a 15)
       page.drawRectangle({
         x: 0,
         y: 0,
@@ -95,53 +94,50 @@ serve(async (req) => {
         color: purpleDeep
       })
 
-      // 2. Elemento Circular no Topo Direito (Abstract pattern)
+      // 2. Elementos decorativos (círculos) - REDUZIDOS E AFASTADOS DAS BORDAS
       page.drawCircle({
-        x: width - 20,
-        y: height - 20,
-        size: 150,
+        x: width - 40,
+        y: height - 40,
+        size: 100,
         color: purpleDeep,
         opacity: 0.05
       })
       
       page.drawCircle({
-        x: width,
-        y: height,
-        size: 80,
+        x: width - 20,
+        y: height - 20,
+        size: 50,
         color: purpleDeep,
         opacity: 0.1
       })
 
-      // 3. Cabeçalho com Título e Logo Placeholder
+      // 3. Cabeçalho - RESPEITANDO RIGIDAMENTE AS MARGENS
       const title = 'CONTRATO DE PRESTAÇÃO DE SERVIÇOS'
       page.drawText(title, {
         x: margin,
-        y: height - 120, // Descido para não bater no topo
-        size: 18, // Tamanho mais equilibrado
+        y: height - margin - 20,
+        size: 16,
         font: fontBold,
         color: purpleDeep
       })
 
-
       // Linha de acento abaixo do título
       page.drawRectangle({
         x: margin,
-        y: height - 135,
+        y: height - margin - 35,
         width: 100,
-        height: 3,
+        height: 2,
         color: purpleMedium
       })
 
-      const subHeader = configuration.contratado_nome?.toUpperCase() || 'DOCUMENTO DIGITAL'
+      const subHeader = (configuration.contratado_nome || 'DOCUMENTO DIGITAL').toUpperCase()
       page.drawText(subHeader, {
         x: margin,
-        y: height - 155,
+        y: height - margin - 55,
         size: 9,
         font: font,
         color: secondaryTextColor
       })
-
-
     }
 
     const drawFooter = (pageNum: number) => {
@@ -228,7 +224,8 @@ serve(async (req) => {
           page = pdfDoc.addPage([595.28, 841.89])
           pageCount++
           drawHeaderDecoration()
-          y = height - 190 
+          y = height - margin - 100 
+
         }
 
 
@@ -264,7 +261,7 @@ serve(async (req) => {
     }
 
     drawHeaderDecoration()
-    y = height - 190 // Espaço após o cabeçalho
+    y = height - margin - 100 // Espaço após o cabeçalho
 
 
     // Seção de Cabeçalho / Resumo (Estilo Proposta - Tabela limpa)
@@ -305,7 +302,8 @@ serve(async (req) => {
           page = pdfDoc.addPage([595.28, 841.89])
           pageCount++
           drawHeaderDecoration()
-          y = height - 190
+          y = height - margin - 100
+
         }
 
 
@@ -350,7 +348,7 @@ serve(async (req) => {
     if (y < footerHeight + signatureSectionHeight) { 
       drawFooter(pageCount)
       page = pdfDoc.addPage([595.28, 841.89])
-      y = height - 190
+      y = height - margin - 100
       pageCount++
 
       drawHeaderDecoration()
