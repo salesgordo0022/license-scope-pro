@@ -171,15 +171,8 @@ serve(async (req) => {
       const paragraphs = normalizedText.split('\n');
       
       for (const paragraph of paragraphs) {
-        if (!paragraph.trim() && paragraphs.length > 1) {
-          y -= (size * 0.8); 
-          if (y < 85) { // Aumentado limite para segurança
-            drawFooter(pageCount)
-            page = pdfDoc.addPage([595.28, 841.89])
-            pageCount++
-            drawHeaderDecoration()
-            y = height - 120
-          }
+        if (!paragraph.trim()) {
+          y -= (size * 0.6); 
           continue;
         }
         processParagraph(paragraph, size, options);
@@ -193,8 +186,8 @@ serve(async (req) => {
         align = 'left', 
         color = textColor, 
         indent = 0,
-        lineHeight = 1.3, // Reduzido de 1.5 para 1.3
-        paragraphSpacing = 10 // Reduzido de 15 para 10
+        lineHeight = 1.3,
+        paragraphSpacing = 8 // Reduzido ligeiramente
       } = options
       
       let currentFont = isBold ? fontBold : font
@@ -219,8 +212,8 @@ serve(async (req) => {
       if (currentLine) lines.push(currentLine)
 
       for (let i = 0; i < lines.length; i++) {
-        // Verificar antes de cada linha se há espaço (limite aumentado para 85)
-        if (y < 85) {
+        // Verificar antes de cada linha se há espaço (limite de segurança 65 para caber o rodapé)
+        if (y < 65) {
           drawFooter(pageCount)
           page = pdfDoc.addPage([595.28, 841.89])
           pageCount++
@@ -341,7 +334,7 @@ serve(async (req) => {
 
     // Seção de Assinaturas (Bloco Protegido contra Quebra)
     const signatureSectionHeight = 180
-    if (y < signatureSectionHeight + 85) { // Aumentado para 85
+    if (y < signatureSectionHeight + 40) { // Reduzido para aproveitar mais a página
       drawFooter(pageCount)
       page = pdfDoc.addPage([595.28, 841.89])
       y = height - 120
