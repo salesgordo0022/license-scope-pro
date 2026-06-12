@@ -59,106 +59,243 @@ serve(async (req) => {
     
     let page = pdfDoc.addPage([595.28, 841.89])
     const { width, height } = page.getSize()
-    let y = height - 50
+    const margin = 70
+    const contentWidth = width - (margin * 2)
+    let y = height - margin
+    let pageCount = 1
 
     const drawHeader = () => {
-      const logoSize = 40
-      page.drawRectangle({ x: 50, y: height - 70, width: width - 100, height: 1, color: rgb(0.8, 0.8, 0.8) })
-      page.drawText(configuration.contratado_nome || 'ImperialTech', { x: 50, y: height - 45, size: 12, font: fontBold, color: rgb(0.2, 0.2, 0.2) })
-      page.drawText('CONTRATO DE PRESTAÇÃO DE SERVIÇOS', { x: width - 250, y: height - 45, size: 10, font: fontBold, color: rgb(0.4, 0.4, 0.4) })
+      page.drawRectangle({ x: margin, y: height - 60, width: contentWidth, height: 0.5, color: rgb(0.7, 0.7, 0.7) })
+      page.drawText(configuration.contratado_nome?.toUpperCase() || 'EMPRESA', { 
+        x: margin, 
+        y: height - 50, 
+        size: 9, 
+        font: fontBold, 
+        color: rgb(0.3, 0.3, 0.3) 
+      })
+      page.drawText('CONTRATO DE PRESTAÇÃO DE SERVIÇOS', { 
+        x: width - margin - fontBold.widthOfTextAtSize('CONTRATO DE PRESTAÇÃO DE SERVIÇOS', 8), 
+        y: height - 50, 
+        size: 8, 
+        font: fontBold, 
+        color: rgb(0.5, 0.5, 0.5) 
+      })
+    }
+
+    const drawFooter = (pageNum: number) => {
+      const footerText = `Página ${pageNum}`
+      page.drawText(footerText, {
+        x: (width - font.widthOfTextAtSize(footerText, 8)) / 2,
+        y: 30,
+        size: 8,
+        font: font,
+        color: rgb(0.6, 0.6, 0.6)
+      })
+      
+      const idText = `ID: ${contratoId}`
+      page.drawText(idText, {
+        x: margin,
+        y: 30,
+        size: 6,
+        font: font,
+        color: rgb(0.8, 0.8, 0.8)
+      })
     }
 
     const addText = (text: string, size = 10, options: any = {}) => {
-      const { isBold = false, isItalic = false, align = 'left', color = rgb(0.2, 0.2, 0.2), indent = 0 } = options
+      const { 
+        isBold = false, 
+        isItalic = false, 
+        align = 'left', 
+        color = rgb(0.1, 0.1, 0.1), 
+        indent = 0,
+        lineHeight = 1.4,
+        paragraphSpacing = 12
+      } = options
+      
       let currentFont = isBold ? fontBold : font
       if (isItalic) currentFont = fontItalic
       
-      const maxWidth = width - 100 - indent
-      const words = text.split(' ')
-      let line = ''
+      const effectiveMaxWidth = contentWidth - indent
+      const words = text.split(/\s+/)
+      let lines: string[] = []
+      let currentLine = ''
       
       for (const word of words) {
-        const testLine = line + word + ' '
+        const testLine = currentLine ? `${currentLine} ${word}` : word
         const testWidth = currentFont.widthOfTextAtSize(testLine, size)
         
-        if (testWidth > maxWidth) {
-          if (y < 100) { page = pdfDoc.addPage([595.28, 841.89]); y = height - 80; drawHeader(); }
-          const xPos = align === 'center' ? (width - currentFont.widthOfTextAtSize(line, size)) / 2 : 50 + indent
-          page.drawText(line, { x: xPos, y, size, font: currentFont, color })
-          line = word + ' '
-          y -= (size + 6)
+        if (testWidth > effectiveMaxWidth) {
+          lines.push(currentLine)
+          currentLine = word
         } else {
-          line = testLine
+          currentLine = testLine
         }
       }
+      lines.push(currentLine)
+
+      for (let i = 0; i < lines.length; i++) {
+        const line = lines[i]
+        const isLastLine = i === lines.length - 1
+        
+        if (y < margin + 40) {
+          drawFooter(pageCount)
+          page = pdfDoc.addPage([595.28, 841.89])
+          y = height - margin
+          pageCount++
+          drawHeader()
+        }
+
+        let xPos = margin + indent
+        
+        if (align === 'center') {
+          xPos = (width - currentFont.widthOfTextAtSize(line, size)) / 2
+        } else if (align === 'justify' && !isLastLine && lines.length > 1) {
+          const wordsInLine = line.split(' ')
+          if (wordsInLine.length > 1) {
+            const lineTextNoSpaces = wordsInLine.join('')
+            const textWidth = currentFont.widthOfTextAtSize(lineTextNoSpaces, size)
+            const totalSpaceWidth = effectiveMaxWidth - textWidth
+            const wordSpacing = totalSpaceWidth / (wordsInLine.length - 1)
+            
+            let currentX = xPos
+            for (let j = 0; j < wordsInLine.length; j++) {
+              page.drawText(wordsInLine[j], { x: currentX, y, size, font: currentFont, color })
+              currentX += currentFont.widthOfTextAtSize(wordsInLine[j], size) + wordSpacing
+            }
+            y -= (size * lineHeight)
+            continue
+          }
+        }
+        
+        page.drawText(line, { x: xPos, y, size, font: currentFont, color })
+        y -= (size * lineHeight)
+      }
       
-      if (y < 100) { page = pdfDoc.addPage([595.28, 841.89]); y = height - 80; drawHeader(); }
-      const xPos = align === 'center' ? (width - currentFont.widthOfTextAtSize(line, size)) / 2 : 50 + indent
-      page.drawText(line, { x: xPos, y, size, font: currentFont, color })
-      y -= (size + 15)
+      y -= paragraphSpacing
     }
 
     drawHeader()
-    y -= 50
+    y -= 30
 
-    // Título Centralizado
-    addText('INSTRUMENTO PARTICULAR DE CONTRATO DE PRESTAÇÃO DE SERVIÇOS', 14, { isBold: true, align: 'center' })
-    y -= 20
+    // Título Principal
+    addText('INSTRUMENTO PARTICULAR DE CONTRATO DE PRESTAÇÃO DE SERVIÇOS', 14, { isBold: true, align: 'center', paragraphSpacing: 30 })
 
-    // Preâmbulo
-    const preambulo = `Pelo presente instrumento, de um lado ${configuration.contratado_nome || 'ImperialTech'}, com sede em ${configuration.contratado_endereco || '---'}, inscrita no CNPJ sob nº ${configuration.contratado_cnpj || '---'}, doravante denominada CONTRATADA, e de outro lado, ${contrato.contratante_nome || '---'}, residente/sediada em ${contrato.contratante_endereco || '---'}, inscrita no CPF/CNPJ sob nº ${contrato.contratante_cnpj || '---'}, doravante denominada CONTRATANTE, celebram o presente contrato sob as cláusulas abaixo:`
-    addText(preambulo, 10, { align: 'justify' })
-    y -= 20
-
-    // Cláusulas de Exemplo (Dinâmicas do contrato)
-    addText('CLÁUSULA PRIMEIRA - DO OBJETO', 11, { isBold: true })
-    addText(`O presente contrato tem por objeto a prestação de serviços de software para o sistema ${contrato.sistema || '---'}.`, 10)
-    y -= 10
-
-    addText('CLÁUSULA SEGUNDA - DOS VALORES', 11, { isBold: true })
-    addText(`O CONTRATANTE pagará à CONTRATADA o valor mensal de R$ ${contrato.valor_mensalidade?.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) || '0,00'}.`, 10)
-    y -= 40
-
-    // Seção de Assinaturas Estilo Adobe/ICP-Brasil
-    if (y < 250) { page = pdfDoc.addPage([595.28, 841.89]); y = height - 80; drawHeader(); }
+    // Identificação das Partes
+    addText('DAS PARTES', 11, { isBold: true, paragraphSpacing: 10 })
     
-    y -= 20
-    addText('E, por estarem assim justos e contratados, firmam o presente instrumento através de assinatura digital.', 10, { isItalic: true, align: 'center' })
-    y -= 40
+    const textoPartes = `Pelo presente instrumento particular, de um lado ${configuration.contratado_nome || 'A CONTRATADA'}, pessoa jurídica de direito privado, inscrita no CNPJ sob o nº ${configuration.contratado_cnpj || '---'}, com sede em ${configuration.contratado_endereco || '---'}, doravante denominada CONTRATADA; e, de outro lado, ${contrato.contratante_nome || 'O CONTRATANTE'}, inscrito no CPF/CNPJ sob o nº ${contrato.contratante_cnpj || '---'}, residente e domiciliado em ${contrato.contratante_endereco || '---'}, doravante denominado CONTRATANTE.`
+    
+    addText(textoPartes, 10, { align: 'justify', paragraphSpacing: 20 })
 
-    // Bloco de Assinatura Visual (Selo Adobe)
-    const sigDate = new Date().toLocaleString('pt-BR')
-    const boxWidth = 220
-    const boxHeight = 70
-    const startX = 50
+    // Objeto
+    addText('CLÁUSULA PRIMEIRA – DO OBJETO', 11, { isBold: true, paragraphSpacing: 8 })
+    addText(`1.1. O presente contrato tem como objeto a prestação de serviços de software e suporte técnico para o sistema ${contrato.sistema || '---'}, de propriedade da CONTRATADA.`, 10, { align: 'justify' })
+    addText(`1.2. A prestação dos serviços compreende o licenciamento de uso, manutenção e suporte técnico conforme as especificações do sistema contratado.`, 10, { align: 'justify', paragraphSpacing: 20 })
 
-    // Background do selo (azul claro Adobe style)
+    // Valores e Pagamento
+    addText('CLÁUSULA SEGUNDA – DOS VALORES AND FORMA DE PAGAMENTO', 11, { isBold: true, paragraphSpacing: 8 })
+    addText(`2.1. Pela prestação dos serviços ora contratados, o CONTRATANTE pagará à CONTRATADA o valor mensal de R$ ${contrato.valor_mensalidade?.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) || '0,00'}, com vencimento conforme pactuado.`, 10, { align: 'justify' })
+    addText(`2.2. Eventuais serviços adicionais ou deslocamentos serão cobrados à parte, conforme tabela vigente ou negociação específica.`, 10, { align: 'justify', paragraphSpacing: 20 })
+
+    // Vigência
+    addText('CLÁUSULA TERCEIRA – DA VIGÊNCIA', 11, { isBold: true, paragraphSpacing: 8 })
+    addText(`3.1. O presente contrato entra em vigor na data de sua assinatura, com prazo de vigência de ${contrato.vigencia_meses || 12} meses, podendo ser renovado automaticamente por iguais períodos.`, 10, { align: 'justify', paragraphSpacing: 40 })
+
+    // Seção de Assinaturas
+    if (y < 280) {
+      drawFooter(pageCount)
+      page = pdfDoc.addPage([595.28, 841.89])
+      y = height - margin
+      pageCount++
+      drawHeader()
+    }
+
+    addText('E, por estarem assim justos e contratados, as partes firmam o presente instrumento.', 10, { align: 'center', isItalic: true, paragraphSpacing: 30 })
+
+    // Box de Assinatura Digital (Estilo Profissional Adobe)
+    const boxWidth = 240
+    const boxHeight = 80
+    const boxX = margin
+    
+    // Background suave e borda
     page.drawRectangle({
-      x: startX,
+      x: boxX,
       y: y - boxHeight,
       width: boxWidth,
       height: boxHeight,
-      color: rgb(0.95, 0.97, 1),
-      borderColor: rgb(0.2, 0.4, 0.8),
-      borderWidth: 1
+      color: rgb(0.97, 0.98, 1.0),
+      borderColor: rgb(0.1, 0.3, 0.6),
+      borderWidth: 1.5
     })
 
-    // Ícone de check (Simulado)
-    page.drawCircle({ x: startX + 25, y: y - 35, size: 12, color: rgb(0.2, 0.6, 0.3) })
-    page.drawText('✓', { x: startX + 20, y: y - 40, size: 14, font: fontBold, color: rgb(1, 1, 1) })
+    // Cabeçalho do selo
+    page.drawRectangle({
+      x: boxX,
+      y: y - 20,
+      width: boxWidth,
+      height: 20,
+      color: rgb(0.1, 0.3, 0.6)
+    })
+    
+    page.drawText('ASSINADO DIGITALMENTE', {
+      x: boxX + 10,
+      y: y - 13,
+      size: 8,
+      font: fontBold,
+      color: rgb(1, 1, 1)
+    })
 
-    // Textos do selo
-    const textX = startX + 50
-    page.drawText('Assinado de forma digital por', { x: textX, y: y - 20, size: 7, font: font, color: rgb(0.3, 0.3, 0.3) })
-    page.drawText(certName.substring(0, 30).toUpperCase(), { x: textX, y: y - 32, size: 8, font: fontBold, color: rgb(0, 0, 0) })
-    page.drawText(`Dados: ${sigDate}`, { x: textX, y: y - 44, size: 7, font: font, color: rgb(0.3, 0.3, 0.3) })
-    page.drawText('Padrão ICP-Brasil / Criptografia SHA-256', { x: textX, y: y - 56, size: 6, font: fontItalic, color: rgb(0.4, 0.4, 0.4) })
+    // Conteúdo do selo
+    const sigDate = new Date().toLocaleString('pt-BR')
+    const certText = certName.toUpperCase()
+    
+    page.drawText('Assinante:', { x: boxX + 10, y: y - 35, size: 7, font: font, color: rgb(0.3, 0.3, 0.3) })
+    page.drawText(certText.length > 40 ? certText.substring(0, 37) + '...' : certText, { 
+      x: boxX + 10, 
+      y: y - 48, 
+      size: 9, 
+      font: fontBold, 
+      color: rgb(0, 0, 0) 
+    })
+    
+    page.drawText(`Data: ${sigDate}`, { x: boxX + 10, y: y - 62, size: 7, font: font, color: rgb(0.3, 0.3, 0.3) })
+    page.drawText('Validade Jurídica: ICP-Brasil / Medida Provisória 2.200-2', { 
+      x: boxX + 10, 
+      y: y - 73, 
+      size: 6, 
+      font: fontItalic, 
+      color: rgb(0.4, 0.4, 0.4) 
+    })
 
-    // Lado do Contratante (Linha pontilhada)
-    const lineY = y - 50
-    page.drawLine({ start: { x: width - 250, y: lineY }, end: { x: width - 50, y: lineY }, thickness: 1, color: rgb(0.5, 0.5, 0.5) })
-    page.drawText(contrato.contratante_nome || 'CONTRATANTE', { x: width - 250, y: lineY - 15, size: 9, font: fontBold })
-    page.drawText('Assinatura Eletrônica Pendente', { x: width - 250, y: lineY - 28, size: 8, font: fontItalic, color: rgb(0.6, 0.6, 0.6) })
+    // Lado do Contratante
+    const lineY = y - 55
+    const lineX = width - margin - 200
+    page.drawLine({
+      start: { x: lineX, y: lineY },
+      end: { x: width - margin, y: lineY },
+      thickness: 0.5,
+      color: rgb(0.5, 0.5, 0.5)
+    })
+    
+    page.drawText(contrato.contratante_nome?.toUpperCase() || 'CONTRATANTE', {
+      x: lineX,
+      y: lineY - 15,
+      size: 9,
+      font: fontBold,
+      color: rgb(0.2, 0.2, 0.2)
+    })
+    
+    page.drawText('Assinatura Eletrônica', {
+      x: lineX,
+      y: lineY - 28,
+      size: 8,
+      font: fontItalic,
+      color: rgb(0.6, 0.6, 0.6)
+    })
+
+    drawFooter(pageCount)
+
 
     const pdfBytes = await pdfDoc.save()
     const fileName = `contrato_${contratoId}_final.pdf`
