@@ -184,52 +184,71 @@ serve(async (req) => {
         color = textColor, 
         indent = 0,
         lineHeight = 1.3,
-        paragraphSpacing = 8 // Reduzido ligeiramente
+        paragraphSpacing = 8
       } = options
       
       let currentFont = isBold ? fontBold : font
       if (isItalic) currentFont = fontItalic
       
       const effectiveMaxWidth = contentWidth - indent
-      const words = text.split(/\s+/)
-      let lines: string[] = []
-      let currentLine = ''
       
-      for (const word of words) {
-        const testLine = currentLine ? `${currentLine} ${word}` : word
-        const testWidth = currentFont.widthOfTextAtSize(testLine, size)
+      // Improved word wrapping for long strings without spaces
+      const wrapText = (txt: string, maxWidth: number) => {
+        const words = txt.split(/\s+/)
+        let lines: string[] = []
+        let currentLine = ''
         
-        if (testWidth > effectiveMaxWidth) {
-          lines.push(currentLine)
-          currentLine = word
-        } else {
-          currentLine = testLine
+        for (const word of words) {
+          const testLine = currentLine ? `${currentLine} ${word}` : word
+          const testWidth = currentFont.widthOfTextAtSize(testLine, size)
+          
+          if (testWidth > maxWidth) {
+            // Handle extremely long words (like long URLs or hashes)
+            if (currentFont.widthOfTextAtSize(word, size) > maxWidth) {
+              if (currentLine) lines.push(currentLine)
+              
+              let remainingWord = word
+              while (currentFont.widthOfTextAtSize(remainingWord, size) > maxWidth) {
+                let charCount = 1
+                while (currentFont.widthOfTextAtSize(remainingWord.substring(0, charCount + 1), size) <= maxWidth) {
+                  charCount++
+                }
+                lines.push(remainingWord.substring(0, charCount))
+                remainingWord = remainingWord.substring(charCount)
+              }
+              currentLine = remainingWord
+            } else {
+              lines.push(currentLine)
+              currentLine = word
+            }
+          } else {
+            currentLine = testLine
+          }
         }
+        if (currentLine) lines.push(currentLine)
+        return lines
       }
-      if (currentLine) lines.push(currentLine)
+
+      const lines = wrapText(text, effectiveMaxWidth)
 
       for (let i = 0; i < lines.length; i++) {
         const line = lines[i]
         
-        // Verificar se a linha cabe na página, considerando o rodapé
         if (y - (size * lineHeight) < footerHeight) {
           drawFooter(pageCount)
           page = pdfDoc.addPage([595.28, 841.89])
           pageCount++
           drawHeaderDecoration()
-          y = height - margin - 140 // Mais espaço no topo em novas páginas
-
+          y = height - margin - 140
         }
-
-
 
         const isLastLine = i === lines.length - 1
         let xPos = margin + indent
         
         if (align === 'center') {
-          xPos = (width - currentFont.widthOfTextAtSize(line, size)) / 2
+          xPos = margin + indent + (effectiveMaxWidth - currentFont.widthOfTextAtSize(line, size)) / 2
         } else if (align === 'justify' && !isLastLine && lines.length > 1) {
-          const wordsInLine = line.split(' ')
+          const wordsInLine = line.trim().split(/\s+/)
           if (wordsInLine.length > 1) {
             const lineTextNoSpaces = wordsInLine.join('')
             const textWidth = currentFont.widthOfTextAtSize(lineTextNoSpaces, size)
