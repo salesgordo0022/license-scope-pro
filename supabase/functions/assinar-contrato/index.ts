@@ -67,11 +67,12 @@ serve(async (req) => {
     
     let page = pdfDoc.addPage([595.28, 841.89])
     const { width, height } = page.getSize()
-    const margin = 70 // Margem aumentada para evitar cortes laterais
-    const footerHeight = 80 // Altura segura para o rodapé
+    // Margens A4 Padrão (aprox. 2.5cm = 72 pontos)
+    const margin = 72 
+    const footerHeight = 100 // Altura segura para o rodapé e margem inferior
     const contentWidth = width - (margin * 2)
-
     let y = height - margin
+
     let pageCount = 1
     const valorFormatted = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(contrato.valor_mensalidade || 0)
 
@@ -115,30 +116,31 @@ serve(async (req) => {
       const title = 'CONTRATO DE PRESTAÇÃO DE SERVIÇOS'
       page.drawText(title, {
         x: margin,
-        y: height - 60,
-        size: 22,
+        y: height - 120, // Descido para não bater no topo
+        size: 18, // Tamanho mais equilibrado
         font: fontBold,
         color: purpleDeep
       })
 
+
       // Linha de acento abaixo do título
       page.drawRectangle({
         x: margin,
-        y: height - 75,
+        y: height - 135,
         width: 100,
         height: 3,
         color: purpleMedium
       })
 
-
       const subHeader = configuration.contratado_nome?.toUpperCase() || 'DOCUMENTO DIGITAL'
       page.drawText(subHeader, {
         x: margin,
-        y: height - 95,
+        y: height - 155,
         size: 9,
         font: font,
         color: secondaryTextColor
       })
+
 
     }
 
@@ -221,14 +223,14 @@ serve(async (req) => {
         const line = lines[i]
         
         // Verificar se a linha cabe na página, considerando o rodapé
-        // y é o ponto base da linha, subtraímos size * lineHeight para ver onde a linha termina
-        if (y - (size * lineHeight) < footerHeight + 10) {
+        if (y - (size * lineHeight) < footerHeight) {
           drawFooter(pageCount)
           page = pdfDoc.addPage([595.28, 841.89])
           pageCount++
           drawHeaderDecoration()
-          y = height - 120 
+          y = height - 190 
         }
+
 
 
         const isLastLine = i === lines.length - 1
@@ -262,7 +264,8 @@ serve(async (req) => {
     }
 
     drawHeaderDecoration()
-    y = height - 120
+    y = height - 190 // Espaço após o cabeçalho
+
 
     // Seção de Cabeçalho / Resumo (Estilo Proposta - Tabela limpa)
     page.drawRectangle({
@@ -302,8 +305,9 @@ serve(async (req) => {
           page = pdfDoc.addPage([595.28, 841.89])
           pageCount++
           drawHeaderDecoration()
-          y = height - 120
+          y = height - 190
         }
+
 
 
         page.drawRectangle({ x: margin, y: y - 10, width: 3, height: 15, color: purpleMedium })
@@ -346,8 +350,9 @@ serve(async (req) => {
     if (y < footerHeight + signatureSectionHeight) { 
       drawFooter(pageCount)
       page = pdfDoc.addPage([595.28, 841.89])
-      y = height - 120
+      y = height - 190
       pageCount++
+
       drawHeaderDecoration()
     }
 
