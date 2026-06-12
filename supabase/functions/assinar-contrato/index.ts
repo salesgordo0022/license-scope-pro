@@ -235,28 +235,27 @@ serve(async (req) => {
     drawHeaderDecoration()
     y = height - 120
 
-    // Seção de Cabeçalho / Resumo (Estilo Proposta)
+    // Seção de Cabeçalho / Resumo (Estilo Proposta - Tabela limpa)
     page.drawRectangle({
       x: margin,
-      y: y - 80,
+      y: y - 70,
       width: contentWidth,
-      height: 80,
-      color: grayBg,
-      borderColor: purpleLight,
-      borderWidth: 0.5
+      height: 70,
+      color: purpleLight,
+      opacity: 0.3
     })
 
     const infoY = y - 25
-    page.drawText('CONTRATANTE:', { x: margin + 15, y: infoY, size: 8, font: fontBold, color: purpleDeep })
+    page.drawText('CONTRATANTE', { x: margin + 15, y: infoY, size: 8, font: fontBold, color: purpleDeep })
     page.drawText(contrato.contratante_nome?.substring(0, 45) || '---', { x: margin + 15, y: infoY - 15, size: 10, font: font, color: textColor })
     
-    page.drawText('IDENTIFICAÇÃO:', { x: margin + 250, y: infoY, size: 8, font: fontBold, color: purpleDeep })
+    page.drawText('CNPJ/CPF', { x: margin + 250, y: infoY, size: 8, font: fontBold, color: purpleDeep })
     page.drawText(contrato.contratante_cnpj || '---', { x: margin + 250, y: infoY - 15, size: 10, font: font, color: textColor })
     
-    page.drawText('DATA DE EMISSÃO:', { x: margin + 400, y: infoY, size: 8, font: fontBold, color: purpleDeep })
+    page.drawText('EMISSÃO', { x: margin + 400, y: infoY, size: 8, font: fontBold, color: purpleDeep })
     page.drawText(new Date().toLocaleDateString('pt-BR'), { x: margin + 400, y: infoY - 15, size: 10, font: font, color: textColor })
 
-    y -= 110
+    y -= 100
 
     // Conteúdo Principal
     addText('DAS PARTES', 12, { isBold: true, color: purpleDeep, paragraphSpacing: 10 })
