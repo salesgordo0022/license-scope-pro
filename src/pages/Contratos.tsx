@@ -758,54 +758,45 @@ export default function Contratos() {
 
         {/* Assinaturas */}
         <div className="mt-16 border-t border-gray-100 pt-10 relative z-10">
-          <p className="text-center mb-10 italic">E por estarem assim justas e acertadas, as partes firmam o presente instrumento em 2 (duas) vias de igual teor e forma, tudo na presença das duas testemunhas abaixo:</p>
+          <p className="text-center mb-10 italic">E por estarem assim justas e acertadas, as partes firmam o presente instrumento através de assinatura digital.</p>
           
-          <div className="text-center mb-20 font-serif">
-            {config.contratado_cidade && config.contratado_estado ? (
-              <p className="text-lg">{config.contratado_cidade} - {config.contratado_estado}, ______ de ________________ de ________</p>
-            ) : (
-              <p className="text-lg">……………..., …. de ………….. de ________</p>
-            )}
-          </div>
-
           <div className="grid grid-cols-2 gap-20 mb-20 relative">
             <div className="text-center">
               <div className="border-t border-black pt-2 mx-4 relative">
                 {contrato.assinado && (
-                  <div className="absolute -top-20 left-1/2 -translate-x-1/2 pointer-events-none w-full">
-                    {contrato.is_digital_sign ? (
-                      <div className="flex flex-col items-center bg-blue-50/90 border border-blue-200 rounded p-2 backdrop-blur-sm">
-                        <ShieldCheck className="h-8 w-8 text-blue-600 mb-1" />
-                        <div className="text-[9px] text-blue-700 font-bold uppercase leading-tight">
-                          Assinado Digitalmente ICP-Brasil
-                        </div>
-                        <div className="text-[7px] text-blue-600/70 font-mono mt-0.5">
-                          {contrato.link_documento?.split('/').pop()?.split('_')[0] || 'AUTHENTIC'}
-                        </div>
+                  <div className="absolute -top-24 left-1/2 -translate-x-1/2 pointer-events-none w-full max-w-[240px]">
+                    <div className="flex flex-col items-center bg-blue-50/95 border-2 border-blue-600 rounded-lg p-3 shadow-lg backdrop-blur-sm">
+                      <div className="bg-blue-600 w-full -mt-3 -mx-3 mb-2 rounded-t p-1">
+                         <span className="text-[8px] font-bold text-white uppercase tracking-widest">Assinado Digitalmente</span>
                       </div>
-                    ) : (
-                      <div className="flex flex-col items-center">
-                        <ShieldCheck className="h-10 w-10 text-success mb-1" />
-                        <div className="bg-success/10 border border-success/30 rounded px-2 py-1 text-[10px] text-success font-bold uppercase whitespace-nowrap">
-                          Assinado Digitalmente
+                      <ShieldCheck className="h-8 w-8 text-blue-600 mb-1" />
+                      <div className="text-[10px] text-gray-900 font-bold uppercase leading-tight">
+                        {nomeContratado.toUpperCase()}
+                      </div>
+                      <div className="text-[7px] text-gray-500 mt-1 italic">
+                        Padrao ICP-Brasil / MP 2.200-2
+                      </div>
+                      {contrato.data_assinatura && (
+                        <div className="text-[8px] text-blue-700 font-bold mt-1">
+                          {new Date(contrato.data_assinatura).toLocaleString('pt-BR')}
                         </div>
-                      </div>
-                    )}
-                    {contrato.data_assinatura && (
-                      <div className="text-[8px] text-muted-foreground mt-1 text-center font-bold">
-                        {new Date(contrato.data_assinatura).toLocaleString('pt-BR')}
-                      </div>
-                    )}
+                      )}
+                    </div>
                   </div>
                 )}
-                <p className="font-bold uppercase tracking-wider">CONTRATADO</p>
-                <p className="text-sm mt-1">{nomeContratado}</p>
+                <p className="font-bold uppercase tracking-wider text-sm">CONTRATADO</p>
+                <p className="text-xs mt-1">{nomeContratado}</p>
               </div>
             </div>
             <div className="text-center">
               <div className="border-t border-black pt-2 mx-4 relative">
-                <p className="font-bold uppercase tracking-wider">CONTRATANTE</p>
-                <p className="text-sm mt-1">{nomeContratante}</p>
+                 <p className="font-bold uppercase tracking-wider text-sm">CONTRATANTE</p>
+                <p className="text-xs mt-1">{nomeContratante}</p>
+                {contrato.assinado && !contrato.is_digital_sign && (
+                  <div className="absolute -top-12 left-1/2 -translate-x-1/2 text-success font-bold text-[10px] uppercase border border-success px-2 py-1 rounded">
+                    Assinado
+                  </div>
+                )}
               </div>
             </div>
           </div>
@@ -813,20 +804,19 @@ export default function Contratos() {
           <div className="grid grid-cols-2 gap-20">
             <div className="text-center">
               <div className="border-t border-gray-400 pt-2 mx-4">
-                <p className="text-xs uppercase text-gray-500 mb-1">Testemunha 1</p>
-                <p className="text-sm">Nome: __________________________</p>
-                <p className="text-sm">CPF: ___________________________</p>
+                <p className="text-[10px] uppercase text-gray-500 mb-1">Testemunha 1</p>
+                <p className="text-[10px]">CPF: ___________________________</p>
               </div>
             </div>
             <div className="text-center">
               <div className="border-t border-gray-400 pt-2 mx-4">
-                <p className="text-xs uppercase text-gray-500 mb-1">Testemunha 2</p>
-                <p className="text-sm">Nome: __________________________</p>
-                <p className="text-sm">CPF: ___________________________</p>
+                <p className="text-[10px] uppercase text-gray-500 mb-1">Testemunha 2</p>
+                <p className="text-[10px]">CPF: ___________________________</p>
               </div>
             </div>
           </div>
         </div>
+
         </div>
       </div>
     );
