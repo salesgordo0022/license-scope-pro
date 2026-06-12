@@ -68,10 +68,12 @@ serve(async (req) => {
     let page = pdfDoc.addPage([595.28, 841.89])
     const { width, height } = page.getSize()
     const margin = 50
-    const footerHeight = 60 // Altura reservada para o rodapé
+    const footerHeight = 70 // Altura segura para o rodapé
     const contentWidth = width - (margin * 2)
     let y = height - margin
     let pageCount = 1
+    const valorFormatted = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(contrato.valor_mensalidade || 0)
+
 
     // Cores Premium (Roxo Deep e Acentos)
     const purpleDeep = rgb(0.2, 0.08, 0.44) // #331470
