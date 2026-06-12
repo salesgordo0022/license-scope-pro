@@ -211,18 +211,16 @@ serve(async (req) => {
       }
       if (currentLine) lines.push(currentLine)
 
-      const estimatedHeight = lines.length * (size * lineHeight)
-      
-      // Se o bloco de texto não couber na página atual, move para a próxima
-      if (y - estimatedHeight < 60) { // Reduzido de 70 para 60 para aproveitar mais a página
-        drawFooter(pageCount)
-        page = pdfDoc.addPage([595.28, 841.89])
-        pageCount++
-        drawHeaderDecoration()
-        y = height - 120 
-      }
-
       for (let i = 0; i < lines.length; i++) {
+        // Verificar antes de cada linha se há espaço
+        if (y < 60) {
+          drawFooter(pageCount)
+          page = pdfDoc.addPage([595.28, 841.89])
+          pageCount++
+          drawHeaderDecoration()
+          y = height - 120 
+        }
+
         const line = lines[i]
         const isLastLine = i === lines.length - 1
         
