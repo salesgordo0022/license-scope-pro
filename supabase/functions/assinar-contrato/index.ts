@@ -173,6 +173,13 @@ serve(async (req) => {
       for (const paragraph of paragraphs) {
         if (!paragraph.trim() && paragraphs.length > 1) {
           y -= (size * 0.8); 
+          if (y < 85) { // Aumentado limite para segurança
+            drawFooter(pageCount)
+            page = pdfDoc.addPage([595.28, 841.89])
+            pageCount++
+            drawHeaderDecoration()
+            y = height - 120
+          }
           continue;
         }
         processParagraph(paragraph, size, options);
@@ -211,18 +218,16 @@ serve(async (req) => {
       }
       if (currentLine) lines.push(currentLine)
 
-      const estimatedHeight = lines.length * (size * lineHeight)
-      
-      // Se o bloco de texto não couber na página atual, move para a próxima
-      if (y - estimatedHeight < 60) { // Reduzido de 70 para 60 para aproveitar mais a página
-        drawFooter(pageCount)
-        page = pdfDoc.addPage([595.28, 841.89])
-        pageCount++
-        drawHeaderDecoration()
-        y = height - 120 
-      }
-
       for (let i = 0; i < lines.length; i++) {
+        // Verificar antes de cada linha se há espaço (limite aumentado para 85)
+        if (y < 85) {
+          drawFooter(pageCount)
+          page = pdfDoc.addPage([595.28, 841.89])
+          pageCount++
+          drawHeaderDecoration()
+          y = height - 120 
+        }
+
         const line = lines[i]
         const isLastLine = i === lines.length - 1
         
@@ -336,7 +341,7 @@ serve(async (req) => {
 
     // Seção de Assinaturas (Bloco Protegido contra Quebra)
     const signatureSectionHeight = 180
-    if (y < signatureSectionHeight + 60) {
+    if (y < signatureSectionHeight + 85) { // Aumentado para 85
       drawFooter(pageCount)
       page = pdfDoc.addPage([595.28, 841.89])
       y = height - 120
