@@ -143,14 +143,15 @@ serve(async (req) => {
     page.drawText(`Data/Hora: ${signatureDate}`, { x: 65, y: signatureY - 64, size: 8, font })
     page.drawText(`Verificado por: ${orgName} (Padrão ICP-Brasil)`, { x: 65, y: signatureY - 76, size: 7, font, color: rgb(0.4, 0.4, 0.4) })
 
-    // 4. ADICIONAR PLACEHOLDER DE ASSINATURA CRIPTOGRÁFICA
-    // Isso prepara o PDF para receber a assinatura real que o Adobe reconhece
+    // 4. ADICIONAR PLACEHOLDER DE ASSINATURA CRIPTOGRÁFICA (Padrão PAdES)
+    // Isso prepara o PDF para receber a assinatura real que o Adobe e o Gov.br reconhecem
     addPlaceholder({
       pdfDoc,
-      reason: 'Assinatura Digital de Contrato - Imperial Tech',
+      reason: 'Assinatura Digital ICP-Brasil - Contrato de Prestação de Serviços',
       contactInfo: configuration.contratado_email || 'contato@imperialtech.com',
       name: certName,
       location: configuration.contratado_cidade || 'Brasil',
+      subFilter: 'ETSI.CAdES.detached', // Padrão PAdES para maior compatibilidade com Gov.br
       signatureLength: 8192, // Espaço para o certificado e assinatura PKCS#7
     });
 
@@ -158,6 +159,7 @@ serve(async (req) => {
 
     // 5. ASSINAR DIGITALMENTE (CRIPTO)
     // Usamos o signer-p12 para gerar a assinatura real seguindo os padrões Adobe/ICP-Brasil
+    // O Buffer.from é necessário para que a biblioteca @signpdf processe os bytes corretamente
     const signer = new P12Signer(Buffer.from(pfxDer, 'binary'), { password });
     const signedPdfBytes = await sign(Buffer.from(pdfBytesWithPlaceholder), signer);
 
