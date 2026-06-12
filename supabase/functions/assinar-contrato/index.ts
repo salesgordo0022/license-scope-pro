@@ -34,14 +34,22 @@ serve(async (req) => {
 
     if (contratoError || !contrato) throw new Error('Contrato não encontrado')
 
-    const { data: config, error: configError } = await supabaseAdmin
-      .from('configuracao_contrato')
-      .select('*')
-      .eq('empresa_id', contrato.empresa_id)
-      .maybeSingle()
-
-    if (configError) throw configError
-    const configuration = config || {}
+    let configuration: any = {}
+    if (contrato.empresa_id) {
+      const { data: config } = await supabaseAdmin
+        .from('configuracao_contrato')
+        .select('*')
+        .eq('empresa_id', contrato.empresa_id)
+        .maybeSingle()
+      configuration = config || {}
+    } else {
+      const { data: config } = await supabaseAdmin
+        .from('configuracao_contrato')
+        .select('*')
+        .limit(1)
+        .maybeSingle()
+      configuration = config || {}
+    }
 
     // 2. Carregar Certificado para extrair informações reais (Gov/Adobe style)
     const pfxDer = forge.util.decode64(pfxBase64)
