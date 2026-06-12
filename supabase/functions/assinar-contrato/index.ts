@@ -114,7 +114,7 @@ serve(async (req) => {
       // 3. Cabeçalho com Título e Logo Placeholder
       const title = 'CONTRATO DE PRESTAÇÃO DE SERVIÇOS'
       page.drawText(title, {
-        x: 50,
+        x: margin,
         y: height - 60,
         size: 22,
         font: fontBold,
@@ -123,12 +123,13 @@ serve(async (req) => {
 
       // Linha de acento abaixo do título
       page.drawRectangle({
-        x: 50,
+        x: margin,
         y: height - 75,
         width: 100,
         height: 3,
         color: purpleMedium
       })
+
 
       const subHeader = configuration.contratado_nome?.toUpperCase() || 'DOCUMENTO DIGITAL'
       page.drawText(subHeader, {
