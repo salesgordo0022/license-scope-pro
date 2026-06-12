@@ -167,12 +167,10 @@ serve(async (req) => {
 
     const addText = (text: string, size = 10, options: any = {}) => {
       if (!text) return;
-      // Normalizar quebras de linha para evitar problemas com diferentes sistemas
       const normalizedText = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
       const paragraphs = normalizedText.split('\n');
       
       for (const paragraph of paragraphs) {
-        // Se o parágrafo estiver vazio e não for o último, adiciona um pequeno espaço
         if (!paragraph.trim() && paragraphs.length > 1) {
           y -= (size * 0.8); 
           continue;
@@ -188,8 +186,8 @@ serve(async (req) => {
         align = 'left', 
         color = textColor, 
         indent = 0,
-        lineHeight = 1.5,
-        paragraphSpacing = 15
+        lineHeight = 1.3, // Reduzido de 1.5 para 1.3
+        paragraphSpacing = 10 // Reduzido de 15 para 10
       } = options
       
       let currentFont = isBold ? fontBold : font
