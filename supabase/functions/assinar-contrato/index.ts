@@ -133,12 +133,13 @@ serve(async (req) => {
 
       const subHeader = configuration.contratado_nome?.toUpperCase() || 'DOCUMENTO DIGITAL'
       page.drawText(subHeader, {
-        x: 50,
+        x: margin,
         y: height - 95,
         size: 9,
         font: font,
         color: secondaryTextColor
       })
+
     }
 
     const drawFooter = (pageNum: number) => {
