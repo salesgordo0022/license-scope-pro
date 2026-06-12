@@ -166,6 +166,19 @@ serve(async (req) => {
     }
 
     const addText = (text: string, size = 10, options: any = {}) => {
+      if (!text) return;
+      const paragraphs = text.split('\n');
+      
+      for (const paragraph of paragraphs) {
+        if (!paragraph.trim() && paragraphs.length > 1) {
+          y -= (size * 0.5); // Espaço extra para linhas vazias
+          continue;
+        }
+        processParagraph(paragraph, size, options);
+      }
+    }
+
+    const processParagraph = (text: string, size = 10, options: any = {}) => {
       const { 
         isBold = false, 
         isItalic = false, 
@@ -195,7 +208,7 @@ serve(async (req) => {
           currentLine = testLine
         }
       }
-      lines.push(currentLine)
+      if (currentLine) lines.push(currentLine)
 
       const estimatedHeight = lines.length * (size * lineHeight)
       
@@ -285,6 +298,8 @@ serve(async (req) => {
         conteudo = conteudo.replace(/{{vigencia_meses}}/g, contrato.vigencia_meses?.toString() || '12')
         conteudo = conteudo.replace(/{{contratante_nome}}/g, contrato.contratante_nome || '---')
         conteudo = conteudo.replace(/{{contratante_cnpj}}/g, contrato.contratante_cnpj || '---')
+        conteudo = conteudo.replace(/{{data_inicio}}/g, new Date(contrato.data_inicio).toLocaleDateString('pt-BR'))
+        conteudo = conteudo.replace(/{{data_fim}}/g, contrato.data_fim ? new Date(contrato.data_fim).toLocaleDateString('pt-BR') : '---')
         
         addText(conteudo, 10, { align: 'justify', indent: 8, paragraphSpacing: 25 })
       }
