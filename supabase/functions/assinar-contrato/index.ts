@@ -84,9 +84,10 @@ serve(async (req) => {
 
     if (uploadError) throw uploadError
 
-    const { data: { publicUrl } } = supabaseAdmin.storage
+    const { data: signedUrlData } = await supabaseAdmin.storage
       .from('contratos-assinados')
-      .getPublicUrl(fileName)
+      .createSignedUrl(fileName, 60 * 60 * 24 * 365) // 1 ano
+    const publicUrl = signedUrlData?.signedUrl || ''
 
     // 4. Registrar na tabela contratos_assinados
     const { error: dbError } = await supabaseAdmin
