@@ -215,8 +215,11 @@ serve(async (req) => {
       if (currentLine) lines.push(currentLine)
 
       for (let i = 0; i < lines.length; i++) {
+        const line = lines[i]
+        
         // Verificar se a linha cabe na página, considerando o rodapé
-        if (y < footerHeight + size) {
+        // y é o ponto base da linha, subtraímos size * lineHeight para ver onde a linha termina
+        if (y - (size * lineHeight) < footerHeight) {
           drawFooter(pageCount)
           page = pdfDoc.addPage([595.28, 841.89])
           pageCount++
@@ -224,9 +227,7 @@ serve(async (req) => {
           y = height - 120 
         }
 
-        const line = lines[i]
         const isLastLine = i === lines.length - 1
-        
         let xPos = margin + indent
         
         if (align === 'center') {
