@@ -536,50 +536,61 @@ export default function Contratos() {
       <div id="contract-document" className="bg-white text-black shadow-xl rounded-sm mx-auto print:shadow-none relative overflow-hidden" style={{ 
         width: '210mm', 
         padding: '0', 
-        fontFamily: "'Times New Roman', Times, serif", 
+        fontFamily: "Arial, sans-serif", 
         fontSize: '11pt', 
-        lineHeight: '1.5',
-        color: '#000',
+        lineHeight: '1.6',
+        color: '#1a1a2e',
         backgroundColor: '#fff',
         minHeight: '297mm',
-        WebkitFontSmoothing: 'antialiased',
-        MozOsxFontSmoothing: 'grayscale'
+        WebkitFontSmoothing: 'antialiased'
       }}>
 
+        {/* Barra Lateral Premium */}
+        <div className="absolute left-0 top-0 bottom-0 w-4 bg-[#331470]" />
+
+        {/* Elementos Abstratos no Cabeçalho */}
+        <div className="absolute -top-20 -right-20 w-64 h-64 bg-[#331470] opacity-[0.03] rounded-full" />
+        <div className="absolute top-10 right-10 w-32 h-32 bg-[#331470] opacity-[0.05] rounded-full" />
 
         {/* Marca d'água central */}
         {config.mostrar_marca_dagua && (
-          <div className="absolute inset-0 flex items-center justify-center opacity-[0.05] pointer-events-none" style={{ zIndex: 0 }}>
-            <img src={logoUrl} alt="" className="w-[460px]" crossOrigin="anonymous" />
+          <div className="absolute inset-0 flex items-center justify-center opacity-[0.03] pointer-events-none" style={{ zIndex: 0 }}>
+            <img src={logoUrl} alt="" className="w-[400px]" crossOrigin="anonymous" />
           </div>
         )}
 
         {/* Conteúdo do contrato */}
-        <div style={{ padding: '30mm 25mm', position: 'relative', zIndex: 10 }}>
-          {/* Cabeçalho centralizado — logo + pílula azul */}
-          <div className="flex flex-col items-center mb-12" style={{ zIndex: 10 }}>
-
-            <img
-              src={logoUrl}
-              alt="Logo"
-              crossOrigin="anonymous"
-              style={{ height: '64px', objectFit: 'contain', marginBottom: '14px' }}
-            />
-            <div
-              style={{
-                background: 'linear-gradient(135deg, #2a3f63 0%, #324b75 100%)',
-                padding: '12px 48px',
-                borderRadius: '9999px',
-                boxShadow: '0 4px 14px rgba(42,63,99,0.22)',
-                color: '#ffffff',
-                fontFamily: 'Arial, sans-serif',
-                fontSize: '9pt',
-                fontWeight: 600,
-                letterSpacing: '0.22em',
-                textAlign: 'center',
-              }}
-            >
-              VENDA DE SISTEMAS E SOLUÇÕES
+        <div style={{ padding: '25mm 25mm 25mm 35mm', position: 'relative', zIndex: 10 }}>
+          {/* Cabeçalho */}
+          <div className="flex justify-between items-start mb-12">
+            <div>
+              <img
+                src={logoUrl}
+                alt="Logo"
+                crossOrigin="anonymous"
+                style={{ height: '50px', objectFit: 'contain', marginBottom: '15px' }}
+              />
+              <div className="w-20 h-1 bg-[#331470] rounded-full" />
+            </div>
+            <div className="text-right">
+              <div
+                style={{
+                  background: '#331470',
+                  padding: '8px 24px',
+                  borderRadius: '4px',
+                  color: '#ffffff',
+                  fontSize: '9pt',
+                  fontWeight: 600,
+                  letterSpacing: '0.1em',
+                  display: 'inline-block',
+                  marginBottom: '10px'
+                }}
+              >
+                CONTRATO DE SERVIÇOS
+              </div>
+              {contrato.numero_contrato && (
+                <p className="text-xs font-bold text-[#331470]">DOC: {contrato.numero_contrato}</p>
+              )}
             </div>
           </div>
 
