@@ -594,14 +594,24 @@ export default function Contratos() {
             </div>
           </div>
 
-          <div className="text-center mb-10">
-            <h1 className="text-2xl font-serif font-bold tracking-tight uppercase text-black mb-2">
-              Contrato de Prestação de Serviços de Software
+          <div className="mb-10 bg-[#9470db15] p-6 rounded-lg border-l-4 border-[#331470]">
+            <h1 className="text-xl font-sans font-bold tracking-tight uppercase text-[#331470] mb-4">
+              Prestação de Serviços de Software
             </h1>
-            <div className="w-32 h-1 mx-auto mb-3" style={{ background: '#2a3f63' }} />
-            {contrato.numero_contrato && (
-              <p className="text-sm font-semibold text-gray-800">DOCUMENTO Nº {contrato.numero_contrato}</p>
-            )}
+            <div className="grid grid-cols-3 gap-6 text-[9pt]">
+              <div>
+                <p className="font-bold text-[#331470] uppercase text-[7pt] mb-1">Contratante</p>
+                <p className="font-medium">{nomeContratante.substring(0, 35)}</p>
+              </div>
+              <div>
+                <p className="font-bold text-[#331470] uppercase text-[7pt] mb-1">CNPJ/CPF</p>
+                <p className="font-medium">{contrato.contratante_cnpj || '---'}</p>
+              </div>
+              <div>
+                <p className="font-bold text-[#331470] uppercase text-[7pt] mb-1">Emissão</p>
+                <p className="font-medium">{new Date().toLocaleDateString('pt-BR')}</p>
+              </div>
+            </div>
           </div>
 
 
