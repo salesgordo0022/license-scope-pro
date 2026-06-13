@@ -1113,6 +1113,16 @@ export default function Contratos() {
                           <Input value={formData.contratante_cnpj} onChange={(e) => setFormData({ ...formData, contratante_cnpj: e.target.value })} />
                         </div>
                       </div>
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                          <Label>Nome do Dono / Responsável</Label>
+                          <Input value={formData.contratante_nome_dono} onChange={(e) => setFormData({ ...formData, contratante_nome_dono: e.target.value })} placeholder="Nome completo do proprietário" />
+                        </div>
+                        <div className="space-y-2">
+                          <Label>CPF do Dono</Label>
+                          <Input value={formData.contratante_cpf_dono} onChange={(e) => setFormData({ ...formData, contratante_cpf_dono: e.target.value })} placeholder="000.000.000-00" />
+                        </div>
+                      </div>
                       <div className="space-y-2">
                         <Label>Endereço</Label>
                         <Input value={formData.contratante_endereco} onChange={(e) => setFormData({ ...formData, contratante_endereco: e.target.value })} />
