@@ -292,7 +292,10 @@ serve(async (req) => {
     // Conteúdo Principal
     addText('DAS PARTES', 12, { isBold: true, color: purpleDeep, paragraphSpacing: 10 })
     
-    const textoPartes = `Pelo presente instrumento particular, de um lado ${configuration.contratado_nome || 'A CONTRATADA'}, pessoa jurídica de direito privado, inscrita no CNPJ sob o nº ${configuration.contratado_cnpj || '---'}, com sede em ${configuration.contratado_endereco || '---'}, doravante denominada CONTRATADA; e, de outro lado, ${contrato.contratante_nome || 'O CONTRATANTE'}, inscrito no CPF/CNPJ sob o nº ${contrato.contratante_cnpj || '---'}, residente e domiciliado em ${contrato.contratante_endereco || '---'}, doravante denominado CONTRATANTE.`
+    const donoNomeC = (contrato as any).contratante_nome_dono || ''
+    const donoCpfC = (contrato as any).contratante_cpf_dono || ''
+    const trechoDonoC = donoNomeC ? `, neste ato representada por ${donoNomeC}${donoCpfC ? `, inscrito no CPF sob o nº ${donoCpfC}` : ''}` : ''
+    const textoPartes = `Pelo presente instrumento particular, de um lado ${configuration.contratado_nome || 'A CONTRATADA'}, pessoa jurídica de direito privado, inscrita no CNPJ sob o nº ${configuration.contratado_cnpj || '---'}, com sede em ${configuration.contratado_endereco || '---'}, doravante denominada CONTRATADA; e, de outro lado, ${contrato.contratante_nome || 'O CONTRATANTE'}, inscrito no CPF/CNPJ sob o nº ${contrato.contratante_cnpj || '---'}, residente e domiciliado em ${contrato.contratante_endereco || '---'}${trechoDonoC}, doravante denominado CONTRATANTE.`
     
     addText(textoPartes, 10, { align: 'justify', paragraphSpacing: 25 })
 

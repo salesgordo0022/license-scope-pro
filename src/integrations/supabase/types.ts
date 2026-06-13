@@ -54,6 +54,7 @@ export type Database = {
         Row: {
           cidade: string | null
           cnpj: string | null
+          cpf_dono: string | null
           created_at: string | null
           data_entrada: string | null
           desconto_percentual: number | null
@@ -63,6 +64,7 @@ export type Database = {
           estado: string | null
           grupo_id: string | null
           id: string
+          nome_dono: string | null
           nome_empresa: string
           observacoes: string | null
           segmento: string | null
@@ -74,6 +76,7 @@ export type Database = {
         Insert: {
           cidade?: string | null
           cnpj?: string | null
+          cpf_dono?: string | null
           created_at?: string | null
           data_entrada?: string | null
           desconto_percentual?: number | null
@@ -83,6 +86,7 @@ export type Database = {
           estado?: string | null
           grupo_id?: string | null
           id?: string
+          nome_dono?: string | null
           nome_empresa: string
           observacoes?: string | null
           segmento?: string | null
@@ -94,6 +98,7 @@ export type Database = {
         Update: {
           cidade?: string | null
           cnpj?: string | null
+          cpf_dono?: string | null
           created_at?: string | null
           data_entrada?: string | null
           desconto_percentual?: number | null
@@ -103,6 +108,7 @@ export type Database = {
           estado?: string | null
           grupo_id?: string | null
           id?: string
+          nome_dono?: string | null
           nome_empresa?: string
           observacoes?: string | null
           segmento?: string | null
@@ -205,9 +211,11 @@ export type Database = {
           cliente_id: string
           contratante_cidade: string | null
           contratante_cnpj: string | null
+          contratante_cpf_dono: string | null
           contratante_endereco: string | null
           contratante_estado: string | null
           contratante_nome: string | null
+          contratante_nome_dono: string | null
           created_at: string
           data_assinatura: string | null
           data_fim: string | null
@@ -232,9 +240,11 @@ export type Database = {
           cliente_id: string
           contratante_cidade?: string | null
           contratante_cnpj?: string | null
+          contratante_cpf_dono?: string | null
           contratante_endereco?: string | null
           contratante_estado?: string | null
           contratante_nome?: string | null
+          contratante_nome_dono?: string | null
           created_at?: string
           data_assinatura?: string | null
           data_fim?: string | null
@@ -259,9 +269,11 @@ export type Database = {
           cliente_id?: string
           contratante_cidade?: string | null
           contratante_cnpj?: string | null
+          contratante_cpf_dono?: string | null
           contratante_endereco?: string | null
           contratante_estado?: string | null
           contratante_nome?: string | null
+          contratante_nome_dono?: string | null
           created_at?: string
           data_assinatura?: string | null
           data_fim?: string | null

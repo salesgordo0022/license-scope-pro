@@ -86,6 +86,14 @@ export default function Clientes() {
       .replace(/(\d{4})(\d)/, '$1-$2');
   };
 
+  const formatCpf = (value: string) => {
+    const digits = value.replace(/\D/g, '').slice(0, 11);
+    return digits
+      .replace(/^(\d{3})(\d)/, '$1.$2')
+      .replace(/^(\d{3})\.(\d{3})(\d)/, '$1.$2.$3')
+      .replace(/\.(\d{3})(\d{1,2})$/, '.$1-$2');
+  };
+
   const buscarCnpj = async (cnpjRaw: string) => {
     const digits = cnpjRaw.replace(/\D/g, '');
     if (digits.length !== 14) {
@@ -132,6 +140,8 @@ export default function Clientes() {
     valor_implantacao: 0,
     desconto_percentual: 0,
     cnpj: '',
+    nome_dono: '',
+    cpf_dono: '',
     endereco: '',
     cidade: '',
     estado: '',
@@ -234,6 +244,8 @@ export default function Clientes() {
       valor_implantacao: 0,
       desconto_percentual: 0,
       cnpj: '',
+      nome_dono: '',
+      cpf_dono: '',
       endereco: '',
       cidade: '',
       estado: '',
@@ -394,6 +406,8 @@ export default function Clientes() {
       valor_implantacao: Number(cliente.valor_implantacao) || 0,
       desconto_percentual: Number(cliente.desconto_percentual) || 0,
       cnpj: (cliente as any).cnpj || '',
+      nome_dono: (cliente as any).nome_dono || '',
+      cpf_dono: (cliente as any).cpf_dono || '',
       endereco: (cliente as any).endereco || '',
       cidade: (cliente as any).cidade || '',
       estado: (cliente as any).estado || '',
@@ -716,6 +730,25 @@ export default function Clientes() {
                       </Button>
                     </div>
                     <p className="text-xs text-muted-foreground">Digite o CNPJ e clique em Buscar para preencher automaticamente</p>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="nome_dono">Nome do Dono / Responsável</Label>
+                    <Input
+                      id="nome_dono"
+                      value={formData.nome_dono}
+                      onChange={(e) => setFormData({ ...formData, nome_dono: e.target.value })}
+                      placeholder="Nome completo do proprietário"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="cpf_dono">CPF do Dono</Label>
+                    <Input
+                      id="cpf_dono"
+                      value={formData.cpf_dono}
+                      onChange={(e) => setFormData({ ...formData, cpf_dono: formatCpf(e.target.value) })}
+                      placeholder="000.000.000-00"
+                      maxLength={14}
+                    />
                   </div>
                   <div className="space-y-2 col-span-2">
                     <Label htmlFor="endereco">Endereço</Label>
