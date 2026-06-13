@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 import { Plus, Search, FileText, MoreHorizontal, Edit, Trash2, Eye, CheckCircle, Printer, Link, ExternalLink, Settings, Building2, Save, Download, BookCopy, ShieldCheck, Upload, Key } from 'lucide-react';
 import jsPDF from 'jspdf';
+import html2canvas from 'html2canvas';
 import ModelosContrato from '@/components/contratos/ModelosContrato';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -486,172 +487,65 @@ export default function Contratos() {
   const handlePrint = () => { window.print(); };
 
   const handleExportPDF = async () => {
-    // Se o contrato estiver assinado digitalmente, baixar o PDF original assinado do Storage
+    // Se assinado digitalmente, baixa o PDF original
     if (viewingContrato?.assinado && viewingContrato.link_documento && viewingContrato.is_digital_sign) {
       window.open(viewingContrato.link_documento, '_blank');
       return;
     }
-
     if (!viewingContrato) return;
-    
+
+    const element = document.getElementById('contract-document') as HTMLElement | null;
+    if (!element) {
+      toast.error('Visualização não encontrada');
+      return;
+    }
+
     toast.info('Gerando PDF...');
     try {
-      const pdf = new jsPDF('p', 'mm', 'a4');
-      const pdfWidth = pdf.internal.pageSize.getWidth();
-      const pdfHeight = pdf.internal.pageSize.getHeight();
-      const margin = 18;
-      const contentWidth = pdfWidth - margin * 2;
-      const safeBottom = pdfHeight - 18;
-      const cliente = clientes.find(c => c.id === viewingContrato.cliente_id);
-      const nomeContratante = viewingContrato.contratante_nome || cliente?.nome_empresa || '……………..';
-      const nomeContratado = config.contratado_nome || 'ImperialTech';
-      const dataInicio = formatDate(viewingContrato.data_inicio);
-      const dataFim = formatDate(viewingContrato.data_fim);
-      let y = 24;
-      let pageNumber = 1;
+      // Aguarda imagens carregarem
+      const imgs = Array.from(element.querySelectorAll('img'));
+      await Promise.all(imgs.map(img => img.complete ? Promise.resolve() : new Promise(res => { img.onload = img.onerror = () => res(null); })));
 
-      const clean = (value: unknown) => String(value ?? '')
-        .replace(/[\u2013\u2014]/g, '-')
-        .replace(/\s+/g, ' ')
-        .trim();
-
-      const breakLongWords = (text: string) => clean(text)
-        .split(' ')
-        .map((word) => word.length > 42 ? word.match(/.{1,42}/g)?.join(' ') || word : word)
-        .join(' ');
-
-      const drawFooter = () => {
-        pdf.setDrawColor(230, 230, 235);
-        pdf.line(margin, pdfHeight - 12, pdfWidth - margin, pdfHeight - 12);
-        pdf.setFont('helvetica', 'normal');
-        pdf.setFontSize(8);
-        pdf.setTextColor(100, 100, 110);
-        pdf.text(`Página ${pageNumber}`, pdfWidth - margin, pdfHeight - 7, { align: 'right' });
-      };
-
-      const drawHeader = () => {
-        pdf.setTextColor(51, 20, 112);
-        pdf.setFont('helvetica', 'bold');
-        pdf.setFontSize(14);
-        pdf.text('CONTRATO DE PRESTAÇÃO DE SERVIÇOS', margin, 18, { maxWidth: contentWidth });
-        pdf.setDrawColor(51, 20, 112);
-        pdf.setLineWidth(0.8);
-        pdf.line(margin, 22, margin + 42, 22);
-        pdf.setFontSize(8);
-        pdf.text(viewingContrato.numero_contrato ? `DOC: ${viewingContrato.numero_contrato}` : 'DOCUMENTO CONTRATUAL', pdfWidth - margin, 18, { align: 'right' });
-      };
-
-      const newPage = () => {
-        drawFooter();
-        pdf.addPage();
-        pageNumber += 1;
-        y = 30;
-        drawHeader();
-      };
-
-      const ensureSpace = (needed: number) => {
-        if (y + needed > safeBottom) newPage();
-      };
-
-      const addText = (text: string, size = 10, options: { bold?: boolean; italic?: boolean; indent?: number; spacing?: number; align?: 'left' | 'center' } = {}) => {
-        const indent = options.indent ?? 0;
-        const spacing = options.spacing ?? 4;
-        pdf.setFont('helvetica', options.bold ? 'bold' : options.italic ? 'italic' : 'normal');
-        pdf.setFontSize(size);
-        pdf.setTextColor(25, 25, 35);
-        const lines = pdf.splitTextToSize(breakLongWords(text), contentWidth - indent);
-        const lineHeight = size * 0.43;
-        lines.forEach((line: string) => {
-          ensureSpace(lineHeight + spacing);
-          pdf.text(line, options.align === 'center' ? pdfWidth / 2 : margin + indent, y, {
-            align: options.align || 'left',
-            maxWidth: contentWidth - indent,
-          });
-          y += lineHeight;
-        });
-        y += spacing;
-      };
-
-      const addSection = (title: string) => {
-        ensureSpace(14);
-        y += 2;
-        pdf.setFillColor(51, 20, 112);
-        pdf.rect(margin, y - 4, 2.2, 8, 'F');
-        pdf.setFont('helvetica', 'bold');
-        pdf.setFontSize(11);
-        pdf.setTextColor(51, 20, 112);
-        pdf.text(title.toUpperCase(), margin + 5, y + 2, { maxWidth: contentWidth - 5 });
-        y += 10;
-      };
-
-      drawHeader();
-      y = 35;
-      pdf.setFillColor(247, 244, 255);
-      pdf.roundedRect(margin, y, contentWidth, 24, 2, 2, 'F');
-      pdf.setTextColor(51, 20, 112);
-      pdf.setFont('helvetica', 'bold');
-      pdf.setFontSize(8);
-      pdf.text('CONTRATANTE', margin + 4, y + 8);
-      pdf.text('CNPJ/CPF', margin + contentWidth * 0.48, y + 8);
-      pdf.text('EMISSÃO', margin + contentWidth * 0.75, y + 8);
-      pdf.setTextColor(25, 25, 35);
-      pdf.setFont('helvetica', 'normal');
-      pdf.setFontSize(9);
-      pdf.text(pdf.splitTextToSize(breakLongWords(nomeContratante), contentWidth * 0.38), margin + 4, y + 16);
-      pdf.text(viewingContrato.contratante_cnpj || '---', margin + contentWidth * 0.48, y + 16, { maxWidth: contentWidth * 0.22 });
-      pdf.text(new Date().toLocaleDateString('pt-BR'), margin + contentWidth * 0.75, y + 16);
-      y += 36;
-
-      const donoNome = viewingContrato.contratante_nome_dono || '';
-      const donoCpf = viewingContrato.contratante_cpf_dono || '';
-      const trechoDono = donoNome ? `, neste ato representada por ${donoNome}${donoCpf ? `, inscrito no CPF sob o nº ${donoCpf}` : ''}` : '';
-      addText(`Pelo presente Instrumento Particular de Contrato de Prestação de Serviços, de um lado ${nomeContratado}, pessoa jurídica${config.contratado_endereco ? `, com sede à ${config.contratado_endereco}` : ''}${config.contratado_cidade ? `, na cidade ${config.contratado_cidade}` : ''}${config.contratado_cnpj ? `, CNPJ nº ${config.contratado_cnpj}` : ''}, doravante designada simplesmente CONTRATADO, e de outro lado, ${nomeContratante}${viewingContrato.contratante_endereco ? `, com sede na ${viewingContrato.contratante_endereco}` : ''}${viewingContrato.contratante_cidade ? `, cidade de ${viewingContrato.contratante_cidade}` : ''}${viewingContrato.contratante_estado ? `, ${viewingContrato.contratante_estado}` : ''}${viewingContrato.contratante_cnpj ? `, inscrita no CNPJ/MF sob o nº ${viewingContrato.contratante_cnpj}` : ''}${trechoDono}, adiante denominado simplesmente CONTRATANTE.`, 10, { spacing: 5 });
-      addText('As partes acima identificadas têm, entre si, justas e acertadas o presente Contrato de prestação de serviços de Software, que se regerá pelas seguintes cláusulas e condições:', 10, { spacing: 7 });
-
-      const clauses = [
-        ['Cláusula Primeira — Do Objeto do Contrato', [`1.1. O presente contrato tem como objeto, a prestação, pelo CONTRATADO, de serviços de suporte técnico do Sistema ${viewingContrato.sistema || '……………...'}.`, '1.2. O presente contrato concede ao CONTRATANTE uma licença de uso mensal do software, de caráter não exclusivo e intransferível, válida enquanto perdurar a vigência deste contrato e o adimplemento das obrigações aqui pactuadas. A licença será renovada automaticamente a cada mês mediante o pagamento da mensalidade correspondente.']],
-        ['Cláusula Segunda — Prazo de Vigência', [`2.1. O período de vigência deste contrato é de ${dataInicio} à ${dataFim} e poderá ser renovado por iguais e sucessivos períodos, mediante termo aditivo.`]],
-        ['Cláusula Terceira — Da Execução dos Serviços', [`3.1. Os serviços serão prestados por profissional designado pelo CONTRATADO no horário de ${config.horario_atendimento}, de segunda a sábado, salvo feriados${config.contratado_email ? `, e-mails: ${config.contratado_email}` : ''}${config.contratado_telefone ? `, Whatsapp: ${config.contratado_telefone}` : ''}. O deslocamento de cidade para o cliente será cobrado um valor de ${formatCurrency(Number(viewingContrato.valor_km_deslocamento))} por KM rodado conforme relatório assinado pelo cliente, mais despesas de alimentação e estadia se necessário.`, '3.2. A administração, supervisão e gerenciamento no que tange à execução dos serviços prestados, pelo profissional encaminhado pela CONTRATANTE, ficarão sob responsabilidade exclusiva do CONTRATADO.', '3.3. O CONTRATANTE contará também com o Suporte Técnico direto com a LICENCIANTE por meio eletrônico, à distância, pelo prazo de 90 dias e através dos meios descritos e previsto em cláusula específica do contrato de uso do sistema.']],
-        ['Cláusula Quarta — Preço e Forma de Pagamento', [`4.1. O valor da implantação do sistema é de ${formatCurrency(Number(viewingContrato.valor_software))}, e a mensalidade do serviço SaaS é de ${formatCurrency(Number(viewingContrato.valor_mensalidade))}, com vencimento todo dia 10 de cada mês, a contar da data de assinatura deste instrumento.`, `4.2. O contrato será renovado automaticamente a cada mês, no dia 10, salvo manifestação contrária de uma das partes com antecedência mínima de ${config.prazo_aviso_rescisao} dias.`, `4.3. Em caso de cancelamento por parte do CONTRATANTE antes do término da vigência, será cobrada multa rescisória equivalente a 3 (três) vezes o valor da mensalidade vigente, ou seja, ${formatCurrency(Number(viewingContrato.valor_mensalidade) * 3)}.`, '4.4. No caso de inadimplência ou pagamento em atraso, poderão incidir juros, multa e demais encargos financeiros legais, ficando a CONTRATADA autorizada, de pleno direito, a suspender temporariamente o acesso ao sistema e o atendimento de suporte técnico até a quitação integral da obrigação em atraso.', `4.5. Os valores mencionados neste contrato serão corrigidos a cada período de 12 (doze) meses, utilizando a variação do índice do ${config.indice_reajuste} ou outro índice específico para reajuste de contrato de prestação de serviço que venha a substituí-lo.`, '4.6. O valor do contrato também é fixado pelo número de licenças de uso adquiridas ou licenças adicionais, para o caso de utilização em rede, sendo a mensalidade aplicada conforme quantidade de máquinas e usuários que utilizam o sistema.', '4.7. A reativação do acesso ao sistema e do suporte técnico após eventual suspensão por inadimplência ocorrerá em até 1 (um) dia útil após a confirmação da quitação da parcela em aberto.']],
-        ['Cláusula Quinta — Da Alteração Contratual', ['5.1. Quaisquer alterações das obrigações contratuais somente serão válidas mediante celebração de Termos Aditivos, firmados pelos representantes legais das Partes.']],
-        ['Cláusula Sexta — Obrigações do Contratado', ['6.1. Em cumprimento ao objeto do presente instrumento, são obrigações exclusivas do CONTRATADO:', 'a) Planejar, conduzir e executar os serviços, com integral observância das disposições deste Contrato, obedecendo rigorosamente aos prazos contratuais, às normas vigentes e os requerimentos gerais que forem formulados, por escrito, pelo CONTRATANTE;', 'b) Admitir e dirigir, sob sua inteira responsabilidade, o pessoal especializado e capacitado, correndo por sua conta exclusiva todos os encargos de ordem trabalhista, previdenciária, civil e fiscal, não podendo ser imputada ao CONTRATANTE qualquer responsabilidade solidária;', 'c) Responsabilizar-se por quaisquer demandas trabalhistas, previdenciárias, sobre acidentes do trabalho ou de qualquer outra natureza atinentes ao pessoal utilizado na prestação dos serviços, mantendo o CONTRATANTE isenta de qualquer responsabilidade;', 'd) Manter o CONTRATANTE à margem de quaisquer queixas, reivindicações e/ou reclamações de seus empregados ou de terceiros, em decorrência do cumprimento do presente contrato;', 'e) Fornecer ao CONTRATANTE todos os dados solicitados que se fizerem necessários ao bom entendimento e acompanhamento do serviço contratado;', 'f) Nenhuma das partes será considerada responsável pelo não cumprimento de suas obrigações no caso de força maior ou caso fortuito, mas não se limitando as hipóteses de tempestades, guerras, desordens, sabotagens, atos terroristas, na forma prevista em lei.']],
-        ['Cláusula Sétima — Obrigações do Contratante', ['7.1. São obrigações do CONTRATANTE:', 'a) Comunicar previamente ao CONTRATADO qualquer modificação e/ou criação de novos procedimentos a serem adotados;', 'b) Efetuar todos os pagamentos ora contratados, responsabilizando-se por todos os ônus decorrentes do não cumprimento desta obrigação contratual;', 'c) Responsabilizar-se pelos pagamentos de todos os custos e ônus deste contrato, inclusive os procedimentos de eventual aditamento do presente contrato;', 'd) Relatar ao CONTRATADO por escrito, toda e qualquer irregularidade ou comentários nos serviços prestados;', 'e) No caso de mudança, e haja a necessidade de transferência de equipamento(s) ou parte dele(s), para outro local, o CONTRATANTE deverá notificar o CONTRATADO a sua intenção no prazo de 10 (dez) dias de antecedência;', 'f) Todas as despesas relacionadas à instalação da rede local, especialmente aqueles relativos à parte elétrica, embalagens, transporte, seguros e mão-de-obra serão de responsabilidade do CONTRATANTE.']],
-        ['Cláusula Oitava — Aspectos Trabalhistas', ['8.1. O CONTRATADO é a única responsável pelo contrato de trabalho da pessoa designada por ela para a prestação dos serviços, responsabilizando-se pela gerência das atividades de seu empregado e/ou preposto, bem como responder por atos, omissões e/ou infrações por eles cometidos. Não podendo ser arguida solidariedade do CONTRATANTE, nem mesmo responsabilidade subsidiária nas relações trabalhistas relacionadas aos serviços prestados pelo CONTRATADO, a qual declara, ainda, não existir nenhum vínculo empregatício entre o CONTRATANTE e as pessoas designadas pelo CONTRATADO para a prestação dos serviços.']],
-        ['Cláusula Nona — Rescisão e Multa', ['9.1. O presente contrato poderá ser extinto nas seguintes hipóteses:', 'a) Por Distrato das partes;', 'b) Por Falência, Recuperação Judicial, Dissolução ou Liquidação do CONTRATADO, bem como se esta se apresentar em situações de Insolvência, nos termos da Lei nº 11.101/05;', 'c) Por Resolução, na hipótese de inadimplemento de qualquer das cláusulas ou condições contratuais, sem que a parte inadimplente sane suas obrigações no prazo de 15 (quinze) dias do recebimento de aviso da outra parte;', `d) Por Resilição Unilateral, por qualquer das partes, mediante aviso prévio, por escrito, com ${config.prazo_aviso_rescisao} dias de antecedência;`, 'e) Nas hipóteses de rescisão, resilição ou resolução, será devido ao CONTRATADO o valor dos serviços executados e ainda não pagos até a data da efetiva rescisão.']],
-        ['Cláusula Décima — Do Foro', [`10.1. As partes elegem o Foro da Comarca ${config.foro_comarca ? `de ${config.foro_comarca}` : 'de …………………..'} para dirimir qualquer questão decorrente deste contrato, com exclusão de qualquer outro, por mais privilegiado que seja.`]],
-      ];
-
-      clauses.forEach(([title, items]) => {
-        addSection(title as string);
-        (items as string[]).forEach((item) => addText(item, 10, { indent: 3, spacing: 4 }));
+      const canvas = await html2canvas(element, {
+        scale: 2,
+        useCORS: true,
+        allowTaint: true,
+        backgroundColor: '#ffffff',
+        windowWidth: element.scrollWidth,
+        windowHeight: element.scrollHeight,
       });
 
-      if (config.clausulas_adicionais) {
-        addSection('Cláusulas Adicionais');
-        addText(config.clausulas_adicionais, 10, { indent: 3, spacing: 5 });
+      const pdf = new jsPDF('p', 'mm', 'a4');
+      const pdfWidth = pdf.internal.pageSize.getWidth();   // 210
+      const pdfHeight = pdf.internal.pageSize.getHeight(); // 297
+
+      // Largura da imagem ocupa a página inteira (preview já tem 210mm)
+      const imgWidth = pdfWidth;
+      const pxPerMm = canvas.width / imgWidth;
+      const pageHeightPx = pdfHeight * pxPerMm;
+
+      let renderedPx = 0;
+      let pageIndex = 0;
+      while (renderedPx < canvas.height) {
+        const sliceHeight = Math.min(pageHeightPx, canvas.height - renderedPx);
+        const pageCanvas = document.createElement('canvas');
+        pageCanvas.width = canvas.width;
+        pageCanvas.height = sliceHeight;
+        const ctx = pageCanvas.getContext('2d');
+        if (!ctx) break;
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(0, 0, pageCanvas.width, pageCanvas.height);
+        ctx.drawImage(canvas, 0, renderedPx, canvas.width, sliceHeight, 0, 0, canvas.width, sliceHeight);
+        const imgData = pageCanvas.toDataURL('image/jpeg', 0.95);
+        if (pageIndex > 0) pdf.addPage();
+        const sliceMm = sliceHeight / pxPerMm;
+        pdf.addImage(imgData, 'JPEG', 0, 0, imgWidth, sliceMm, undefined, 'FAST');
+        renderedPx += sliceHeight;
+        pageIndex++;
       }
 
-      ensureSpace(55);
-      y += 8;
-      addText('E por estarem assim justas e acertadas, as partes firmam o presente instrumento.', 10, { italic: true, align: 'center', spacing: 12 });
-      ensureSpace(45);
-      const sigY = y + 18;
-      pdf.setDrawColor(120, 120, 130);
-      pdf.line(margin, sigY, margin + 70, sigY);
-      pdf.line(pdfWidth - margin - 70, sigY, pdfWidth - margin, sigY);
-      pdf.setFont('helvetica', 'bold');
-      pdf.setFontSize(8);
-      pdf.setTextColor(51, 20, 112);
-      pdf.text('CONTRATADO', margin + 35, sigY + 6, { align: 'center' });
-      pdf.text('CONTRATANTE', pdfWidth - margin - 35, sigY + 6, { align: 'center' });
-      pdf.setFont('helvetica', 'normal');
-      pdf.setTextColor(80, 80, 90);
-      pdf.text(breakLongWords(nomeContratado), margin + 35, sigY + 12, { align: 'center', maxWidth: 70 });
-      pdf.text(breakLongWords(nomeContratante), pdfWidth - margin - 35, sigY + 12, { align: 'center', maxWidth: 70 });
-      y = sigY + 25;
-      drawFooter();
-      
-      const clienteName = viewingContrato ? clientes.find(c => c.id === viewingContrato.cliente_id)?.nome_empresa || 'contrato' : 'contrato';
+      const cliente = clientes.find(c => c.id === viewingContrato.cliente_id);
+      const clienteName = cliente?.nome_empresa || 'contrato';
       pdf.save(`Contrato_${clienteName.replace(/\s+/g, '_')}.pdf`);
       toast.success('PDF exportado com sucesso!');
     } catch (error) {
@@ -659,6 +553,7 @@ export default function Contratos() {
       toast.error('Erro ao gerar PDF');
     }
   };
+
 
   const ContractDocument = ({ contrato }: { contrato: Contrato }) => {
     const cliente = clientes.find(c => c.id === contrato.cliente_id);
