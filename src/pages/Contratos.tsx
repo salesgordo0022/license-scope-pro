@@ -32,6 +32,8 @@ interface Cliente {
   valor_mensalidade: number | null;
   valor_implantacao: number | null;
   cnpj: string | null;
+  nome_dono?: string | null;
+  cpf_dono?: string | null;
   endereco: string | null;
   cidade: string | null;
   estado: string | null;
