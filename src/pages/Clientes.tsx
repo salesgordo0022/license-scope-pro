@@ -140,6 +140,8 @@ export default function Clientes() {
     valor_implantacao: 0,
     desconto_percentual: 0,
     cnpj: '',
+    nome_dono: '',
+    cpf_dono: '',
     endereco: '',
     cidade: '',
     estado: '',
