@@ -58,6 +58,8 @@ interface Contrato {
   contratante_cidade: string | null;
   contratante_estado: string | null;
   contratante_cnpj: string | null;
+  contratante_nome_dono?: string | null;
+  contratante_cpf_dono?: string | null;
   assinado: boolean | null;
   data_assinatura: string | null;
   observacoes: string | null;
