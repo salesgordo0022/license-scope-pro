@@ -766,6 +766,7 @@ export default function Contratos() {
           {contrato.contratante_cidade && <>, cidade de {contrato.contratante_cidade}</>}
           {contrato.contratante_estado && <>, {contrato.contratante_estado}</>}
           {contrato.contratante_cnpj && <>, inscrita no CNPJ/MF sob o nº <strong>{contrato.contratante_cnpj}</strong></>}
+          {contrato.contratante_nome_dono && <>, neste ato representada por <strong>{contrato.contratante_nome_dono}</strong>{contrato.contratante_cpf_dono && <>, inscrito no CPF sob o nº <strong>{contrato.contratante_cpf_dono}</strong></>}</>}
           , adiante denominado simplesmente <strong>CONTRATANTE</strong>.
         </p>
 
