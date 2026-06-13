@@ -277,7 +277,8 @@ export default function Contratos() {
       vigencia_meses: 12, valor_software: 0, valor_mensalidade: 0,
       quantidade_licencas: 3, valor_km_deslocamento: 0, sistema: '',
       contratante_nome: '', contratante_endereco: '', contratante_cidade: '',
-      contratante_estado: '', contratante_cnpj: '', observacoes: '', link_documento: '',
+      contratante_estado: '', contratante_cnpj: '', contratante_nome_dono: '', contratante_cpf_dono: '',
+      observacoes: '', link_documento: '',
     });
   };
 
