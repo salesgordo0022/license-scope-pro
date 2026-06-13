@@ -151,6 +151,8 @@ export default function Contratos() {
     contratante_cidade: '',
     contratante_estado: '',
     contratante_cnpj: '',
+    contratante_nome_dono: '',
+    contratante_cpf_dono: '',
     observacoes: '',
     link_documento: '',
   });
