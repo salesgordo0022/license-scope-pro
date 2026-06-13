@@ -376,6 +376,8 @@ export default function Contratos() {
       contratante_cidade: contrato.contratante_cidade || '',
       contratante_estado: contrato.contratante_estado || '',
       contratante_cnpj: contrato.contratante_cnpj || '',
+      contratante_nome_dono: (contrato as any).contratante_nome_dono || '',
+      contratante_cpf_dono: (contrato as any).contratante_cpf_dono || '',
       observacoes: contrato.observacoes || '',
       link_documento: contrato.link_documento || '',
     });
