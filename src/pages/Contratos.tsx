@@ -290,7 +290,7 @@ export default function Contratos() {
     try {
       const { data: clienteDb, error } = await supabase
         .from('clientes')
-        .select('nome_empresa, valor_mensalidade, valor_implantacao, cnpj, endereco, cidade, estado')
+        .select('nome_empresa, valor_mensalidade, valor_implantacao, cnpj, nome_dono, cpf_dono, endereco, cidade, estado')
         .eq('id', clienteId)
         .maybeSingle();
 
@@ -304,6 +304,8 @@ export default function Contratos() {
         cliente_id: clienteId,
         contratante_nome: cliente.nome_empresa || '',
         contratante_cnpj: cliente.cnpj || '',
+        contratante_nome_dono: (cliente as any).nome_dono || '',
+        contratante_cpf_dono: (cliente as any).cpf_dono || '',
         contratante_endereco: cliente.endereco || '',
         contratante_cidade: cliente.cidade || '',
         contratante_estado: cliente.estado || '',
@@ -321,6 +323,8 @@ export default function Contratos() {
         cliente_id: clienteId,
         contratante_nome: clienteLocal.nome_empresa || '',
         contratante_cnpj: clienteLocal.cnpj || '',
+        contratante_nome_dono: (clienteLocal as any).nome_dono || '',
+        contratante_cpf_dono: (clienteLocal as any).cpf_dono || '',
         contratante_endereco: clienteLocal.endereco || '',
         contratante_cidade: clienteLocal.cidade || '',
         contratante_estado: clienteLocal.estado || '',
