@@ -161,7 +161,7 @@ export default function Contratos() {
     try {
       const [contratosRes, clientesRes, sistemasRes, configRes] = await Promise.all([
         supabase.from('contratos').select('*').order('created_at', { ascending: false }),
-        supabase.from('clientes').select('id, nome_empresa, email, telefone, segmento, valor_mensalidade, valor_implantacao, cnpj, endereco, cidade, estado'),
+        supabase.from('clientes').select('id, nome_empresa, email, telefone, segmento, valor_mensalidade, valor_implantacao, cnpj, nome_dono, cpf_dono, endereco, cidade, estado'),
         supabase.from('sistemas').select('id, nome').eq('ativo', true),
         supabase.from('configuracao_contrato').select('*').maybeSingle(),
       ]);
