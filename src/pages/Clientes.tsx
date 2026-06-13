@@ -406,6 +406,8 @@ export default function Clientes() {
       valor_implantacao: Number(cliente.valor_implantacao) || 0,
       desconto_percentual: Number(cliente.desconto_percentual) || 0,
       cnpj: (cliente as any).cnpj || '',
+      nome_dono: (cliente as any).nome_dono || '',
+      cpf_dono: (cliente as any).cpf_dono || '',
       endereco: (cliente as any).endereco || '',
       cidade: (cliente as any).cidade || '',
       estado: (cliente as any).estado || '',
