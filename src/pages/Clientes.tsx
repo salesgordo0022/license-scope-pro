@@ -731,6 +731,25 @@ export default function Clientes() {
                     </div>
                     <p className="text-xs text-muted-foreground">Digite o CNPJ e clique em Buscar para preencher automaticamente</p>
                   </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="nome_dono">Nome do Dono / Responsável</Label>
+                    <Input
+                      id="nome_dono"
+                      value={formData.nome_dono}
+                      onChange={(e) => setFormData({ ...formData, nome_dono: e.target.value })}
+                      placeholder="Nome completo do proprietário"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="cpf_dono">CPF do Dono</Label>
+                    <Input
+                      id="cpf_dono"
+                      value={formData.cpf_dono}
+                      onChange={(e) => setFormData({ ...formData, cpf_dono: formatCpf(e.target.value) })}
+                      placeholder="000.000.000-00"
+                      maxLength={14}
+                    />
+                  </div>
                   <div className="space-y-2 col-span-2">
                     <Label htmlFor="endereco">Endereço</Label>
                     <Input
