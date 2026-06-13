@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 import { Plus, Search, FileText, MoreHorizontal, Edit, Trash2, Eye, CheckCircle, Printer, Link, ExternalLink, Settings, Building2, Save, Download, BookCopy, ShieldCheck, Upload, Key } from 'lucide-react';
 import jsPDF from 'jspdf';
+import html2canvas from 'html2canvas';
 import ModelosContrato from '@/components/contratos/ModelosContrato';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
