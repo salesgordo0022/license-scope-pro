@@ -516,7 +516,22 @@ export default function MetasVendas() {
                     {/* Title + description */}
                     <h4 className="font-semibold text-sm leading-tight mb-1">{meta.titulo}</h4>
                     {meta.descricao && (
-                      <p className="text-xs text-muted-foreground line-clamp-2 mb-3">{meta.descricao}</p>
+                      <p className="text-xs text-muted-foreground line-clamp-2 mb-2">{meta.descricao}</p>
+                    )}
+
+                    {/* Cliente vinculado */}
+                    {(meta.cliente_nome || meta.cliente_cnpj) && (
+                      <div className="mt-2 mb-1 rounded-md bg-primary/5 border border-primary/10 px-2.5 py-1.5 text-[11px] space-y-0.5">
+                        {meta.cliente_nome && (
+                          <p className="font-medium text-foreground truncate">👤 {meta.cliente_nome}</p>
+                        )}
+                        {meta.cliente_cnpj && (
+                          <p className="text-muted-foreground truncate">CNPJ: {meta.cliente_cnpj}</p>
+                        )}
+                        {meta.cliente_contato && (
+                          <p className="text-muted-foreground truncate">{meta.cliente_contato}</p>
+                        )}
+                      </div>
                     )}
 
                     {/* Progress section */}
