@@ -187,6 +187,10 @@ export default function MetasVendas() {
       data_inicio: meta.data_inicio,
       data_fim: meta.data_fim,
       status: meta.status,
+      cliente_id: meta.cliente_id || '',
+      cliente_nome: meta.cliente_nome || '',
+      cliente_cnpj: meta.cliente_cnpj || '',
+      cliente_contato: meta.cliente_contato || '',
     });
     setDialogOpen(true);
   };
