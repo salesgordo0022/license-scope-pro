@@ -315,7 +315,7 @@ export default function MetasVendas() {
               <Plus className="mr-2 h-4 w-4" /> Nova Meta
             </Button>
           </DialogTrigger>
-          <DialogContent className="sm:max-w-[480px]">
+          <DialogContent className="sm:max-w-[560px] max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>{editingMeta ? 'Editar Meta' : 'Nova Meta'}</DialogTitle>
               <DialogDescription>Defina um objetivo para acompanhar</DialogDescription>
