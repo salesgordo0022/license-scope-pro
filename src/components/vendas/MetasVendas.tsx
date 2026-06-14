@@ -29,6 +29,18 @@ type Meta = {
   data_fim: string;
   status: string;
   created_at: string;
+  cliente_id: string | null;
+  cliente_nome: string | null;
+  cliente_cnpj: string | null;
+  cliente_contato: string | null;
+};
+
+type ClienteOption = {
+  id: string;
+  nome: string;
+  cnpj: string | null;
+  telefone: string | null;
+  email: string | null;
 };
 
 const TIPOS_META = [
