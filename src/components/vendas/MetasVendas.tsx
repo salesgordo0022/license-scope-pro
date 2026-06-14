@@ -90,7 +90,28 @@ export default function MetasVendas() {
     }
   };
 
-  useEffect(() => { fetchMetas(); }, []);
+  const fetchClientes = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('clientes')
+        .select('id, nome_empresa, cnpj, telefone, email')
+        .order('nome_empresa', { ascending: true });
+      if (error) throw error;
+      setClientes(
+        (data || []).map((c: any) => ({
+          id: c.id,
+          nome: c.nome_empresa,
+          cnpj: c.cnpj,
+          telefone: c.telefone,
+          email: c.email,
+        }))
+      );
+    } catch (e) {
+      console.error('Error fetching clientes:', e);
+    }
+  };
+
+  useEffect(() => { fetchMetas(); fetchClientes(); }, []);
 
   const resetForm = () => {
     setFormData({
@@ -98,7 +119,30 @@ export default function MetasVendas() {
       valor_meta: 0, valor_atual: 0,
       data_inicio: new Date().toISOString().split('T')[0],
       data_fim: '', status: 'em_andamento',
+      cliente_id: '', cliente_nome: '', cliente_cnpj: '', cliente_contato: '',
     });
+  };
+
+  const handleClienteSelect = (clienteId: string) => {
+    if (clienteId === '__none__') {
+      setFormData((prev) => ({
+        ...prev,
+        cliente_id: '',
+        cliente_nome: '',
+        cliente_cnpj: '',
+        cliente_contato: '',
+      }));
+      return;
+    }
+    const c = clientes.find((x) => x.id === clienteId);
+    if (!c) return;
+    setFormData((prev) => ({
+      ...prev,
+      cliente_id: c.id,
+      cliente_nome: c.nome,
+      cliente_cnpj: c.cnpj || '',
+      cliente_contato: c.telefone || c.email || '',
+    }));
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
