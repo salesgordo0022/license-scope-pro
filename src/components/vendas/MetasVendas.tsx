@@ -393,6 +393,57 @@ export default function MetasVendas() {
                     onChange={(e) => setFormData({ ...formData, data_fim: e.target.value })} />
                 </div>
               </div>
+
+              {/* Vínculo com Cliente */}
+              <div className="space-y-3 rounded-lg border border-border/60 bg-muted/30 p-3">
+                <div className="flex items-center justify-between">
+                  <Label className="text-sm font-semibold">Vincular Cliente (opcional)</Label>
+                  {formData.cliente_id && (
+                    <Badge variant="secondary" className="text-[10px]">Cadastrado</Badge>
+                  )}
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-xs text-muted-foreground">Selecionar cliente existente</Label>
+                  <Select
+                    value={formData.cliente_id || '__none__'}
+                    onValueChange={handleClienteSelect}
+                  >
+                    <SelectTrigger><SelectValue placeholder="Nenhum cliente vinculado" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="__none__">Nenhum / Digitar manualmente</SelectItem>
+                      {clientes.map((c) => (
+                        <SelectItem key={c.id} value={c.id}>{c.nome}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-xs text-muted-foreground">Nome do Cliente</Label>
+                  <Input
+                    value={formData.cliente_nome}
+                    onChange={(e) => setFormData({ ...formData, cliente_nome: e.target.value, cliente_id: '' })}
+                    placeholder="Nome da empresa ou contato"
+                  />
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-2">
+                    <Label className="text-xs text-muted-foreground">CNPJ</Label>
+                    <Input
+                      value={formData.cliente_cnpj}
+                      onChange={(e) => setFormData({ ...formData, cliente_cnpj: e.target.value, cliente_id: '' })}
+                      placeholder="00.000.000/0000-00"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-xs text-muted-foreground">Contato</Label>
+                    <Input
+                      value={formData.cliente_contato}
+                      onChange={(e) => setFormData({ ...formData, cliente_contato: e.target.value, cliente_id: '' })}
+                      placeholder="Telefone ou e-mail"
+                    />
+                  </div>
+                </div>
+              </div>
               <div className="flex justify-end gap-3 pt-4">
                 <Button type="button" variant="outline" onClick={() => setDialogOpen(false)}>Cancelar</Button>
                 <Button type="submit">{editingMeta ? 'Salvar' : 'Criar'}</Button>
