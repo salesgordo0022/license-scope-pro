@@ -711,6 +711,10 @@ export type Database = {
       }
       metas_vendas: {
         Row: {
+          cliente_cnpj: string | null
+          cliente_contato: string | null
+          cliente_id: string | null
+          cliente_nome: string | null
           created_at: string
           data_fim: string
           data_inicio: string
@@ -725,6 +729,10 @@ export type Database = {
           valor_meta: number
         }
         Insert: {
+          cliente_cnpj?: string | null
+          cliente_contato?: string | null
+          cliente_id?: string | null
+          cliente_nome?: string | null
           created_at?: string
           data_fim: string
           data_inicio?: string
@@ -739,6 +747,10 @@ export type Database = {
           valor_meta?: number
         }
         Update: {
+          cliente_cnpj?: string | null
+          cliente_contato?: string | null
+          cliente_id?: string | null
+          cliente_nome?: string | null
           created_at?: string
           data_fim?: string
           data_inicio?: string
@@ -753,6 +765,13 @@ export type Database = {
           valor_meta?: number
         }
         Relationships: [
+          {
+            foreignKeyName: "metas_vendas_cliente_id_fkey"
+            columns: ["cliente_id"]
+            isOneToOne: false
+            referencedRelation: "clientes"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "metas_vendas_empresa_id_fkey"
             columns: ["empresa_id"]
