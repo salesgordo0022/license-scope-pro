@@ -29,6 +29,18 @@ type Meta = {
   data_fim: string;
   status: string;
   created_at: string;
+  cliente_id: string | null;
+  cliente_nome: string | null;
+  cliente_cnpj: string | null;
+  cliente_contato: string | null;
+};
+
+type ClienteOption = {
+  id: string;
+  nome: string;
+  cnpj: string | null;
+  telefone: string | null;
+  email: string | null;
 };
 
 const TIPOS_META = [
@@ -43,6 +55,7 @@ const formatCurrency = (value: number) =>
 
 export default function MetasVendas() {
   const [metas, setMetas] = useState<Meta[]>([]);
+  const [clientes, setClientes] = useState<ClienteOption[]>([]);
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingMeta, setEditingMeta] = useState<Meta | null>(null);
@@ -56,6 +69,10 @@ export default function MetasVendas() {
     data_inicio: new Date().toISOString().split('T')[0],
     data_fim: '',
     status: 'em_andamento',
+    cliente_id: '' as string,
+    cliente_nome: '',
+    cliente_cnpj: '',
+    cliente_contato: '',
   });
 
   const fetchMetas = async () => {
@@ -73,7 +90,28 @@ export default function MetasVendas() {
     }
   };
 
-  useEffect(() => { fetchMetas(); }, []);
+  const fetchClientes = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('clientes')
+        .select('id, nome_empresa, cnpj, telefone, email')
+        .order('nome_empresa', { ascending: true });
+      if (error) throw error;
+      setClientes(
+        (data || []).map((c: any) => ({
+          id: c.id,
+          nome: c.nome_empresa,
+          cnpj: c.cnpj,
+          telefone: c.telefone,
+          email: c.email,
+        }))
+      );
+    } catch (e) {
+      console.error('Error fetching clientes:', e);
+    }
+  };
+
+  useEffect(() => { fetchMetas(); fetchClientes(); }, []);
 
   const resetForm = () => {
     setFormData({
@@ -81,16 +119,46 @@ export default function MetasVendas() {
       valor_meta: 0, valor_atual: 0,
       data_inicio: new Date().toISOString().split('T')[0],
       data_fim: '', status: 'em_andamento',
+      cliente_id: '', cliente_nome: '', cliente_cnpj: '', cliente_contato: '',
     });
+  };
+
+  const handleClienteSelect = (clienteId: string) => {
+    if (clienteId === '__none__') {
+      setFormData((prev) => ({
+        ...prev,
+        cliente_id: '',
+        cliente_nome: '',
+        cliente_cnpj: '',
+        cliente_contato: '',
+      }));
+      return;
+    }
+    const c = clientes.find((x) => x.id === clienteId);
+    if (!c) return;
+    setFormData((prev) => ({
+      ...prev,
+      cliente_id: c.id,
+      cliente_nome: c.nome,
+      cliente_cnpj: c.cnpj || '',
+      cliente_contato: c.telefone || c.email || '',
+    }));
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
+      const payload = {
+        ...formData,
+        cliente_id: formData.cliente_id || null,
+        cliente_nome: formData.cliente_nome || null,
+        cliente_cnpj: formData.cliente_cnpj || null,
+        cliente_contato: formData.cliente_contato || null,
+      };
       if (editingMeta) {
         const { error } = await supabase
           .from('metas_vendas')
-          .update({ ...formData, updated_at: new Date().toISOString() })
+          .update({ ...payload, updated_at: new Date().toISOString() })
           .eq('id', editingMeta.id);
         if (error) throw error;
         toast.success('Meta atualizada!');
@@ -100,7 +168,7 @@ export default function MetasVendas() {
           .select('empresa_id')
           .maybeSingle();
         const { error } = await supabase.from('metas_vendas').insert({
-          ...formData,
+          ...payload,
           empresa_id: profile?.empresa_id || null,
         });
         if (error) throw error;
@@ -126,6 +194,10 @@ export default function MetasVendas() {
       data_inicio: meta.data_inicio,
       data_fim: meta.data_fim,
       status: meta.status,
+      cliente_id: meta.cliente_id || '',
+      cliente_nome: meta.cliente_nome || '',
+      cliente_cnpj: meta.cliente_cnpj || '',
+      cliente_contato: meta.cliente_contato || '',
     });
     setDialogOpen(true);
   };
@@ -243,7 +315,7 @@ export default function MetasVendas() {
               <Plus className="mr-2 h-4 w-4" /> Nova Meta
             </Button>
           </DialogTrigger>
-          <DialogContent className="sm:max-w-[480px]">
+          <DialogContent className="sm:max-w-[560px] max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>{editingMeta ? 'Editar Meta' : 'Nova Meta'}</DialogTitle>
               <DialogDescription>Defina um objetivo para acompanhar</DialogDescription>
@@ -321,6 +393,57 @@ export default function MetasVendas() {
                     onChange={(e) => setFormData({ ...formData, data_fim: e.target.value })} />
                 </div>
               </div>
+
+              {/* Vínculo com Cliente */}
+              <div className="space-y-3 rounded-lg border border-border/60 bg-muted/30 p-3">
+                <div className="flex items-center justify-between">
+                  <Label className="text-sm font-semibold">Vincular Cliente (opcional)</Label>
+                  {formData.cliente_id && (
+                    <Badge variant="secondary" className="text-[10px]">Cadastrado</Badge>
+                  )}
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-xs text-muted-foreground">Selecionar cliente existente</Label>
+                  <Select
+                    value={formData.cliente_id || '__none__'}
+                    onValueChange={handleClienteSelect}
+                  >
+                    <SelectTrigger><SelectValue placeholder="Nenhum cliente vinculado" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="__none__">Nenhum / Digitar manualmente</SelectItem>
+                      {clientes.map((c) => (
+                        <SelectItem key={c.id} value={c.id}>{c.nome}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-xs text-muted-foreground">Nome do Cliente</Label>
+                  <Input
+                    value={formData.cliente_nome}
+                    onChange={(e) => setFormData({ ...formData, cliente_nome: e.target.value, cliente_id: '' })}
+                    placeholder="Nome da empresa ou contato"
+                  />
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-2">
+                    <Label className="text-xs text-muted-foreground">CNPJ</Label>
+                    <Input
+                      value={formData.cliente_cnpj}
+                      onChange={(e) => setFormData({ ...formData, cliente_cnpj: e.target.value, cliente_id: '' })}
+                      placeholder="00.000.000/0000-00"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-xs text-muted-foreground">Contato</Label>
+                    <Input
+                      value={formData.cliente_contato}
+                      onChange={(e) => setFormData({ ...formData, cliente_contato: e.target.value, cliente_id: '' })}
+                      placeholder="Telefone ou e-mail"
+                    />
+                  </div>
+                </div>
+              </div>
               <div className="flex justify-end gap-3 pt-4">
                 <Button type="button" variant="outline" onClick={() => setDialogOpen(false)}>Cancelar</Button>
                 <Button type="submit">{editingMeta ? 'Salvar' : 'Criar'}</Button>
@@ -393,7 +516,22 @@ export default function MetasVendas() {
                     {/* Title + description */}
                     <h4 className="font-semibold text-sm leading-tight mb-1">{meta.titulo}</h4>
                     {meta.descricao && (
-                      <p className="text-xs text-muted-foreground line-clamp-2 mb-3">{meta.descricao}</p>
+                      <p className="text-xs text-muted-foreground line-clamp-2 mb-2">{meta.descricao}</p>
+                    )}
+
+                    {/* Cliente vinculado */}
+                    {(meta.cliente_nome || meta.cliente_cnpj) && (
+                      <div className="mt-2 mb-1 rounded-md bg-primary/5 border border-primary/10 px-2.5 py-1.5 text-[11px] space-y-0.5">
+                        {meta.cliente_nome && (
+                          <p className="font-medium text-foreground truncate">👤 {meta.cliente_nome}</p>
+                        )}
+                        {meta.cliente_cnpj && (
+                          <p className="text-muted-foreground truncate">CNPJ: {meta.cliente_cnpj}</p>
+                        )}
+                        {meta.cliente_contato && (
+                          <p className="text-muted-foreground truncate">{meta.cliente_contato}</p>
+                        )}
+                      </div>
                     )}
 
                     {/* Progress section */}
