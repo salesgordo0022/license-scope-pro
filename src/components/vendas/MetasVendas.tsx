@@ -148,10 +148,17 @@ export default function MetasVendas() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
+      const payload = {
+        ...formData,
+        cliente_id: formData.cliente_id || null,
+        cliente_nome: formData.cliente_nome || null,
+        cliente_cnpj: formData.cliente_cnpj || null,
+        cliente_contato: formData.cliente_contato || null,
+      };
       if (editingMeta) {
         const { error } = await supabase
           .from('metas_vendas')
-          .update({ ...formData, updated_at: new Date().toISOString() })
+          .update({ ...payload, updated_at: new Date().toISOString() })
           .eq('id', editingMeta.id);
         if (error) throw error;
         toast.success('Meta atualizada!');
@@ -161,7 +168,7 @@ export default function MetasVendas() {
           .select('empresa_id')
           .maybeSingle();
         const { error } = await supabase.from('metas_vendas').insert({
-          ...formData,
+          ...payload,
           empresa_id: profile?.empresa_id || null,
         });
         if (error) throw error;
