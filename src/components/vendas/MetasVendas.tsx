@@ -55,6 +55,7 @@ const formatCurrency = (value: number) =>
 
 export default function MetasVendas() {
   const [metas, setMetas] = useState<Meta[]>([]);
+  const [clientes, setClientes] = useState<ClienteOption[]>([]);
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingMeta, setEditingMeta] = useState<Meta | null>(null);
@@ -68,6 +69,10 @@ export default function MetasVendas() {
     data_inicio: new Date().toISOString().split('T')[0],
     data_fim: '',
     status: 'em_andamento',
+    cliente_id: '' as string,
+    cliente_nome: '',
+    cliente_cnpj: '',
+    cliente_contato: '',
   });
 
   const fetchMetas = async () => {
