@@ -818,7 +818,7 @@ export default function Contratos() {
         </div>
 
         {/* Assinaturas Modernas */}
-        <div className="mt-16 border-t border-gray-100 pt-10 relative z-10">
+        <div data-pdf-keep="true" className="mt-16 border-t border-gray-100 pt-10 relative z-10" style={{ pageBreakInside: 'avoid', breakInside: 'avoid' }}>
           <p className="text-center mb-12 italic text-gray-500 text-sm">E por estarem assim justas e acertadas, as partes firmam o presente instrumento.</p>
           
           <div className="grid grid-cols-2 gap-12 mb-20 relative">
