@@ -524,10 +524,35 @@ export default function Contratos() {
       const pxPerMm = canvas.width / imgWidth;
       const pageHeightPx = pdfHeight * pxPerMm;
 
+      // Calcula faixas (top/bottom em px do canvas) que NÃO podem ser cortadas
+      const elementRect = element.getBoundingClientRect();
+      const scaleY = canvas.height / elementRect.height;
+      const keepNodes = Array.from(element.querySelectorAll('[data-pdf-keep="true"]')) as HTMLElement[];
+      const keepRanges = keepNodes.map(node => {
+        const r = node.getBoundingClientRect();
+        return {
+          top: (r.top - elementRect.top) * scaleY,
+          bottom: (r.bottom - elementRect.top) * scaleY,
+        };
+      });
+
       let renderedPx = 0;
       let pageIndex = 0;
       while (renderedPx < canvas.height) {
-        const sliceHeight = Math.min(pageHeightPx, canvas.height - renderedPx);
+        let sliceHeight = Math.min(pageHeightPx, canvas.height - renderedPx);
+        let cutAt = renderedPx + sliceHeight;
+
+        if (cutAt < canvas.height) {
+          // Se o corte cair dentro de um bloco protegido, recua até o topo do bloco
+          for (const range of keepRanges) {
+            if (cutAt > range.top && cutAt < range.bottom && range.top > renderedPx) {
+              cutAt = range.top;
+            }
+          }
+          sliceHeight = cutAt - renderedPx;
+          if (sliceHeight < 50) sliceHeight = Math.min(pageHeightPx, canvas.height - renderedPx);
+        }
+
         const pageCanvas = document.createElement('canvas');
         pageCanvas.width = canvas.width;
         pageCanvas.height = sliceHeight;
@@ -818,7 +843,7 @@ export default function Contratos() {
         </div>
 
         {/* Assinaturas Modernas */}
-        <div className="mt-16 border-t border-gray-100 pt-10 relative z-10">
+        <div data-pdf-keep="true" className="mt-16 border-t border-gray-100 pt-10 relative z-10" style={{ pageBreakInside: 'avoid', breakInside: 'avoid' }}>
           <p className="text-center mb-12 italic text-gray-500 text-sm">E por estarem assim justas e acertadas, as partes firmam o presente instrumento.</p>
           
           <div className="grid grid-cols-2 gap-12 mb-20 relative">
