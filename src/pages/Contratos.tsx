@@ -681,13 +681,26 @@ export default function Contratos() {
           {config.contratado_cidade && <>, na cidade {config.contratado_cidade}</>}
           {config.contratado_cnpj && <>, CNPJ nº <strong>{config.contratado_cnpj}</strong></>}
           , doravante designada simplesmente <strong>CONTRATADO</strong>, e de outro lado,{' '}
-          <strong>{nomeContratante}</strong>
-          {contrato.contratante_endereco && <>, com sede na {contrato.contratante_endereco}</>}
-          {contrato.contratante_cidade && <>, cidade de {contrato.contratante_cidade}</>}
-          {contrato.contratante_estado && <>, {contrato.contratante_estado}</>}
-          {contrato.contratante_cnpj && <>, inscrita no CNPJ/MF sob o nº <strong>{contrato.contratante_cnpj}</strong></>}
-          {contrato.contratante_nome_dono && <>, neste ato representada por <strong>{contrato.contratante_nome_dono}</strong>{contrato.contratante_cpf_dono && <>, inscrito no CPF sob o nº <strong>{contrato.contratante_cpf_dono}</strong></>}</>}
-          , adiante denominado simplesmente <strong>CONTRATANTE</strong>.
+          {contrato.contratante_nome_dono ? (
+            <>
+              <strong>{contrato.contratante_nome_dono}</strong>
+              {contrato.contratante_cpf_dono && <>, inscrito no CPF sob o nº <strong>{contrato.contratante_cpf_dono}</strong></>}
+              {nomeContratante && <>, representante da empresa <strong>{nomeContratante}</strong></>}
+              {contrato.contratante_endereco && <>, com sede na {contrato.contratante_endereco}</>}
+              {contrato.contratante_cidade && <>, cidade de {contrato.contratante_cidade}</>}
+              {contrato.contratante_estado && <>, {contrato.contratante_estado}</>}
+              , doravante denominado <strong>CONTRATANTE</strong>
+            </>
+          ) : (
+            <>
+              <strong>{nomeContratante}</strong>
+              {contrato.contratante_endereco && <>, com sede na {contrato.contratante_endereco}</>}
+              {contrato.contratante_cidade && <>, cidade de {contrato.contratante_cidade}</>}
+              {contrato.contratante_estado && <>, {contrato.contratante_estado}</>}
+              {contrato.contratante_cnpj && <>, inscrita no CNPJ/MF sob o nº <strong>{contrato.contratante_cnpj}</strong></>}
+              , adiante denominado simplesmente <strong>CONTRATANTE</strong>
+            </>
+          )}.
         </p>
 
         <p className="text-justify mb-8 indent-8">
