@@ -523,7 +523,7 @@ export default function Contratos() {
       // Isso evita cortar letras/linhas no meio, como acontecia no fatiamento fixo do canvas.
       const imgWidth = pdfWidth;
       const pxPerMm = canvas.width / imgWidth;
-      const pageHeightPx = Math.floor(pdfHeight * pxPerMm);
+      const pageHeightPx = Math.floor((pdfHeight - 8) * pxPerMm);
       const elementRect = element.getBoundingClientRect();
       const scaleY = canvas.height / elementRect.height;
       const canvasContext = canvas.getContext('2d');
@@ -597,8 +597,12 @@ export default function Contratos() {
 
       const findSafeCut = (pageStart: number, idealCut: number) => {
         if (idealCut >= canvas.height) return canvas.height;
-        const candidates = safeBreaks.filter(y => y > pageStart + minSliceHeightPx && y <= idealCut - protectedBufferPx);
-        if (candidates.length > 0) return candidates[candidates.length - 1];
+        const preferred = safeBreaks.filter(y => y > pageStart + minSliceHeightPx && y <= idealCut - protectedBufferPx);
+        if (preferred.length > 0) return preferred[preferred.length - 1];
+
+        const fallbackSafe = safeBreaks.filter(y => y > pageStart + Math.round(pxPerMm * 20) && y <= idealCut - protectedBufferPx);
+        if (fallbackSafe.length > 0) return fallbackSafe[fallbackSafe.length - 1];
+
         return findWhitespaceCut(idealCut, pageStart);
       };
 
@@ -622,10 +626,10 @@ export default function Contratos() {
         ctx.fillStyle = '#ffffff';
         ctx.fillRect(0, 0, pageCanvas.width, pageCanvas.height);
         ctx.drawImage(canvas, 0, renderedPx, canvas.width, sliceHeight, 0, 0, canvas.width, sliceHeight);
-        const imgData = pageCanvas.toDataURL('image/jpeg', 0.95);
+        const imgData = pageCanvas.toDataURL('image/png');
         if (pageIndex > 0) pdf.addPage();
         const sliceMm = sliceHeight / pxPerMm;
-        pdf.addImage(imgData, 'JPEG', 0, 0, imgWidth, sliceMm, undefined, 'FAST');
+        pdf.addImage(imgData, 'PNG', 0, 0, imgWidth, sliceMm, undefined, 'FAST');
         renderedPx += sliceHeight;
         pageIndex++;
       }
