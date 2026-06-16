@@ -527,14 +527,64 @@ export default function Contratos() {
       // Calcula faixas (top/bottom em px do canvas) que NÃO podem ser cortadas
       const elementRect = element.getBoundingClientRect();
       const scaleY = canvas.height / elementRect.height;
-      const keepNodes = Array.from(element.querySelectorAll('[data-pdf-keep="true"]')) as HTMLElement[];
+      const keepNodes = Array.from(element.querySelectorAll('[data-pdf-keep="true"], h2, p')) as HTMLElement[];
       const keepRanges = keepNodes.map(node => {
         const r = node.getBoundingClientRect();
         return {
           top: (r.top - elementRect.top) * scaleY,
           bottom: (r.bottom - elementRect.top) * scaleY,
         };
-      });
+      }).filter(range => range.bottom > range.top && (range.bottom - range.top) < pageHeightPx * 0.9)
+        .sort((a, b) => a.top - b.top);
+      const canvasContext = canvas.getContext('2d');
+      const protectedBufferPx = Math.max(12, pxPerMm * 3);
+      const minSliceHeightPx = Math.max(180, pxPerMm * 45);
+
+      const adjustCutForProtectedText = (cut: number, pageStart: number) => {
+        for (const range of keepRanges) {
+          const safeTop = Math.max(0, range.top - protectedBufferPx);
+          const safeBottom = Math.min(canvas.height, range.bottom + protectedBufferPx);
+          if (cut > safeTop && cut < safeBottom && safeTop - pageStart > minSliceHeightPx) {
+            return safeTop;
+          }
+        }
+        return cut;
+      };
+
+      const findWhitespaceCut = (idealCut: number, pageStart: number) => {
+        if (!canvasContext || idealCut >= canvas.height) return idealCut;
+        const searchBackPx = Math.min(pageHeightPx * 0.35, Math.max(260, pxPerMm * 65));
+        const bandHeight = Math.max(10, Math.round(pxPerMm * 3));
+        const searchStart = Math.floor(Math.max(pageStart + minSliceHeightPx, idealCut - searchBackPx));
+        const searchEnd = Math.floor(Math.min(idealCut - bandHeight, canvas.height - bandHeight));
+        if (searchEnd <= searchStart) return idealCut;
+
+        const searchHeight = searchEnd - searchStart + bandHeight;
+        const imageData = canvasContext.getImageData(0, searchStart, canvas.width, searchHeight).data;
+        let bestCut = idealCut;
+        let bestScore = Number.POSITIVE_INFINITY;
+
+        for (let localY = searchEnd - searchStart; localY >= 0; localY--) {
+          let inkScore = 0;
+          for (let yOffset = 0; yOffset < bandHeight; yOffset += 2) {
+            const rowOffset = (localY + yOffset) * canvas.width * 4;
+            for (let x = 0; x < canvas.width; x += 4) {
+              const idx = rowOffset + x * 4;
+              if (imageData[idx] < 245 || imageData[idx + 1] < 245 || imageData[idx + 2] < 245) {
+                inkScore++;
+              }
+            }
+          }
+
+          if (inkScore < bestScore) {
+            bestScore = inkScore;
+            bestCut = searchStart + localY + Math.floor(bandHeight / 2);
+            if (inkScore === 0) break;
+          }
+        }
+
+        return bestCut;
+      };
 
       let renderedPx = 0;
       let pageIndex = 0;
@@ -543,14 +593,11 @@ export default function Contratos() {
         let cutAt = renderedPx + sliceHeight;
 
         if (cutAt < canvas.height) {
-          // Se o corte cair dentro de um bloco protegido, recua até o topo do bloco
-          for (const range of keepRanges) {
-            if (cutAt > range.top && cutAt < range.bottom && range.top > renderedPx) {
-              cutAt = range.top;
-            }
-          }
+          cutAt = adjustCutForProtectedText(cutAt, renderedPx);
+          cutAt = findWhitespaceCut(cutAt, renderedPx);
+          cutAt = adjustCutForProtectedText(cutAt, renderedPx);
           sliceHeight = cutAt - renderedPx;
-          if (sliceHeight < 50) sliceHeight = Math.min(pageHeightPx, canvas.height - renderedPx);
+          if (sliceHeight < minSliceHeightPx) sliceHeight = Math.min(pageHeightPx, canvas.height - renderedPx);
         }
 
         const pageCanvas = document.createElement('canvas');
