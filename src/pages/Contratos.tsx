@@ -548,6 +548,7 @@ export default function Contratos() {
         const paragraph = node as HTMLElement;
         if (isInsideKeep(paragraph)) return;
         const r = paragraph.getBoundingClientRect();
+        addSafeBreak(toCanvasY(r.top - elementRect.top) - protectedBufferPx);
         addSafeBreak(toCanvasY(r.bottom - elementRect.top) + protectedBufferPx);
       });
 
