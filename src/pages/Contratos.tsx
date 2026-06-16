@@ -519,37 +519,45 @@ export default function Contratos() {
       const pdfWidth = pdf.internal.pageSize.getWidth();   // 210
       const pdfHeight = pdf.internal.pageSize.getHeight(); // 297
 
-      // Largura da imagem ocupa a página inteira (preview já tem 210mm)
+      // A página é formada a partir de cortes seguros entre blocos de texto.
+      // Isso evita cortar letras/linhas no meio, como acontecia no fatiamento fixo do canvas.
       const imgWidth = pdfWidth;
       const pxPerMm = canvas.width / imgWidth;
-      const pageHeightPx = pdfHeight * pxPerMm;
-
-      // Calcula faixas (top/bottom em px do canvas) que NÃO podem ser cortadas
+      const pageHeightPx = Math.floor(pdfHeight * pxPerMm);
       const elementRect = element.getBoundingClientRect();
       const scaleY = canvas.height / elementRect.height;
-      const keepNodes = Array.from(element.querySelectorAll('[data-pdf-keep="true"], h2, p')) as HTMLElement[];
-      const keepRanges = keepNodes.map(node => {
-        const r = node.getBoundingClientRect();
-        return {
-          top: (r.top - elementRect.top) * scaleY,
-          bottom: (r.bottom - elementRect.top) * scaleY,
-        };
-      }).filter(range => range.bottom > range.top && (range.bottom - range.top) < pageHeightPx * 0.9)
-        .sort((a, b) => a.top - b.top);
       const canvasContext = canvas.getContext('2d');
-      const protectedBufferPx = Math.max(12, pxPerMm * 3);
-      const minSliceHeightPx = Math.max(180, pxPerMm * 45);
+      const protectedBufferPx = Math.max(12, Math.round(pxPerMm * 3));
+      const minSliceHeightPx = Math.max(220, Math.round(pxPerMm * 55));
 
-      const adjustCutForProtectedText = (cut: number, pageStart: number) => {
-        for (const range of keepRanges) {
-          const safeTop = Math.max(0, range.top - protectedBufferPx);
-          const safeBottom = Math.min(canvas.height, range.bottom + protectedBufferPx);
-          if (cut > safeTop && cut < safeBottom && safeTop - pageStart > minSliceHeightPx) {
-            return safeTop;
-          }
-        }
-        return cut;
+      const toCanvasY = (value: number) => value * scaleY;
+      const keepContainers = Array.from(element.querySelectorAll('[data-pdf-keep="true"]')) as HTMLElement[];
+      const isInsideKeep = (node: HTMLElement) => keepContainers.some(container => container !== node && container.contains(node));
+      const safeBreaks: number[] = [];
+      const addSafeBreak = (value: number) => {
+        const y = Math.round(value);
+        if (Number.isFinite(y) && y > 0 && y < canvas.height) safeBreaks.push(y);
       };
+
+      Array.from(element.querySelectorAll('h2')).forEach((node) => {
+        const r = (node as HTMLElement).getBoundingClientRect();
+        addSafeBreak(toCanvasY(r.top - elementRect.top) - protectedBufferPx);
+      });
+
+      Array.from(element.querySelectorAll('p')).forEach((node) => {
+        const paragraph = node as HTMLElement;
+        if (isInsideKeep(paragraph)) return;
+        const r = paragraph.getBoundingClientRect();
+        addSafeBreak(toCanvasY(r.bottom - elementRect.top) + protectedBufferPx);
+      });
+
+      keepContainers.forEach((node) => {
+        const r = node.getBoundingClientRect();
+        addSafeBreak(toCanvasY(r.top - elementRect.top) - protectedBufferPx);
+        addSafeBreak(toCanvasY(r.bottom - elementRect.top) + protectedBufferPx);
+      });
+
+      safeBreaks.sort((a, b) => a - b);
 
       const findWhitespaceCut = (idealCut: number, pageStart: number) => {
         if (!canvasContext || idealCut >= canvas.height) return idealCut;
@@ -586,6 +594,13 @@ export default function Contratos() {
         return bestCut;
       };
 
+      const findSafeCut = (pageStart: number, idealCut: number) => {
+        if (idealCut >= canvas.height) return canvas.height;
+        const candidates = safeBreaks.filter(y => y > pageStart + minSliceHeightPx && y <= idealCut - protectedBufferPx);
+        if (candidates.length > 0) return candidates[candidates.length - 1];
+        return findWhitespaceCut(idealCut, pageStart);
+      };
+
       let renderedPx = 0;
       let pageIndex = 0;
       while (renderedPx < canvas.height) {
@@ -593,9 +608,7 @@ export default function Contratos() {
         let cutAt = renderedPx + sliceHeight;
 
         if (cutAt < canvas.height) {
-          cutAt = adjustCutForProtectedText(cutAt, renderedPx);
-          cutAt = findWhitespaceCut(cutAt, renderedPx);
-          cutAt = adjustCutForProtectedText(cutAt, renderedPx);
+          cutAt = findSafeCut(renderedPx, cutAt);
           sliceHeight = cutAt - renderedPx;
           if (sliceHeight < minSliceHeightPx) sliceHeight = Math.min(pageHeightPx, canvas.height - renderedPx);
         }
