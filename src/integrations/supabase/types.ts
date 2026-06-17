@@ -912,6 +912,53 @@ export type Database = {
           },
         ]
       }
+      pipelines_vendas: {
+        Row: {
+          ativo: boolean
+          cor: string | null
+          created_at: string
+          created_by: string | null
+          descricao: string | null
+          empresa_id: string | null
+          id: string
+          nome: string
+          ordem: number
+          updated_at: string
+        }
+        Insert: {
+          ativo?: boolean
+          cor?: string | null
+          created_at?: string
+          created_by?: string | null
+          descricao?: string | null
+          empresa_id?: string | null
+          id?: string
+          nome: string
+          ordem?: number
+          updated_at?: string
+        }
+        Update: {
+          ativo?: boolean
+          cor?: string | null
+          created_at?: string
+          created_by?: string | null
+          descricao?: string | null
+          empresa_id?: string | null
+          id?: string
+          nome?: string
+          ordem?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pipelines_vendas_empresa_id_fkey"
+            columns: ["empresa_id"]
+            isOneToOne: false
+            referencedRelation: "empresas"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       planos: {
         Row: {
           created_at: string | null
@@ -947,6 +994,7 @@ export type Database = {
           data_venda: string | null
           empresa_id: string | null
           id: string
+          pipeline_id: string | null
           proxima_acao: string | null
           revendedor_id: string | null
           sistema: string | null
@@ -961,6 +1009,7 @@ export type Database = {
           data_venda?: string | null
           empresa_id?: string | null
           id?: string
+          pipeline_id?: string | null
           proxima_acao?: string | null
           revendedor_id?: string | null
           sistema?: string | null
@@ -975,6 +1024,7 @@ export type Database = {
           data_venda?: string | null
           empresa_id?: string | null
           id?: string
+          pipeline_id?: string | null
           proxima_acao?: string | null
           revendedor_id?: string | null
           sistema?: string | null
@@ -995,6 +1045,13 @@ export type Database = {
             columns: ["empresa_id"]
             isOneToOne: false
             referencedRelation: "empresas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "revendas_pipeline_id_fkey"
+            columns: ["pipeline_id"]
+            isOneToOne: false
+            referencedRelation: "pipelines_vendas"
             referencedColumns: ["id"]
           },
           {

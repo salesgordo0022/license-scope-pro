@@ -1,18 +1,21 @@
 import { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Plus, GripVertical, Thermometer, Calendar, DollarSign, User, Edit, Trash2, Building2 } from 'lucide-react';
+import { Plus, GripVertical, Calendar, DollarSign, Edit, Trash2, Settings2, ChevronDown } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
 import {
-  Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle,
+  Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter,
 } from '@/components/ui/dialog';
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select';
+import {
+  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel,
+  DropdownMenuSeparator, DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { format } from 'date-fns';
@@ -23,6 +26,7 @@ type Revenda = {
   cliente_id: string;
   empresa_id: string | null;
   revendedor_id: string | null;
+  pipeline_id: string | null;
   sistema: string | null;
   status_venda: string;
   temperatura: string | null;
@@ -36,13 +40,21 @@ type Revenda = {
 
 type Cliente = { id: string; nome_empresa: string };
 
+type Pipeline = {
+  id: string;
+  nome: string;
+  descricao: string | null;
+  cor: string | null;
+  empresa_id: string | null;
+};
+
 const COLUNAS = [
-  { id: 'lead', label: 'Lead', color: 'bg-[hsl(var(--info))]', bgColor: 'bg-[hsl(var(--info))]/10' },
-  { id: 'contato', label: 'Contato', color: 'bg-[hsl(var(--warning))]', bgColor: 'bg-[hsl(var(--warning))]/10' },
-  { id: 'proposta', label: 'Proposta', color: 'bg-primary', bgColor: 'bg-primary/10' },
-  { id: 'negociacao', label: 'Negociação', color: 'bg-purple-500', bgColor: 'bg-purple-500/10' },
-  { id: 'fechado', label: 'Fechado', color: 'bg-[hsl(var(--success))]', bgColor: 'bg-[hsl(var(--success))]/10' },
-  { id: 'perdido', label: 'Perdido', color: 'bg-destructive', bgColor: 'bg-destructive/10' },
+  { id: 'lead', label: 'Lead', color: 'bg-[hsl(var(--info))]' },
+  { id: 'contato', label: 'Contato', color: 'bg-[hsl(var(--warning))]' },
+  { id: 'proposta', label: 'Proposta', color: 'bg-primary' },
+  { id: 'negociacao', label: 'Negociação', color: 'bg-purple-500' },
+  { id: 'fechado', label: 'Fechado', color: 'bg-[hsl(var(--success))]' },
+  { id: 'perdido', label: 'Perdido', color: 'bg-destructive' },
 ];
 
 const TEMPERATURAS = [
@@ -57,11 +69,18 @@ const formatCurrency = (v: number) =>
 export default function KanbanVendas() {
   const [revendas, setRevendas] = useState<Revenda[]>([]);
   const [clientes, setClientes] = useState<Cliente[]>([]);
+  const [pipelines, setPipelines] = useState<Pipeline[]>([]);
+  const [activePipelineId, setActivePipelineId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<Revenda | null>(null);
   const [draggedId, setDraggedId] = useState<string | null>(null);
   const [dragOverCol, setDragOverCol] = useState<string | null>(null);
+
+  // Pipeline dialog
+  const [pipelineDialogOpen, setPipelineDialogOpen] = useState(false);
+  const [editingPipeline, setEditingPipeline] = useState<Pipeline | null>(null);
+  const [pipelineForm, setPipelineForm] = useState({ nome: '', descricao: '', cor: '#3B82F6' });
 
   const [form, setForm] = useState({
     cliente_id: '',
@@ -75,12 +94,19 @@ export default function KanbanVendas() {
 
   const fetchData = async () => {
     try {
-      const [{ data: rv }, { data: cl }] = await Promise.all([
+      const [{ data: rv }, { data: cl }, { data: pl }] = await Promise.all([
         supabase.from('revendas').select('*, cliente:clientes(nome_empresa)').order('created_at', { ascending: false }),
         supabase.from('clientes').select('id, nome_empresa').order('nome_empresa'),
+        supabase.from('pipelines_vendas').select('*').eq('ativo', true).order('ordem').order('created_at'),
       ]);
+      const pipelinesList = (pl as Pipeline[]) || [];
       setRevendas((rv as Revenda[]) || []);
       setClientes((cl as Cliente[]) || []);
+      setPipelines(pipelinesList);
+      setActivePipelineId(prev => {
+        if (prev && pipelinesList.some(p => p.id === prev)) return prev;
+        return pipelinesList[0]?.id || null;
+      });
     } catch (e) {
       console.error(e);
     } finally {
@@ -95,17 +121,35 @@ export default function KanbanVendas() {
     valor_estimado: 0, data_proxima_acao: '', proxima_acao: '',
   });
 
+  const ensurePipeline = async (): Promise<string | null> => {
+    if (activePipelineId) return activePipelineId;
+    const { data: profile } = await supabase.from('usuario_perfil').select('empresa_id').maybeSingle();
+    const { data, error } = await supabase
+      .from('pipelines_vendas')
+      .insert({ nome: 'Padrão', empresa_id: profile?.empresa_id || null })
+      .select()
+      .single();
+    if (error) { toast.error('Crie um pipeline primeiro'); return null; }
+    await fetchData();
+    setActivePipelineId(data.id);
+    return data.id;
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
+      const pipelineId = await ensurePipeline();
+      if (!pipelineId) return;
+
       if (editing) {
-        const { error } = await supabase.from('revendas').update(form).eq('id', editing.id);
+        const { error } = await supabase.from('revendas').update({ ...form, pipeline_id: pipelineId }).eq('id', editing.id);
         if (error) throw error;
         toast.success('Venda atualizada!');
       } else {
         const { data: profile } = await supabase.from('usuario_perfil').select('id, empresa_id').maybeSingle();
         const { error } = await supabase.from('revendas').insert({
           ...form,
+          pipeline_id: pipelineId,
           empresa_id: profile?.empresa_id || null,
           revendedor_id: profile?.id || null,
         });
@@ -154,7 +198,6 @@ export default function KanbanVendas() {
     const item = revendas.find(r => r.id === draggedId);
     if (!item || item.status_venda === newStatus) { setDraggedId(null); return; }
 
-    // Optimistic update
     setRevendas(prev => prev.map(r => r.id === draggedId ? { ...r, status_venda: newStatus } : r));
     setDraggedId(null);
 
@@ -170,7 +213,65 @@ export default function KanbanVendas() {
     }
   };
 
-  const getColumnItems = (status: string) => revendas.filter(r => r.status_venda === status);
+  // Pipeline CRUD
+  const openCreatePipeline = () => {
+    setEditingPipeline(null);
+    setPipelineForm({ nome: '', descricao: '', cor: '#3B82F6' });
+    setPipelineDialogOpen(true);
+  };
+
+  const openEditPipeline = (p: Pipeline) => {
+    setEditingPipeline(p);
+    setPipelineForm({ nome: p.nome, descricao: p.descricao || '', cor: p.cor || '#3B82F6' });
+    setPipelineDialogOpen(true);
+  };
+
+  const handleSavePipeline = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!pipelineForm.nome.trim()) { toast.error('Nome obrigatório'); return; }
+    try {
+      if (editingPipeline) {
+        const { error } = await supabase.from('pipelines_vendas')
+          .update({ nome: pipelineForm.nome, descricao: pipelineForm.descricao, cor: pipelineForm.cor })
+          .eq('id', editingPipeline.id);
+        if (error) throw error;
+        toast.success('Pipeline atualizado!');
+      } else {
+        const { data: profile } = await supabase.from('usuario_perfil').select('empresa_id').maybeSingle();
+        const { data, error } = await supabase.from('pipelines_vendas').insert({
+          nome: pipelineForm.nome,
+          descricao: pipelineForm.descricao,
+          cor: pipelineForm.cor,
+          empresa_id: profile?.empresa_id || null,
+        }).select().single();
+        if (error) throw error;
+        toast.success('Pipeline criado!');
+        setActivePipelineId(data.id);
+      }
+      setPipelineDialogOpen(false);
+      fetchData();
+    } catch (err: any) {
+      toast.error(err.message || 'Erro ao salvar pipeline');
+    }
+  };
+
+  const handleDeletePipeline = async (p: Pipeline) => {
+    const count = revendas.filter(r => r.pipeline_id === p.id).length;
+    if (!confirm(`Excluir pipeline "${p.nome}"?${count ? ` ${count} oportunidade(s) ficarão sem pipeline.` : ''}`)) return;
+    try {
+      const { error } = await supabase.from('pipelines_vendas').delete().eq('id', p.id);
+      if (error) throw error;
+      toast.success('Pipeline excluído!');
+      if (activePipelineId === p.id) setActivePipelineId(null);
+      fetchData();
+    } catch (err: any) {
+      toast.error(err.message || 'Erro ao excluir');
+    }
+  };
+
+  const activePipeline = pipelines.find(p => p.id === activePipelineId);
+  const filteredRevendas = revendas.filter(r => r.pipeline_id === activePipelineId);
+  const getColumnItems = (status: string) => filteredRevendas.filter(r => r.status_venda === status);
   const getTemp = (t: string | null) => TEMPERATURAS.find(x => x.id === t) || TEMPERATURAS[1];
 
   if (loading) {
@@ -184,126 +285,193 @@ export default function KanbanVendas() {
   return (
     <div className="space-y-4">
       {/* Header */}
-      <div className="flex justify-between items-center">
-        <div>
-          <h3 className="text-lg font-semibold">Pipeline de Vendas</h3>
-          <p className="text-sm text-muted-foreground">Arraste os cards entre as colunas para atualizar o status</p>
+      <div className="flex justify-between items-center flex-wrap gap-3">
+        <div className="flex items-center gap-3 flex-wrap">
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" className="gap-2">
+                <span
+                  className="inline-block h-3 w-3 rounded-full"
+                  style={{ backgroundColor: activePipeline?.cor || '#3B82F6' }}
+                />
+                <span className="font-semibold">{activePipeline?.nome || 'Selecionar pipeline'}</span>
+                <ChevronDown className="h-4 w-4 opacity-60" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start" className="w-64">
+              <DropdownMenuLabel>Meus pipelines</DropdownMenuLabel>
+              <DropdownMenuSeparator />
+              {pipelines.length === 0 && (
+                <div className="px-2 py-3 text-sm text-muted-foreground">Nenhum pipeline criado</div>
+              )}
+              {pipelines.map(p => (
+                <DropdownMenuItem
+                  key={p.id}
+                  onClick={() => setActivePipelineId(p.id)}
+                  className="flex items-center gap-2"
+                >
+                  <span
+                    className="inline-block h-2.5 w-2.5 rounded-full"
+                    style={{ backgroundColor: p.cor || '#3B82F6' }}
+                  />
+                  <span className="flex-1 truncate">{p.nome}</span>
+                  {p.id === activePipelineId && <span className="text-xs text-primary">●</span>}
+                </DropdownMenuItem>
+              ))}
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={openCreatePipeline}>
+                <Plus className="h-4 w-4 mr-2" /> Novo pipeline
+              </DropdownMenuItem>
+              {activePipeline && (
+                <>
+                  <DropdownMenuItem onClick={() => openEditPipeline(activePipeline)}>
+                    <Edit className="h-4 w-4 mr-2" /> Editar atual
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    onClick={() => handleDeletePipeline(activePipeline)}
+                    className="text-destructive focus:text-destructive"
+                  >
+                    <Trash2 className="h-4 w-4 mr-2" /> Excluir atual
+                  </DropdownMenuItem>
+                </>
+              )}
+            </DropdownMenuContent>
+          </DropdownMenu>
+
+          {activePipeline?.descricao && (
+            <p className="text-sm text-muted-foreground">{activePipeline.descricao}</p>
+          )}
         </div>
-        <Button size="sm" onClick={() => { setEditing(null); resetForm(); setDialogOpen(true); }}>
-          <Plus className="mr-2 h-4 w-4" /> Nova Venda
-        </Button>
+
+        <div className="flex gap-2">
+          <Button variant="outline" size="sm" onClick={openCreatePipeline}>
+            <Settings2 className="mr-2 h-4 w-4" /> Pipelines
+          </Button>
+          <Button size="sm" onClick={() => { setEditing(null); resetForm(); setDialogOpen(true); }}>
+            <Plus className="mr-2 h-4 w-4" /> Nova Venda
+          </Button>
+        </div>
       </div>
 
-      {/* Kanban Board */}
-      <div className="flex gap-3 overflow-x-auto pb-4 -mx-2 px-2">
-        {COLUNAS.map(col => {
-          const items = getColumnItems(col.id);
-          const totalValue = items.reduce((s, r) => s + (r.valor_estimado || 0), 0);
-          const isOver = dragOverCol === col.id;
+      {pipelines.length === 0 ? (
+        <div className="border border-dashed rounded-xl p-12 text-center">
+          <p className="text-muted-foreground mb-4">Você ainda não tem nenhum pipeline de vendas.</p>
+          <Button onClick={openCreatePipeline}>
+            <Plus className="mr-2 h-4 w-4" /> Criar primeiro pipeline
+          </Button>
+        </div>
+      ) : (
+        /* Kanban Board */
+        <div className="flex gap-3 overflow-x-auto pb-4 -mx-2 px-2">
+          {COLUNAS.map(col => {
+            const items = getColumnItems(col.id);
+            const totalValue = items.reduce((s, r) => s + (r.valor_estimado || 0), 0);
+            const isOver = dragOverCol === col.id;
 
-          return (
-            <div
-              key={col.id}
-              className={`flex-shrink-0 w-[260px] rounded-xl border transition-all duration-200 ${
-                isOver ? 'border-primary bg-primary/5 scale-[1.01]' : 'border-border bg-muted/30'
-              }`}
-              onDragOver={(e) => { e.preventDefault(); setDragOverCol(col.id); }}
-              onDragLeave={() => setDragOverCol(null)}
-              onDrop={(e) => { e.preventDefault(); handleDrop(col.id); }}
-            >
-              {/* Column Header */}
-              <div className="p-3 border-b border-border/50">
-                <div className="flex items-center gap-2 mb-1">
-                  <div className={`h-2.5 w-2.5 rounded-full ${col.color}`} />
-                  <span className="text-sm font-semibold">{col.label}</span>
-                  <Badge variant="secondary" className="ml-auto text-xs h-5 px-1.5">{items.length}</Badge>
-                </div>
-                {totalValue > 0 && (
-                  <p className="text-xs text-muted-foreground">{formatCurrency(totalValue)}</p>
-                )}
-              </div>
-
-              {/* Cards */}
-              <div className="p-2 space-y-2 min-h-[120px]">
-                <AnimatePresence>
-                  {items.map(item => {
-                    const temp = getTemp(item.temperatura);
-                    return (
-                      <motion.div
-                        key={item.id}
-                        layout
-                        initial={{ opacity: 0, scale: 0.95 }}
-                        animate={{ opacity: draggedId === item.id ? 0.5 : 1, scale: 1 }}
-                        exit={{ opacity: 0, scale: 0.9 }}
-                        draggable
-                        onDragStart={() => handleDragStart(item.id)}
-                        onDragEnd={handleDragEnd}
-                        className="cursor-grab active:cursor-grabbing"
-                      >
-                        <Card className="group border-border/60 hover:border-primary/30 hover:shadow-md transition-all">
-                          <CardContent className="p-3 space-y-2">
-                            <div className="flex items-start justify-between gap-1">
-                              <div className="flex items-center gap-1.5 min-w-0">
-                                <GripVertical className="h-3.5 w-3.5 text-muted-foreground/40 shrink-0" />
-                                <p className="text-sm font-medium truncate">
-                                  {item.cliente?.nome_empresa || 'Cliente'}
-                                </p>
-                              </div>
-                              <div className="flex gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
-                                <Button size="icon" variant="ghost" className="h-6 w-6" onClick={() => handleEdit(item)}>
-                                  <Edit className="h-3 w-3" />
-                                </Button>
-                                <Button size="icon" variant="ghost" className="h-6 w-6 text-destructive" onClick={() => handleDelete(item.id)}>
-                                  <Trash2 className="h-3 w-3" />
-                                </Button>
-                              </div>
-                            </div>
-
-                            {item.sistema && (
-                              <p className="text-xs text-muted-foreground">{item.sistema}</p>
-                            )}
-
-                            <div className="flex items-center gap-2 flex-wrap">
-                              <span className={`text-xs font-medium ${temp.color}`}>{temp.label}</span>
-                              {item.valor_estimado ? (
-                                <Badge variant="outline" className="text-xs h-5 gap-1">
-                                  <DollarSign className="h-2.5 w-2.5" />
-                                  {formatCurrency(item.valor_estimado)}
-                                </Badge>
-                              ) : null}
-                            </div>
-
-                            {item.data_proxima_acao && (
-                              <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                                <Calendar className="h-3 w-3" />
-                                {format(new Date(item.data_proxima_acao), 'dd MMM', { locale: ptBR })}
-                                {item.proxima_acao && <span>· {item.proxima_acao}</span>}
-                              </div>
-                            )}
-                          </CardContent>
-                        </Card>
-                      </motion.div>
-                    );
-                  })}
-                </AnimatePresence>
-
-                {items.length === 0 && (
-                  <div className="text-center py-6 text-xs text-muted-foreground">
-                    Arraste cards aqui
+            return (
+              <div
+                key={col.id}
+                className={`flex-shrink-0 w-[260px] rounded-xl border transition-all duration-200 ${
+                  isOver ? 'border-primary bg-primary/5 scale-[1.01]' : 'border-border bg-muted/30'
+                }`}
+                onDragOver={(e) => { e.preventDefault(); setDragOverCol(col.id); }}
+                onDragLeave={() => setDragOverCol(null)}
+                onDrop={(e) => { e.preventDefault(); handleDrop(col.id); }}
+              >
+                <div className="p-3 border-b border-border/50">
+                  <div className="flex items-center gap-2 mb-1">
+                    <div className={`h-2.5 w-2.5 rounded-full ${col.color}`} />
+                    <span className="text-sm font-semibold">{col.label}</span>
+                    <Badge variant="secondary" className="ml-auto text-xs h-5 px-1.5">{items.length}</Badge>
                   </div>
-                )}
-              </div>
-            </div>
-          );
-        })}
-      </div>
+                  {totalValue > 0 && (
+                    <p className="text-xs text-muted-foreground">{formatCurrency(totalValue)}</p>
+                  )}
+                </div>
 
-      {/* Dialog */}
+                <div className="p-2 space-y-2 min-h-[120px]">
+                  <AnimatePresence>
+                    {items.map(item => {
+                      const temp = getTemp(item.temperatura);
+                      return (
+                        <motion.div
+                          key={item.id}
+                          layout
+                          initial={{ opacity: 0, scale: 0.95 }}
+                          animate={{ opacity: draggedId === item.id ? 0.5 : 1, scale: 1 }}
+                          exit={{ opacity: 0, scale: 0.9 }}
+                          draggable
+                          onDragStart={() => handleDragStart(item.id)}
+                          onDragEnd={handleDragEnd}
+                          className="cursor-grab active:cursor-grabbing"
+                        >
+                          <Card className="group border-border/60 hover:border-primary/30 hover:shadow-md transition-all">
+                            <CardContent className="p-3 space-y-2">
+                              <div className="flex items-start justify-between gap-1">
+                                <div className="flex items-center gap-1.5 min-w-0">
+                                  <GripVertical className="h-3.5 w-3.5 text-muted-foreground/40 shrink-0" />
+                                  <p className="text-sm font-medium truncate">
+                                    {item.cliente?.nome_empresa || 'Cliente'}
+                                  </p>
+                                </div>
+                                <div className="flex gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
+                                  <Button size="icon" variant="ghost" className="h-6 w-6" onClick={() => handleEdit(item)}>
+                                    <Edit className="h-3 w-3" />
+                                  </Button>
+                                  <Button size="icon" variant="ghost" className="h-6 w-6 text-destructive" onClick={() => handleDelete(item.id)}>
+                                    <Trash2 className="h-3 w-3" />
+                                  </Button>
+                                </div>
+                              </div>
+
+                              {item.sistema && (
+                                <p className="text-xs text-muted-foreground">{item.sistema}</p>
+                              )}
+
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <span className={`text-xs font-medium ${temp.color}`}>{temp.label}</span>
+                                {item.valor_estimado ? (
+                                  <Badge variant="outline" className="text-xs h-5 gap-1">
+                                    <DollarSign className="h-2.5 w-2.5" />
+                                    {formatCurrency(item.valor_estimado)}
+                                  </Badge>
+                                ) : null}
+                              </div>
+
+                              {item.data_proxima_acao && (
+                                <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                                  <Calendar className="h-3 w-3" />
+                                  {format(new Date(item.data_proxima_acao), 'dd MMM', { locale: ptBR })}
+                                  {item.proxima_acao && <span>· {item.proxima_acao}</span>}
+                                </div>
+                              )}
+                            </CardContent>
+                          </Card>
+                        </motion.div>
+                      );
+                    })}
+                  </AnimatePresence>
+
+                  {items.length === 0 && (
+                    <div className="text-center py-6 text-xs text-muted-foreground">
+                      Arraste cards aqui
+                    </div>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {/* Venda Dialog */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent className="sm:max-w-[480px]">
           <DialogHeader>
             <DialogTitle>{editing ? 'Editar Venda' : 'Nova Venda'}</DialogTitle>
-            <DialogDescription>Gerencie oportunidades no pipeline</DialogDescription>
+            <DialogDescription>
+              Pipeline: <span className="font-medium">{activePipeline?.nome || 'Padrão (será criado)'}</span>
+            </DialogDescription>
           </DialogHeader>
           <form onSubmit={handleSubmit} className="space-y-4 mt-4">
             <div className="space-y-2">
@@ -363,6 +531,55 @@ export default function KanbanVendas() {
               <Button type="button" variant="outline" onClick={() => setDialogOpen(false)}>Cancelar</Button>
               <Button type="submit" disabled={!form.cliente_id}>{editing ? 'Salvar' : 'Criar'}</Button>
             </div>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Pipeline Dialog */}
+      <Dialog open={pipelineDialogOpen} onOpenChange={setPipelineDialogOpen}>
+        <DialogContent className="sm:max-w-[420px]">
+          <DialogHeader>
+            <DialogTitle>{editingPipeline ? 'Editar Pipeline' : 'Novo Pipeline'}</DialogTitle>
+            <DialogDescription>Organize suas vendas em diferentes funis</DialogDescription>
+          </DialogHeader>
+          <form onSubmit={handleSavePipeline} className="space-y-4 mt-2">
+            <div className="space-y-2">
+              <Label>Nome *</Label>
+              <Input
+                value={pipelineForm.nome}
+                onChange={e => setPipelineForm({ ...pipelineForm, nome: e.target.value })}
+                placeholder="Ex: Vendas B2B, Renovação, Upsell"
+                autoFocus
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Descrição</Label>
+              <Input
+                value={pipelineForm.descricao}
+                onChange={e => setPipelineForm({ ...pipelineForm, descricao: e.target.value })}
+                placeholder="Opcional"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Cor</Label>
+              <div className="flex items-center gap-2">
+                <Input
+                  type="color"
+                  value={pipelineForm.cor}
+                  onChange={e => setPipelineForm({ ...pipelineForm, cor: e.target.value })}
+                  className="h-10 w-16 p-1 cursor-pointer"
+                />
+                <Input
+                  value={pipelineForm.cor}
+                  onChange={e => setPipelineForm({ ...pipelineForm, cor: e.target.value })}
+                  className="flex-1 font-mono text-sm"
+                />
+              </div>
+            </div>
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={() => setPipelineDialogOpen(false)}>Cancelar</Button>
+              <Button type="submit">{editingPipeline ? 'Salvar' : 'Criar'}</Button>
+            </DialogFooter>
           </form>
         </DialogContent>
       </Dialog>
