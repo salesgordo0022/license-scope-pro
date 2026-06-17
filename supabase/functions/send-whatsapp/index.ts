@@ -82,29 +82,52 @@ Deno.serve(async (req) => {
 
     const numero = telefone.startsWith("55") ? telefone : `55${telefone}`;
 
-    // Se houver mídia, tenta enviar via endpoint de mídia primeiro; senão envia texto.
+    // Se houver mídia, baixa o arquivo e envia como base64 (formato exigido pela API ZapContábil)
     let resp: Response;
     let usedMedia = false;
     if (media_url) {
       usedMedia = true;
-      const mediaUrl = `https://api-imperial.zapcontabil.chat/api/send-media/${numero}`;
-      resp = await fetch(mediaUrl, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "accept": "application/json",
-          "Authorization": `Bearer ${ZAPCONTABIL_API_TOKEN}`,
-        },
-        body: JSON.stringify({
-          url: media_url,
-          filename: media_filename || "boleto.pdf",
-          caption: mensagem,
-          connectionFrom: 0,
-        }),
-      });
+      try {
+        const fileResp = await fetch(media_url);
+        if (!fileResp.ok) {
+          throw new Error(`Falha ao baixar mídia [${fileResp.status}]`);
+        }
+        const contentType = fileResp.headers.get("content-type") || "application/pdf";
+        const buf = new Uint8Array(await fileResp.arrayBuffer());
+        let binary = "";
+        const chunk = 0x8000;
+        for (let i = 0; i < buf.length; i += chunk) {
+          binary += String.fromCharCode.apply(null, Array.from(buf.subarray(i, i + chunk)));
+        }
+        const base64 = btoa(binary);
+        const dataUrl = `data:${contentType};base64,${base64}`;
 
-      // Se o endpoint de mídia falhar, faz fallback enviando o link como texto
+        const mediaUrl = `https://api-imperial.zapcontabil.chat/api/send-media/${numero}`;
+        resp = await fetch(mediaUrl, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "accept": "application/json",
+            "Authorization": `Bearer ${ZAPCONTABIL_API_TOKEN}`,
+          },
+          body: JSON.stringify({
+            base64: dataUrl,
+            file: dataUrl,
+            url: media_url,
+            filename: media_filename || "arquivo.pdf",
+            caption: mensagem,
+            mimetype: contentType,
+            connectionFrom: 0,
+          }),
+        });
+      } catch (mediaErr) {
+        console.error("Erro ao preparar mídia:", mediaErr);
+        resp = new Response("media_prep_failed", { status: 500 });
+      }
+
       if (!resp.ok) {
+        const errText = await resp.clone().text().catch(() => "");
+        console.error("send-media falhou, fallback texto:", resp.status, errText);
         const mensagemComLink = `${mensagem}\n\n${media_url}`;
         resp = await fetch(`https://api-imperial.zapcontabil.chat/api/send/${numero}`, {
           method: "POST",
