@@ -624,7 +624,27 @@ export default function Clientes() {
                       ))}
                     </SelectContent>
                   </Select>
-                </div>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="regime_tributario">Regime Tributário</Label>
+                <Select
+                  value={formData.regime_tributario || '__none__'}
+                  onValueChange={(value) => setFormData({ ...formData, regime_tributario: value === '__none__' ? '' : value })}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Selecione" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__none__">Não informado</SelectItem>
+                    <SelectItem value="Simples Nacional">Simples Nacional</SelectItem>
+                    <SelectItem value="MEI (Simei)">MEI (Simei)</SelectItem>
+                    <SelectItem value="Regime Normal">Regime Normal</SelectItem>
+                    <SelectItem value="Lucro Presumido">Lucro Presumido</SelectItem>
+                    <SelectItem value="Lucro Real">Lucro Real</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
                 <div className="space-y-2">
                   <Label htmlFor="data_entrada">Data de Entrada</Label>
                   <Input
