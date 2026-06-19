@@ -252,8 +252,10 @@ export default function Clientes() {
       cidade: '',
       estado: '',
       data_entrada: '',
+      regime_tributario: '',
       sistemasSelecionados: [],
     });
+
   };
 
   const sincronizarSistemas = async (clienteId: string, empresaId: string | null, sistemasNomes: string[]) => {
