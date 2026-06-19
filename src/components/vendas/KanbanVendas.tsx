@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Plus, GripVertical, Calendar, DollarSign, Edit, Trash2, Settings2, ChevronDown } from 'lucide-react';
+import { Plus, GripVertical, Calendar, DollarSign, Edit, Trash2, Settings2, ChevronDown, X, FileText, Tag } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { Label } from '@/components/ui/label';
 import {
@@ -34,6 +35,9 @@ type Revenda = {
   data_venda: string | null;
   data_proxima_acao: string | null;
   proxima_acao: string | null;
+  observacoes: string | null;
+  origem: string | null;
+  tags: string[] | null;
   created_at: string | null;
   cliente?: { nome_empresa: string };
 };
@@ -56,6 +60,21 @@ const COLUNAS = [
   { id: 'fechado', label: 'Fechado', color: 'bg-[hsl(var(--success))]' },
   { id: 'perdido', label: 'Perdido', color: 'bg-destructive' },
 ];
+
+const ORIGENS = [
+  'Indicação', 'Site', 'Instagram', 'Facebook', 'LinkedIn',
+  'Google Ads', 'WhatsApp', 'Evento', 'Prospecção ativa', 'Outro',
+];
+
+const TAG_COLORS = [
+  'bg-blue-500/15 text-blue-600 border-blue-500/30',
+  'bg-green-500/15 text-green-600 border-green-500/30',
+  'bg-amber-500/15 text-amber-600 border-amber-500/30',
+  'bg-purple-500/15 text-purple-600 border-purple-500/30',
+  'bg-pink-500/15 text-pink-600 border-pink-500/30',
+  'bg-cyan-500/15 text-cyan-600 border-cyan-500/30',
+];
+const tagColor = (t: string) => TAG_COLORS[Math.abs(t.split('').reduce((a, c) => a + c.charCodeAt(0), 0)) % TAG_COLORS.length];
 
 const TEMPERATURAS = [
   { id: 'frio', label: '❄️ Frio', color: 'text-blue-500' },
@@ -90,7 +109,11 @@ export default function KanbanVendas() {
     valor_estimado: 0,
     data_proxima_acao: '',
     proxima_acao: '',
+    observacoes: '',
+    origem: '',
+    tags: [] as string[],
   });
+  const [tagInput, setTagInput] = useState('');
 
   const fetchData = async () => {
     try {
@@ -116,10 +139,14 @@ export default function KanbanVendas() {
 
   useEffect(() => { fetchData(); }, []);
 
-  const resetForm = () => setForm({
-    cliente_id: '', sistema: '', status_venda: 'lead', temperatura: 'morno',
-    valor_estimado: 0, data_proxima_acao: '', proxima_acao: '',
-  });
+  const resetForm = () => {
+    setForm({
+      cliente_id: '', sistema: '', status_venda: 'lead', temperatura: 'morno',
+      valor_estimado: 0, data_proxima_acao: '', proxima_acao: '',
+      observacoes: '', origem: '', tags: [],
+    });
+    setTagInput('');
+  };
 
   const ensurePipeline = async (): Promise<string | null> => {
     if (activePipelineId) return activePipelineId;
@@ -175,6 +202,9 @@ export default function KanbanVendas() {
       valor_estimado: r.valor_estimado || 0,
       data_proxima_acao: r.data_proxima_acao || '',
       proxima_acao: r.proxima_acao || '',
+      observacoes: r.observacoes || '',
+      origem: r.origem || '',
+      tags: r.tags || [],
     });
     setDialogOpen(true);
   };
@@ -445,6 +475,30 @@ export default function KanbanVendas() {
                                   {item.proxima_acao && <span>· {item.proxima_acao}</span>}
                                 </div>
                               )}
+
+                              {item.origem && (
+                                <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                                  <Tag className="h-3 w-3" />
+                                  <span>{item.origem}</span>
+                                </div>
+                              )}
+
+                              {item.observacoes && (
+                                <div className="flex items-start gap-1 text-xs text-muted-foreground">
+                                  <FileText className="h-3 w-3 mt-0.5 shrink-0" />
+                                  <p className="line-clamp-2">{item.observacoes}</p>
+                                </div>
+                              )}
+
+                              {item.tags && item.tags.length > 0 && (
+                                <div className="flex flex-wrap gap-1 pt-1">
+                                  {item.tags.map(t => (
+                                    <span key={t} className={`text-[10px] px-1.5 py-0.5 rounded border ${tagColor(t)}`}>
+                                      {t}
+                                    </span>
+                                  ))}
+                                </div>
+                              )}
                             </CardContent>
                           </Card>
                         </motion.div>
@@ -466,7 +520,7 @@ export default function KanbanVendas() {
 
       {/* Venda Dialog */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="sm:max-w-[480px]">
+        <DialogContent className="sm:max-w-[520px] max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>{editing ? 'Editar Venda' : 'Nova Venda'}</DialogTitle>
             <DialogDescription>
@@ -526,6 +580,73 @@ export default function KanbanVendas() {
                 <Input type="date" value={form.data_proxima_acao}
                   onChange={e => setForm({ ...form, data_proxima_acao: e.target.value })} />
               </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label>Origem do Lead</Label>
+              <Select value={form.origem || '__none__'} onValueChange={v => setForm({ ...form, origem: v === '__none__' ? '' : v })}>
+                <SelectTrigger><SelectValue placeholder="Selecione..." /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__none__">— Nenhuma —</SelectItem>
+                  {ORIGENS.map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-2">
+              <Label>Tags</Label>
+              <div className="flex gap-2">
+                <Input
+                  value={tagInput}
+                  onChange={e => setTagInput(e.target.value)}
+                  onKeyDown={e => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      const t = tagInput.trim();
+                      if (t && !form.tags.includes(t)) setForm({ ...form, tags: [...form.tags, t] });
+                      setTagInput('');
+                    }
+                  }}
+                  placeholder="Digite e pressione Enter"
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => {
+                    const t = tagInput.trim();
+                    if (t && !form.tags.includes(t)) setForm({ ...form, tags: [...form.tags, t] });
+                    setTagInput('');
+                  }}
+                >
+                  Adicionar
+                </Button>
+              </div>
+              {form.tags.length > 0 && (
+                <div className="flex flex-wrap gap-1.5 pt-1">
+                  {form.tags.map(t => (
+                    <span key={t} className={`inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded border ${tagColor(t)}`}>
+                      {t}
+                      <button
+                        type="button"
+                        onClick={() => setForm({ ...form, tags: form.tags.filter(x => x !== t) })}
+                        className="hover:opacity-70"
+                      >
+                        <X className="h-3 w-3" />
+                      </button>
+                    </span>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div className="space-y-2">
+              <Label>Observações</Label>
+              <Textarea
+                value={form.observacoes}
+                onChange={e => setForm({ ...form, observacoes: e.target.value })}
+                placeholder="Anotações sobre a oportunidade, histórico, contexto..."
+                rows={3}
+              />
             </div>
             <div className="flex justify-end gap-3 pt-4">
               <Button type="button" variant="outline" onClick={() => setDialogOpen(false)}>Cancelar</Button>
