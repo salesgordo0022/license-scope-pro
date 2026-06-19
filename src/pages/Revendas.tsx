@@ -1,8 +1,9 @@
 import { motion } from 'framer-motion';
-import { Target, Columns3 } from 'lucide-react';
+import { Target, Columns3, Search } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import MetasVendas from '@/components/vendas/MetasVendas';
 import KanbanVendas from '@/components/vendas/KanbanVendas';
+import ProspeccaoEmpresas from '@/components/vendas/ProspeccaoEmpresas';
 
 export default function Revendas() {
   return (
@@ -21,6 +22,9 @@ export default function Revendas() {
           <TabsTrigger value="kanban" className="gap-2">
             <Columns3 className="h-4 w-4" /> Kanban
           </TabsTrigger>
+          <TabsTrigger value="prospeccao" className="gap-2">
+            <Search className="h-4 w-4" /> Prospecção
+          </TabsTrigger>
           <TabsTrigger value="metas" className="gap-2">
             <Target className="h-4 w-4" /> Metas
           </TabsTrigger>
@@ -28,6 +32,10 @@ export default function Revendas() {
 
         <TabsContent value="kanban">
           <KanbanVendas />
+        </TabsContent>
+
+        <TabsContent value="prospeccao">
+          <ProspeccaoEmpresas />
         </TabsContent>
 
         <TabsContent value="metas">
