@@ -70,6 +70,7 @@ export default function ProspeccaoEmpresas() {
     return d.toISOString().split('T')[0];
   });
   const [dataFim, setDataFim] = useState(() => new Date().toISOString().split('T')[0]);
+  const [regimeTributario, setRegimeTributario] = useState<string>('todos');
   const [empresas, setEmpresas] = useState<Empresa[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
