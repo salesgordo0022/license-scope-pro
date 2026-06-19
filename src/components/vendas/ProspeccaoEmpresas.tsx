@@ -75,6 +75,57 @@ export default function ProspeccaoEmpresas() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [buscou, setBuscou] = useState(false);
+  const [adicionando, setAdicionando] = useState<string | null>(null);
+  const [adicionados, setAdicionados] = useState<Set<string>>(new Set());
+
+  const adicionarCliente = useCallback(async (emp: Empresa) => {
+    setAdicionando(emp.cnpj);
+    try {
+      const { data: userData } = await supabase.auth.getUser();
+      if (!userData.user) throw new Error('Não autenticado');
+      const { data: perfil } = await supabase
+        .from('usuario_perfil')
+        .select('empresa_id')
+        .eq('user_id', userData.user.id)
+        .maybeSingle();
+
+      const enderecoStr = [
+        emp.endereco.logradouro,
+        emp.endereco.numero,
+        emp.endereco.bairro,
+        emp.endereco.cep,
+      ].filter(Boolean).join(', ');
+
+      const { error: insErr } = await supabase.from('clientes').insert({
+        nome_empresa: emp.razaoSocial || emp.nomeFantasia || 'Sem nome',
+        cnpj: emp.cnpj,
+        email: emp.email || null,
+        telefone: emp.telefone || null,
+        endereco: enderecoStr,
+        cidade: emp.endereco.cidade || '',
+        estado: emp.endereco.uf || '',
+        segmento: emp.atividadePrincipal || null,
+        observacoes: `Prospectado via CNPJá. Regime: ${emp.regimeTributario || '—'}. Porte: ${emp.porte || '—'}. Abertura: ${emp.dataAbertura || '—'}`,
+        status: 'ativo' as const,
+        empresa_id: perfil?.empresa_id ?? null,
+      });
+
+      if (insErr) throw insErr;
+      setAdicionados((prev) => new Set(prev).add(emp.cnpj));
+      toast.success('Cliente cadastrado!');
+    } catch (e: any) {
+      const msg = e?.message || 'Erro ao cadastrar cliente';
+      if (msg.toLowerCase().includes('duplicate') || msg.includes('23505')) {
+        toast.error('Cliente já cadastrado (CNPJ duplicado)');
+        setAdicionados((prev) => new Set(prev).add(emp.cnpj));
+      } else {
+        toast.error(msg);
+      }
+    } finally {
+      setAdicionando(null);
+    }
+  }, []);
+
 
   // Carregar municípios quando UF muda
   useEffect(() => {
