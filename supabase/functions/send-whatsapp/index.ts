@@ -223,9 +223,10 @@ Deno.serve(async (req) => {
     }
 
     return new Response(
-      JSON.stringify({ success: true, data: respJson }),
+      JSON.stringify({ success: true, data: respJson, usedMedia, mediaDebug }),
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
+
   } catch (err) {
     const msg = err instanceof Error ? err.message : "Erro desconhecido";
     console.error("send-whatsapp exception:", msg);
