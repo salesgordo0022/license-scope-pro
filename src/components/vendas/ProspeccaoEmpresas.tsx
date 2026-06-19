@@ -405,13 +405,17 @@ export default function ProspeccaoEmpresas() {
                     <Button
                       size="sm"
                       className="flex-1 text-xs h-8"
-                      onClick={() => {
-                        toast.info('Integração com cadastro de cliente em desenvolvimento');
-                      }}
+                      disabled={adicionando === emp.cnpj || adicionados.has(emp.cnpj)}
+                      onClick={() => adicionarCliente(emp)}
                     >
-                      <Building2 className="h-3 w-3 mr-1" />
-                      Adicionar
+                      {adicionando === emp.cnpj ? (
+                        <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+                      ) : (
+                        <Building2 className="h-3 w-3 mr-1" />
+                      )}
+                      {adicionados.has(emp.cnpj) ? 'Adicionado' : 'Adicionar'}
                     </Button>
+
                   </div>
                 </CardContent>
               </Card>
