@@ -45,15 +45,7 @@ serve(async (req) => {
     qp.set("status.id.in", "2"); // Apenas Ativa
     qp.set("limit", String(limit || 50));
 
-    // Filtro por regime tributário
-    if (regimeTributario === "simples") {
-      qp.set("company.simples.optant.eq", "true");
-      qp.set("company.simei.optant.eq", "false");
-    } else if (regimeTributario === "mei") {
-      qp.set("company.simei.optant.eq", "true");
-    } else if (regimeTributario === "normal") {
-      qp.set("company.simples.optant.eq", "false");
-    }
+    // Filtro por regime tributário é aplicado pós-resposta (API CNPJá não aceita filtrar por simples/simei)
 
     const url = `https://api.cnpja.com/office?${qp.toString()}`;
 
