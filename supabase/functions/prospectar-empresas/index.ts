@@ -45,15 +45,7 @@ serve(async (req) => {
     qp.set("status.id.in", "2"); // Apenas Ativa
     qp.set("limit", String(limit || 50));
 
-    // Filtro por regime tributário
-    if (regimeTributario === "simples") {
-      qp.set("company.simples.optant.eq", "true");
-      qp.set("company.simei.optant.eq", "false");
-    } else if (regimeTributario === "mei") {
-      qp.set("company.simei.optant.eq", "true");
-    } else if (regimeTributario === "normal") {
-      qp.set("company.simples.optant.eq", "false");
-    }
+    // Filtro por regime tributário é aplicado pós-resposta (API CNPJá não aceita filtrar por simples/simei)
 
     const url = `https://api.cnpja.com/office?${qp.toString()}`;
 
@@ -110,8 +102,18 @@ serve(async (req) => {
       };
     });
 
+    // Filtro pós-resposta por regime tributário
+    let filtradas = empresas;
+    if (regimeTributario === "simples") {
+      filtradas = empresas.filter((e: any) => e.optanteSimples && !e.optanteSimei);
+    } else if (regimeTributario === "mei") {
+      filtradas = empresas.filter((e: any) => e.optanteSimei);
+    } else if (regimeTributario === "normal") {
+      filtradas = empresas.filter((e: any) => !e.optanteSimples && !e.optanteSimei);
+    }
+
     return new Response(
-      JSON.stringify({ empresas, total: data.count ?? empresas.length, next: data.next || null }),
+      JSON.stringify({ empresas: filtradas, total: filtradas.length, totalBruto: data.count ?? empresas.length, next: data.next || null }),
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   } catch (err: any) {
