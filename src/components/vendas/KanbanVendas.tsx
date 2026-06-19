@@ -202,6 +202,9 @@ export default function KanbanVendas() {
       valor_estimado: r.valor_estimado || 0,
       data_proxima_acao: r.data_proxima_acao || '',
       proxima_acao: r.proxima_acao || '',
+      observacoes: r.observacoes || '',
+      origem: r.origem || '',
+      tags: r.tags || [],
     });
     setDialogOpen(true);
   };
