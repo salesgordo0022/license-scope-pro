@@ -581,6 +581,73 @@ export default function KanbanVendas() {
                   onChange={e => setForm({ ...form, data_proxima_acao: e.target.value })} />
               </div>
             </div>
+
+            <div className="space-y-2">
+              <Label>Origem do Lead</Label>
+              <Select value={form.origem || '__none__'} onValueChange={v => setForm({ ...form, origem: v === '__none__' ? '' : v })}>
+                <SelectTrigger><SelectValue placeholder="Selecione..." /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__none__">— Nenhuma —</SelectItem>
+                  {ORIGENS.map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-2">
+              <Label>Tags</Label>
+              <div className="flex gap-2">
+                <Input
+                  value={tagInput}
+                  onChange={e => setTagInput(e.target.value)}
+                  onKeyDown={e => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      const t = tagInput.trim();
+                      if (t && !form.tags.includes(t)) setForm({ ...form, tags: [...form.tags, t] });
+                      setTagInput('');
+                    }
+                  }}
+                  placeholder="Digite e pressione Enter"
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => {
+                    const t = tagInput.trim();
+                    if (t && !form.tags.includes(t)) setForm({ ...form, tags: [...form.tags, t] });
+                    setTagInput('');
+                  }}
+                >
+                  Adicionar
+                </Button>
+              </div>
+              {form.tags.length > 0 && (
+                <div className="flex flex-wrap gap-1.5 pt-1">
+                  {form.tags.map(t => (
+                    <span key={t} className={`inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded border ${tagColor(t)}`}>
+                      {t}
+                      <button
+                        type="button"
+                        onClick={() => setForm({ ...form, tags: form.tags.filter(x => x !== t) })}
+                        className="hover:opacity-70"
+                      >
+                        <X className="h-3 w-3" />
+                      </button>
+                    </span>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div className="space-y-2">
+              <Label>Observações</Label>
+              <Textarea
+                value={form.observacoes}
+                onChange={e => setForm({ ...form, observacoes: e.target.value })}
+                placeholder="Anotações sobre a oportunidade, histórico, contexto..."
+                rows={3}
+              />
+            </div>
             <div className="flex justify-end gap-3 pt-4">
               <Button type="button" variant="outline" onClick={() => setDialogOpen(false)}>Cancelar</Button>
               <Button type="submit" disabled={!form.cliente_id}>{editing ? 'Salvar' : 'Criar'}</Button>
