@@ -1,8 +1,9 @@
 import { motion } from 'framer-motion';
-import { Target, Columns3 } from 'lucide-react';
+import { Target, Columns3, Search } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import MetasVendas from '@/components/vendas/MetasVendas';
 import KanbanVendas from '@/components/vendas/KanbanVendas';
+import ProspeccaoEmpresas from '@/components/vendas/ProspeccaoEmpresas';
 
 export default function Revendas() {
   return (
