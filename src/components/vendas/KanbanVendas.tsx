@@ -520,7 +520,7 @@ export default function KanbanVendas() {
 
       {/* Venda Dialog */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="sm:max-w-[480px]">
+        <DialogContent className="sm:max-w-[520px] max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>{editing ? 'Editar Venda' : 'Nova Venda'}</DialogTitle>
             <DialogDescription>
