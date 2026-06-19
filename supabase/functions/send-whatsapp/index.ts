@@ -82,11 +82,11 @@ Deno.serve(async (req) => {
 
     const numero = telefone.startsWith("55") ? telefone : `55${telefone}`;
 
-    // Se houver mídia, baixa o arquivo e envia como base64 (formato exigido pela API ZapContábil)
+    // Se houver mídia, baixa o arquivo e tenta enviar como documento (PDF/etc.)
     let resp: Response;
     let usedMedia = false;
+    let mediaDebug: Array<{ endpoint: string; status: number; body: string }> = [];
     if (media_url) {
-      usedMedia = true;
       try {
         const fileResp = await fetch(media_url);
         if (!fileResp.ok) {
@@ -101,33 +101,71 @@ Deno.serve(async (req) => {
         }
         const base64 = btoa(binary);
         const dataUrl = `data:${contentType};base64,${base64}`;
+        const filename = media_filename || "documento.pdf";
 
-        const mediaUrl = `https://api-imperial.zapcontabil.chat/api/send-media/${numero}`;
-        resp = await fetch(mediaUrl, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "accept": "application/json",
-            "Authorization": `Bearer ${ZAPCONTABIL_API_TOKEN}`,
+        // Endpoint/payload variants — try until one succeeds with a real WhatsApp payload
+        const attempts: Array<{ url: string; body: Record<string, unknown> }> = [
+          {
+            url: `https://api-imperial.zapcontabil.chat/api/send-document/${numero}`,
+            body: { base64: dataUrl, filename, caption: mensagem, mimetype: contentType, connectionFrom: 0 },
           },
-          body: JSON.stringify({
-            base64: dataUrl,
-            file: dataUrl,
-            url: media_url,
-            filename: media_filename || "arquivo.pdf",
-            caption: mensagem,
-            mimetype: contentType,
-            connectionFrom: 0,
-          }),
-        });
+          {
+            url: `https://api-imperial.zapcontabil.chat/api/send-file/${numero}`,
+            body: { base64: dataUrl, filename, caption: mensagem, mimetype: contentType, connectionFrom: 0 },
+          },
+          {
+            url: `https://api-imperial.zapcontabil.chat/api/send-pdf/${numero}`,
+            body: { base64: dataUrl, filename, caption: mensagem, connectionFrom: 0 },
+          },
+          {
+            url: `https://api-imperial.zapcontabil.chat/api/send-media/${numero}`,
+            body: { base64: dataUrl, filename, caption: mensagem, mimetype: contentType, connectionFrom: 0 },
+          },
+        ];
+
+        let mediaOk = false;
+        resp = new Response("no_attempt", { status: 500 });
+        for (const att of attempts) {
+          const r = await fetch(att.url, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              "accept": "application/json",
+              "Authorization": `Bearer ${ZAPCONTABIL_API_TOKEN}`,
+            },
+            body: JSON.stringify(att.body),
+          });
+          const bodyText = await r.clone().text().catch(() => "");
+          mediaDebug.push({ endpoint: att.url, status: r.status, body: bodyText.slice(0, 300) });
+          console.log(`[send-whatsapp] ${att.url} -> ${r.status} :: ${bodyText.slice(0, 200)}`);
+          if (r.ok) {
+            // Considera sucesso só se o body NÃO indicar erro explícito
+            const lower = bodyText.toLowerCase();
+            const looksError = lower.includes('"error"') || lower.includes('"erro"') || lower.includes('not found') || lower.includes('cannot') || lower.includes('invalid');
+            if (!looksError) {
+              resp = r;
+              mediaOk = true;
+              usedMedia = true;
+              break;
+            }
+          }
+        }
+
+        if (!mediaOk) {
+          console.error("[send-whatsapp] todos endpoints de mídia falharam, fallback texto", JSON.stringify(mediaDebug));
+          const mensagemComLink = `${mensagem}\n\n${media_url}`;
+          resp = await fetch(`https://api-imperial.zapcontabil.chat/api/send/${numero}`, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              "accept": "application/json",
+              "Authorization": `Bearer ${ZAPCONTABIL_API_TOKEN}`,
+            },
+            body: JSON.stringify({ body: mensagemComLink, connectionFrom: 0 }),
+          });
+        }
       } catch (mediaErr) {
         console.error("Erro ao preparar mídia:", mediaErr);
-        resp = new Response("media_prep_failed", { status: 500 });
-      }
-
-      if (!resp.ok) {
-        const errText = await resp.clone().text().catch(() => "");
-        console.error("send-media falhou, fallback texto:", resp.status, errText);
         const mensagemComLink = `${mensagem}\n\n${media_url}`;
         resp = await fetch(`https://api-imperial.zapcontabil.chat/api/send/${numero}`, {
           method: "POST",
@@ -138,9 +176,9 @@ Deno.serve(async (req) => {
           },
           body: JSON.stringify({ body: mensagemComLink, connectionFrom: 0 }),
         });
-        usedMedia = false;
       }
     } else {
+
       const zapUrl = `https://api-imperial.zapcontabil.chat/api/send/${numero}`;
       resp = await fetch(zapUrl, {
         method: "POST",
@@ -185,9 +223,10 @@ Deno.serve(async (req) => {
     }
 
     return new Response(
-      JSON.stringify({ success: true, data: respJson }),
+      JSON.stringify({ success: true, data: respJson, usedMedia, mediaDebug }),
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
+
   } catch (err) {
     const msg = err instanceof Error ? err.message : "Erro desconhecido";
     console.error("send-whatsapp exception:", msg);
