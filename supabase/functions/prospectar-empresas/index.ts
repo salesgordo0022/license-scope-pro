@@ -5,15 +5,10 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
-const ESTADOS: Record<string, string> = {
-  AC: "Acre", AL: "Alagoas", AP: "Amapá", AM: "Amazonas", BA: "Bahia",
-  CE: "Ceará", DF: "Distrito Federal", ES: "Espírito Santo", GO: "Goiás",
-  MA: "Maranhão", MT: "Mato Grosso", MS: "Mato Grosso do Sul", MG: "Minas Gerais",
-  PA: "Pará", PB: "Paraíba", PR: "Paraná", PE: "Pernambuco", PI: "Piauí",
-  RJ: "Rio de Janeiro", RN: "Rio Grande do Norte", RS: "Rio Grande do Sul",
-  RO: "Rondônia", RR: "Roraima", SC: "Santa Catarina", SP: "São Paulo",
-  SE: "Sergipe", TO: "Tocantins",
-};
+function formatCnpj(taxId: string): string {
+  if (!taxId || taxId.length !== 14) return taxId || "";
+  return `${taxId.slice(0, 2)}.${taxId.slice(2, 5)}.${taxId.slice(5, 8)}/${taxId.slice(8, 12)}-${taxId.slice(12, 14)}`;
+}
 
 serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -32,25 +27,25 @@ serve(async (req) => {
     }
 
     const body = await req.json();
-    const { uf, municipio, dataInicio, dataFim } = body;
+    const { uf, municipioId, dataInicio, dataFim, limit } = body;
 
-    if (!uf || !municipio || !dataInicio || !dataFim) {
+    if (!uf || !municipioId || !dataInicio || !dataFim) {
       return new Response(
-        JSON.stringify({ error: "Parâmetros obrigatórios: uf, municipio, dataInicio, dataFim" }),
-        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        JSON.stringify({ error: "Parâmetros obrigatórios: uf, municipioId, dataInicio, dataFim" }),
+        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
-    // Buscar na CNPJá
-    const queryParams = new URLSearchParams();
-    queryParams.set("city", municipio);
-    queryParams.set("state", uf);
-    queryParams.set("registrationDate.min", dataInicio);
-    queryParams.set("registrationDate.max", dataFim);
-    queryParams.set("page", "1");
-    queryParams.set("pageSize", "50");
+    // Filtros da API CNPJá (GET /office) — usa notação .in/.gte/.lte
+    const qp = new URLSearchParams();
+    qp.set("address.state.in", uf);
+    qp.set("address.municipality.in", String(municipioId));
+    qp.set("founded.gte", dataInicio);
+    qp.set("founded.lte", dataFim);
+    qp.set("status.id.in", "2"); // Apenas Ativa
+    qp.set("limit", String(limit || 50));
 
-    const url = `https://api.cnpja.com/office?${queryParams.toString()}`;
+    const url = `https://api.cnpja.com/office?${qp.toString()}`;
 
     const res = await fetch(url, {
       headers: {
@@ -69,32 +64,33 @@ serve(async (req) => {
 
     const data = await res.json();
 
-    // Formatar resultado
-    const empresas = (data.items || []).map((item: any) => ({
-      cnpj: item.cnpj?.root ? `${item.cnpj.root}/${item.cnpj.suffix}-${item.cnpj.branch}` : item.cnpj?.formatted || "",
+    const empresas = (data.records || []).map((item: any) => ({
+      cnpj: formatCnpj(item.taxId || ""),
       razaoSocial: item.company?.name || "",
-      nomeFantasia: item.company?.alias || "",
+      nomeFantasia: item.alias || "",
       atividadePrincipal: item.mainActivity?.text || "",
       naturezaJuridica: item.company?.nature?.text || "",
       situacaoCadastral: item.status?.text || "",
-      dataAbertura: item.registration?.date || "",
+      dataAbertura: item.founded || "",
       endereco: {
         logradouro: item.address?.street || "",
         numero: item.address?.number || "",
         complemento: item.address?.details || "",
-        bairro: item.address?.neighborhood || "",
+        bairro: item.address?.district || "",
         cidade: item.address?.city || "",
         uf: item.address?.state || "",
         cep: item.address?.zip || "",
       },
       telefone: item.phones?.[0]?.area ? `(${item.phones[0].area}) ${item.phones[0].number}` : "",
       email: item.emails?.[0]?.address || "",
-      capitalSocial: item.company?.capital ? `R$ ${(item.company.capital / 100).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}` : "",
+      capitalSocial: item.company?.equity
+        ? `R$ ${Number(item.company.equity).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`
+        : "",
       porte: item.company?.size?.text || "",
     }));
 
     return new Response(
-      JSON.stringify({ empresas, total: data.totalCount || empresas.length }),
+      JSON.stringify({ empresas, total: data.count ?? empresas.length, next: data.next || null }),
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   } catch (err: any) {
