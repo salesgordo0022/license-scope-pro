@@ -192,6 +192,22 @@ export default function ProspeccaoEmpresas() {
               <Input type="date" value={dataFim} onChange={(e) => setDataFim(e.target.value)} />
             </div>
 
+            <div className="space-y-2">
+              <Label>Regime Tributário</Label>
+              <Select value={regimeTributario} onValueChange={setRegimeTributario}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="todos">Todos</SelectItem>
+                  <SelectItem value="simples">Simples Nacional</SelectItem>
+                  <SelectItem value="mei">MEI (Simei)</SelectItem>
+                  <SelectItem value="normal">Regime Normal</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+
             <Button onClick={buscar} disabled={loading} className="w-full">
               {loading ? (
                 <Loader2 className="h-4 w-4 animate-spin mr-2" />
