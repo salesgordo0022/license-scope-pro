@@ -70,6 +70,7 @@ export default function ProspeccaoEmpresas() {
     return d.toISOString().split('T')[0];
   });
   const [dataFim, setDataFim] = useState(() => new Date().toISOString().split('T')[0]);
+  const [regimeTributario, setRegimeTributario] = useState<string>('todos');
   const [empresas, setEmpresas] = useState<Empresa[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -116,6 +117,7 @@ export default function ProspeccaoEmpresas() {
           municipio,
           dataInicio,
           dataFim,
+          regimeTributario: regimeTributario === 'todos' ? undefined : regimeTributario,
         },
       });
 
@@ -134,7 +136,7 @@ export default function ProspeccaoEmpresas() {
     } finally {
       setLoading(false);
     }
-  }, [uf, municipio, dataInicio, dataFim]);
+  }, [uf, municipio, municipios, dataInicio, dataFim, regimeTributario]);
 
   return (
     <div className="space-y-6">
@@ -147,7 +149,7 @@ export default function ProspeccaoEmpresas() {
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 items-end">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-4 items-end">
             <div className="space-y-2">
               <Label>Estado (UF)</Label>
               <Select value={uf} onValueChange={setUf}>
@@ -189,6 +191,22 @@ export default function ProspeccaoEmpresas() {
               <Label>Data Fim</Label>
               <Input type="date" value={dataFim} onChange={(e) => setDataFim(e.target.value)} />
             </div>
+
+            <div className="space-y-2">
+              <Label>Regime Tributário</Label>
+              <Select value={regimeTributario} onValueChange={setRegimeTributario}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="todos">Todos</SelectItem>
+                  <SelectItem value="simples">Simples Nacional</SelectItem>
+                  <SelectItem value="mei">MEI (Simei)</SelectItem>
+                  <SelectItem value="normal">Regime Normal</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
 
             <Button onClick={buscar} disabled={loading} className="w-full">
               {loading ? (

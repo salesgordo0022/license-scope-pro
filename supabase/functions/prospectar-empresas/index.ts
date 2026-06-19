@@ -27,7 +27,7 @@ serve(async (req) => {
     }
 
     const body = await req.json();
-    const { uf, municipioId, dataInicio, dataFim, limit } = body;
+    const { uf, municipioId, dataInicio, dataFim, limit, regimeTributario } = body;
 
     if (!uf || !municipioId || !dataInicio || !dataFim) {
       return new Response(
@@ -43,7 +43,18 @@ serve(async (req) => {
     qp.set("founded.gte", dataInicio);
     qp.set("founded.lte", dataFim);
     qp.set("status.id.in", "2"); // Apenas Ativa
+    qp.set("simples", "true"); // enriquece resposta com dados do Simples/MEI
     qp.set("limit", String(limit || 50));
+
+    // Filtro por regime tributário
+    if (regimeTributario === "simples") {
+      qp.set("company.simples.optant.eq", "true");
+      qp.set("company.simei.optant.eq", "false");
+    } else if (regimeTributario === "mei") {
+      qp.set("company.simei.optant.eq", "true");
+    } else if (regimeTributario === "normal") {
+      qp.set("company.simples.optant.eq", "false");
+    }
 
     const url = `https://api.cnpja.com/office?${qp.toString()}`;
 
