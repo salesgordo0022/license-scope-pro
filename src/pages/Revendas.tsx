@@ -22,6 +22,9 @@ export default function Revendas() {
           <TabsTrigger value="kanban" className="gap-2">
             <Columns3 className="h-4 w-4" /> Kanban
           </TabsTrigger>
+          <TabsTrigger value="prospeccao" className="gap-2">
+            <Search className="h-4 w-4" /> Prospecção
+          </TabsTrigger>
           <TabsTrigger value="metas" className="gap-2">
             <Target className="h-4 w-4" /> Metas
           </TabsTrigger>
@@ -29,6 +32,10 @@ export default function Revendas() {
 
         <TabsContent value="kanban">
           <KanbanVendas />
+        </TabsContent>
+
+        <TabsContent value="prospeccao">
+          <ProspeccaoEmpresas />
         </TabsContent>
 
         <TabsContent value="metas">
