@@ -105,8 +105,10 @@ export default function ProspeccaoEmpresas() {
         cidade: emp.endereco.cidade || '',
         estado: emp.endereco.uf || '',
         segmento: emp.atividadePrincipal || null,
+        regime_tributario: emp.regimeTributario || '',
         observacoes: `Prospectado via CNPJá. Regime: ${emp.regimeTributario || '—'}. Porte: ${emp.porte || '—'}. Abertura: ${emp.dataAbertura || '—'}`,
         status: 'ativo' as const,
+
         empresa_id: perfil?.empresa_id ?? null,
       });
 
