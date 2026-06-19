@@ -146,8 +146,10 @@ export default function Clientes() {
     cidade: '',
     estado: '',
     data_entrada: '',
+    regime_tributario: '',
     sistemasSelecionados: [] as string[], // nomes dos sistemas
   });
+
 
   const fetchSegmentos = async () => {
     try {
@@ -250,8 +252,10 @@ export default function Clientes() {
       cidade: '',
       estado: '',
       data_entrada: '',
+      regime_tributario: '',
       sistemasSelecionados: [],
     });
+
   };
 
   const sincronizarSistemas = async (clienteId: string, empresaId: string | null, sistemasNomes: string[]) => {
@@ -412,7 +416,9 @@ export default function Clientes() {
       cidade: (cliente as any).cidade || '',
       estado: (cliente as any).estado || '',
       data_entrada: (cliente as any).data_entrada || '',
+      regime_tributario: (cliente as any).regime_tributario || '',
       sistemasSelecionados: sistemasAtuais,
+
     });
     setDialogOpen(true);
   };
@@ -618,7 +624,27 @@ export default function Clientes() {
                       ))}
                     </SelectContent>
                   </Select>
-                </div>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="regime_tributario">Regime Tributário</Label>
+                <Select
+                  value={formData.regime_tributario || '__none__'}
+                  onValueChange={(value) => setFormData({ ...formData, regime_tributario: value === '__none__' ? '' : value })}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Selecione" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__none__">Não informado</SelectItem>
+                    <SelectItem value="Simples Nacional">Simples Nacional</SelectItem>
+                    <SelectItem value="MEI (Simei)">MEI (Simei)</SelectItem>
+                    <SelectItem value="Regime Normal">Regime Normal</SelectItem>
+                    <SelectItem value="Lucro Presumido">Lucro Presumido</SelectItem>
+                    <SelectItem value="Lucro Real">Lucro Real</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
                 <div className="space-y-2">
                   <Label htmlFor="data_entrada">Data de Entrada</Label>
                   <Input
