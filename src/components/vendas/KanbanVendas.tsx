@@ -139,10 +139,14 @@ export default function KanbanVendas() {
 
   useEffect(() => { fetchData(); }, []);
 
-  const resetForm = () => setForm({
-    cliente_id: '', sistema: '', status_venda: 'lead', temperatura: 'morno',
-    valor_estimado: 0, data_proxima_acao: '', proxima_acao: '',
-  });
+  const resetForm = () => {
+    setForm({
+      cliente_id: '', sistema: '', status_venda: 'lead', temperatura: 'morno',
+      valor_estimado: 0, data_proxima_acao: '', proxima_acao: '',
+      observacoes: '', origem: '', tags: [],
+    });
+    setTagInput('');
+  };
 
   const ensurePipeline = async (): Promise<string | null> => {
     if (activePipelineId) return activePipelineId;
