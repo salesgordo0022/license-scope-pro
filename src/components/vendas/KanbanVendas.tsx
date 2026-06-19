@@ -475,6 +475,30 @@ export default function KanbanVendas() {
                                   {item.proxima_acao && <span>· {item.proxima_acao}</span>}
                                 </div>
                               )}
+
+                              {item.origem && (
+                                <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                                  <Tag className="h-3 w-3" />
+                                  <span>{item.origem}</span>
+                                </div>
+                              )}
+
+                              {item.observacoes && (
+                                <div className="flex items-start gap-1 text-xs text-muted-foreground">
+                                  <FileText className="h-3 w-3 mt-0.5 shrink-0" />
+                                  <p className="line-clamp-2">{item.observacoes}</p>
+                                </div>
+                              )}
+
+                              {item.tags && item.tags.length > 0 && (
+                                <div className="flex flex-wrap gap-1 pt-1">
+                                  {item.tags.map(t => (
+                                    <span key={t} className={`text-[10px] px-1.5 py-0.5 rounded border ${tagColor(t)}`}>
+                                      {t}
+                                    </span>
+                                  ))}
+                                </div>
+                              )}
                             </CardContent>
                           </Card>
                         </motion.div>
