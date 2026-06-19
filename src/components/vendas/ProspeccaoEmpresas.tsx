@@ -50,6 +50,9 @@ interface Empresa {
   email: string;
   capitalSocial: string;
   porte: string;
+  regimeTributario?: string;
+  optanteSimples?: boolean;
+  optanteSimei?: boolean;
 }
 
 interface Municipio {
