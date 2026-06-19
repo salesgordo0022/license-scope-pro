@@ -35,6 +35,9 @@ type Revenda = {
   data_venda: string | null;
   data_proxima_acao: string | null;
   proxima_acao: string | null;
+  observacoes: string | null;
+  origem: string | null;
+  tags: string[] | null;
   created_at: string | null;
   cliente?: { nome_empresa: string };
 };
