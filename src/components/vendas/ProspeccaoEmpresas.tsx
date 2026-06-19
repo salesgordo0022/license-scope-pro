@@ -105,9 +105,11 @@ export default function ProspeccaoEmpresas() {
     setBuscou(true);
 
     try {
+      const municipioObj = municipios.find((m) => m.nome === municipio);
       const { data, error: fnError } = await supabase.functions.invoke('prospectar-empresas', {
         body: {
           uf,
+          municipioId: municipioObj?.id,
           municipio,
           dataInicio,
           dataFim,
