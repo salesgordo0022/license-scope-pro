@@ -102,8 +102,18 @@ serve(async (req) => {
       };
     });
 
+    // Filtro pós-resposta por regime tributário
+    let filtradas = empresas;
+    if (regimeTributario === "simples") {
+      filtradas = empresas.filter((e: any) => e.optanteSimples && !e.optanteSimei);
+    } else if (regimeTributario === "mei") {
+      filtradas = empresas.filter((e: any) => e.optanteSimei);
+    } else if (regimeTributario === "normal") {
+      filtradas = empresas.filter((e: any) => !e.optanteSimples && !e.optanteSimei);
+    }
+
     return new Response(
-      JSON.stringify({ empresas, total: data.count ?? empresas.length, next: data.next || null }),
+      JSON.stringify({ empresas: filtradas, total: filtradas.length, totalBruto: data.count ?? empresas.length, next: data.next || null }),
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   } catch (err: any) {
