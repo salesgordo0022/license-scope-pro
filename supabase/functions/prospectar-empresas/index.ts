@@ -43,8 +43,6 @@ serve(async (req) => {
     qp.set("founded.gte", dataInicio);
     qp.set("founded.lte", dataFim);
     qp.set("status.id.in", "2"); // Apenas Ativa
-    qp.set("company.simples.optant", "true"); // enriquece resposta com dados do Simples
-    qp.set("company.simei.optant", "true"); // enriquece resposta com dados do MEI
     qp.set("limit", String(limit || 50));
 
     // Filtro por regime tributário
