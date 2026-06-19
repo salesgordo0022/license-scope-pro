@@ -146,8 +146,10 @@ export default function Clientes() {
     cidade: '',
     estado: '',
     data_entrada: '',
+    regime_tributario: '',
     sistemasSelecionados: [] as string[], // nomes dos sistemas
   });
+
 
   const fetchSegmentos = async () => {
     try {
