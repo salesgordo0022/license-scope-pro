@@ -109,7 +109,11 @@ export default function KanbanVendas() {
     valor_estimado: 0,
     data_proxima_acao: '',
     proxima_acao: '',
+    observacoes: '',
+    origem: '',
+    tags: [] as string[],
   });
+  const [tagInput, setTagInput] = useState('');
 
   const fetchData = async () => {
     try {
