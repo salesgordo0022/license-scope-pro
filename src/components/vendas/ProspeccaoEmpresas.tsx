@@ -50,6 +50,9 @@ interface Empresa {
   email: string;
   capitalSocial: string;
   porte: string;
+  regimeTributario?: string;
+  optanteSimples?: boolean;
+  optanteSimei?: boolean;
 }
 
 interface Municipio {
@@ -306,6 +309,14 @@ export default function ProspeccaoEmpresas() {
                         className="text-[10px]"
                       >
                         {emp.situacaoCadastral}
+                      </Badge>
+                    )}
+                    {emp.regimeTributario && (
+                      <Badge
+                        variant={emp.optanteSimei ? 'default' : emp.optanteSimples ? 'default' : 'outline'}
+                        className="text-[10px]"
+                      >
+                        {emp.regimeTributario}
                       </Badge>
                     )}
                   </div>

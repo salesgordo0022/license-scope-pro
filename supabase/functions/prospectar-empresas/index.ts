@@ -64,30 +64,41 @@ serve(async (req) => {
 
     const data = await res.json();
 
-    const empresas = (data.records || []).map((item: any) => ({
-      cnpj: formatCnpj(item.taxId || ""),
-      razaoSocial: item.company?.name || "",
-      nomeFantasia: item.alias || "",
-      atividadePrincipal: item.mainActivity?.text || "",
-      naturezaJuridica: item.company?.nature?.text || "",
-      situacaoCadastral: item.status?.text || "",
-      dataAbertura: item.founded || "",
-      endereco: {
-        logradouro: item.address?.street || "",
-        numero: item.address?.number || "",
-        complemento: item.address?.details || "",
-        bairro: item.address?.district || "",
-        cidade: item.address?.city || "",
-        uf: item.address?.state || "",
-        cep: item.address?.zip || "",
-      },
-      telefone: item.phones?.[0]?.area ? `(${item.phones[0].area}) ${item.phones[0].number}` : "",
-      email: item.emails?.[0]?.address || "",
-      capitalSocial: item.company?.equity
-        ? `R$ ${Number(item.company.equity).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`
-        : "",
-      porte: item.company?.size?.text || "",
-    }));
+    const empresas = (data.records || []).map((item: any) => {
+      const simples = item.company?.simples?.optant === true;
+      const simei = item.company?.simei?.optant === true;
+      let regimeTributario = "Regime Normal";
+      if (simei) regimeTributario = "MEI (Simei)";
+      else if (simples) regimeTributario = "Simples Nacional";
+
+      return {
+        cnpj: formatCnpj(item.taxId || ""),
+        razaoSocial: item.company?.name || "",
+        nomeFantasia: item.alias || "",
+        atividadePrincipal: item.mainActivity?.text || "",
+        naturezaJuridica: item.company?.nature?.text || "",
+        situacaoCadastral: item.status?.text || "",
+        dataAbertura: item.founded || "",
+        endereco: {
+          logradouro: item.address?.street || "",
+          numero: item.address?.number || "",
+          complemento: item.address?.details || "",
+          bairro: item.address?.district || "",
+          cidade: item.address?.city || "",
+          uf: item.address?.state || "",
+          cep: item.address?.zip || "",
+        },
+        telefone: item.phones?.[0]?.area ? `(${item.phones[0].area}) ${item.phones[0].number}` : "",
+        email: item.emails?.[0]?.address || "",
+        capitalSocial: item.company?.equity
+          ? `R$ ${Number(item.company.equity).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`
+          : "",
+        porte: item.company?.size?.text || "",
+        regimeTributario,
+        optanteSimples: simples,
+        optanteSimei: simei,
+      };
+    });
 
     return new Response(
       JSON.stringify({ empresas, total: data.count ?? empresas.length, next: data.next || null }),
