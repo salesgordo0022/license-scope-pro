@@ -54,7 +54,7 @@ serve(async (req) => {
 
     const res = await fetch(url, {
       headers: {
-        "Authorization": `Bearer ${token}`,
+        "Authorization": token,
         "Accept": "application/json",
       },
     });
