@@ -416,7 +416,9 @@ export default function Clientes() {
       cidade: (cliente as any).cidade || '',
       estado: (cliente as any).estado || '',
       data_entrada: (cliente as any).data_entrada || '',
+      regime_tributario: (cliente as any).regime_tributario || '',
       sistemasSelecionados: sistemasAtuais,
+
     });
     setDialogOpen(true);
   };
