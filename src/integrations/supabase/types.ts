@@ -67,6 +67,7 @@ export type Database = {
           nome_dono: string | null
           nome_empresa: string
           observacoes: string | null
+          regime_tributario: string | null
           segmento: string | null
           status: Database["public"]["Enums"]["status_type"] | null
           telefone: string | null
@@ -89,6 +90,7 @@ export type Database = {
           nome_dono?: string | null
           nome_empresa: string
           observacoes?: string | null
+          regime_tributario?: string | null
           segmento?: string | null
           status?: Database["public"]["Enums"]["status_type"] | null
           telefone?: string | null
@@ -111,6 +113,7 @@ export type Database = {
           nome_dono?: string | null
           nome_empresa?: string
           observacoes?: string | null
+          regime_tributario?: string | null
           segmento?: string | null
           status?: Database["public"]["Enums"]["status_type"] | null
           telefone?: string | null
