@@ -994,11 +994,14 @@ export type Database = {
           data_venda: string | null
           empresa_id: string | null
           id: string
+          observacoes: string | null
+          origem: string | null
           pipeline_id: string | null
           proxima_acao: string | null
           revendedor_id: string | null
           sistema: string | null
           status_venda: string
+          tags: string[] | null
           temperatura: string | null
           valor_estimado: number | null
         }
@@ -1009,11 +1012,14 @@ export type Database = {
           data_venda?: string | null
           empresa_id?: string | null
           id?: string
+          observacoes?: string | null
+          origem?: string | null
           pipeline_id?: string | null
           proxima_acao?: string | null
           revendedor_id?: string | null
           sistema?: string | null
           status_venda?: string
+          tags?: string[] | null
           temperatura?: string | null
           valor_estimado?: number | null
         }
@@ -1024,11 +1030,14 @@ export type Database = {
           data_venda?: string | null
           empresa_id?: string | null
           id?: string
+          observacoes?: string | null
+          origem?: string | null
           pipeline_id?: string | null
           proxima_acao?: string | null
           revendedor_id?: string | null
           sistema?: string | null
           status_venda?: string
+          tags?: string[] | null
           temperatura?: string | null
           valor_estimado?: number | null
         }
