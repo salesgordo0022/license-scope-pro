@@ -311,6 +311,14 @@ export default function ProspeccaoEmpresas() {
                         {emp.situacaoCadastral}
                       </Badge>
                     )}
+                    {emp.regimeTributario && (
+                      <Badge
+                        variant={emp.optanteSimei ? 'default' : emp.optanteSimples ? 'default' : 'outline'}
+                        className="text-[10px]"
+                      >
+                        {emp.regimeTributario}
+                      </Badge>
+                    )}
                   </div>
 
                   <div className="flex gap-2 pt-1">
