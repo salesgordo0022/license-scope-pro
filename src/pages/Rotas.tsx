@@ -1,3 +1,4 @@
+/// <reference types="google.maps" />
 import { useEffect, useMemo, useRef, useState, useCallback } from 'react';
 import { MapPin, Loader2, Navigation, Search, X, Route as RouteIcon, Locate } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -149,18 +150,27 @@ export default function Rotas() {
       if (pendentes.length === 0) return result;
       setGeocoding(true);
       for (const c of pendentes) {
-        const addr = enderecoCompleto(c);
-        if (!addr) continue;
-        try {
-          const res = await geocoderRef.current.geocode({ address: addr, region: 'br' });
-          if (res.results[0]) {
-            const loc = res.results[0].geometry.location;
-            result.set(c.id, { lat: loc.lat(), lng: loc.lng() });
+        const tentativas = [
+          enderecoCompleto(c),
+          // fallback 1: só rua + cidade
+          [c.endereco, c.cidade, c.estado, 'Brasil'].filter(Boolean).join(', '),
+          // fallback 2: só cidade + estado (centro da cidade)
+          [c.cidade, c.estado, 'Brasil'].filter(Boolean).join(', '),
+        ].filter((a, i, arr) => a && arr.indexOf(a) === i);
+
+        for (const addr of tentativas) {
+          try {
+            const res = await geocoderRef.current.geocode({ address: addr, region: 'br' });
+            if (res.results[0]) {
+              const loc = res.results[0].geometry.location;
+              result.set(c.id, { lat: loc.lat(), lng: loc.lng() });
+              break;
+            }
+          } catch {
+            // tenta próximo fallback
           }
-        } catch {
-          // ignora individual
         }
-        await new Promise((r) => setTimeout(r, 60));
+        await new Promise((r) => setTimeout(r, 80));
       }
       setGeocoded(new Map(result));
       setGeocoding(false);
