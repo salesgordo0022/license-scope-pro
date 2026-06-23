@@ -228,20 +228,48 @@ export default function Rotas() {
 
   const usarMinhaLocalizacao = () => {
     if (!navigator.geolocation) {
-      toast.error('Geolocalização não disponível');
+      toast.error('Geolocalização não disponível neste navegador');
       return;
     }
+    if (!window.isSecureContext) {
+      toast.error('Geolocalização requer HTTPS. Abra o app publicado.');
+      return;
+    }
+    const loadingToast = toast.loading('Obtendo sua localização...');
     navigator.geolocation.getCurrentPosition(
       (pos) => {
+        toast.dismiss(loadingToast);
         setOrigem({ lat: pos.coords.latitude, lng: pos.coords.longitude });
-        toast.success('Localização capturada');
+        toast.success(`Localização capturada (±${Math.round(pos.coords.accuracy)}m)`);
         if (mapInstance.current) {
           mapInstance.current.setCenter({ lat: pos.coords.latitude, lng: pos.coords.longitude });
-          mapInstance.current.setZoom(12);
+          mapInstance.current.setZoom(13);
         }
       },
-      () => toast.error('Não foi possível obter sua localização'),
-      { enableHighAccuracy: true, timeout: 10000 }
+      (err) => {
+        toast.dismiss(loadingToast);
+        const msgs: Record<number, string> = {
+          1: 'Permissão negada. Libere a localização no ícone de cadeado da barra de endereço e recarregue.',
+          2: 'Localização indisponível. Verifique se o GPS/Wi-Fi está ativo.',
+          3: 'Tempo esgotado. Tentando modo de baixa precisão...',
+        };
+        toast.error(msgs[err.code] || `Erro (${err.code}): ${err.message}`);
+        if (err.code === 3 || err.code === 2) {
+          navigator.geolocation.getCurrentPosition(
+            (pos) => {
+              setOrigem({ lat: pos.coords.latitude, lng: pos.coords.longitude });
+              toast.success('Localização aproximada capturada');
+              if (mapInstance.current) {
+                mapInstance.current.setCenter({ lat: pos.coords.latitude, lng: pos.coords.longitude });
+                mapInstance.current.setZoom(12);
+              }
+            },
+            () => {},
+            { enableHighAccuracy: false, timeout: 25000, maximumAge: 300000 }
+          );
+        }
+      },
+      { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
     );
   };
 
