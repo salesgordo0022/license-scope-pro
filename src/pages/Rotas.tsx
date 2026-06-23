@@ -1,3 +1,4 @@
+/// <reference types="google.maps" />
 import { useEffect, useMemo, useRef, useState, useCallback } from 'react';
 import { MapPin, Loader2, Navigation, Search, X, Route as RouteIcon, Locate } from 'lucide-react';
 import { Button } from '@/components/ui/button';
