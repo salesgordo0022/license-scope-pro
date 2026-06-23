@@ -141,43 +141,47 @@ export default function Rotas() {
   const enderecoCompleto = (c: Cliente) =>
     [c.endereco, c.cidade, c.estado, 'Brasil'].filter(Boolean).join(', ');
 
-  // Geocodifica em lote (com throttle)
+  // Geocodifica em lote via edge function (Places API New — pesquisa por nome + endereço)
   const geocodeBatch = useCallback(
     async (lista: Cliente[]) => {
-      if (!geocoderRef.current) return new Map<string, { lat: number; lng: number }>();
       const result = new Map(geocoded);
       const pendentes = lista.filter((c) => !result.has(c.id));
       if (pendentes.length === 0) return result;
       setGeocoding(true);
-      for (const c of pendentes) {
-        const tentativas = [
-          enderecoCompleto(c),
-          // fallback 1: só rua + cidade
-          [c.endereco, c.cidade, c.estado, 'Brasil'].filter(Boolean).join(', '),
-          // fallback 2: só cidade + estado (centro da cidade)
-          [c.cidade, c.estado, 'Brasil'].filter(Boolean).join(', '),
-        ].filter((a, i, arr) => a && arr.indexOf(a) === i);
-
-        for (const addr of tentativas) {
-          try {
-            const res = await geocoderRef.current.geocode({ address: addr, region: 'br' });
-            if (res.results[0]) {
-              const loc = res.results[0].geometry.location;
-              result.set(c.id, { lat: loc.lat(), lng: loc.lng() });
-              break;
+      try {
+        // processa em chunks de 25
+        for (let i = 0; i < pendentes.length; i += 25) {
+          const chunk = pendentes.slice(i, i + 25).map((c) => ({
+            id: c.id,
+            nome: c.nome_empresa,
+            endereco: c.endereco ?? undefined,
+            cidade: c.cidade ?? undefined,
+            estado: c.estado ?? undefined,
+          }));
+          const { data, error } = await supabase.functions.invoke('geocode-clientes', {
+            body: { items: chunk },
+          });
+          if (error) {
+            console.error('geocode error', error);
+            continue;
+          }
+          if (data?.success && Array.isArray(data.results)) {
+            for (const r of data.results) {
+              if (r.lat != null && r.lng != null) {
+                result.set(r.id, { lat: r.lat, lng: r.lng });
+              }
             }
-          } catch {
-            // tenta próximo fallback
           }
         }
-        await new Promise((r) => setTimeout(r, 80));
+      } finally {
+        setGeocoded(new Map(result));
+        setGeocoding(false);
       }
-      setGeocoded(new Map(result));
-      setGeocoding(false);
       return result;
     },
     [geocoded]
   );
+
 
   // Quando lista filtrada mudar, geocodifica e desenha marcadores
   useEffect(() => {
