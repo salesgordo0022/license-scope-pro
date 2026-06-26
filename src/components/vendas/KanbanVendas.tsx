@@ -710,6 +710,14 @@ export default function KanbanVendas() {
           </form>
         </DialogContent>
       </Dialog>
+
+      <DetalhesVendaDialog
+        open={detailsOpen}
+        onOpenChange={setDetailsOpen}
+        revendaId={detailsItem?.id ?? null}
+        clienteNome={detailsItem?.cliente?.nome_empresa}
+        onSaved={fetchAll}
+      />
     </div>
   );
 }
