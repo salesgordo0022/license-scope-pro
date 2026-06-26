@@ -21,6 +21,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
+import DetalhesVendaDialog from './DetalhesVendaDialog';
 
 type Revenda = {
   id: string;
@@ -95,6 +96,8 @@ export default function KanbanVendas() {
   const [editing, setEditing] = useState<Revenda | null>(null);
   const [draggedId, setDraggedId] = useState<string | null>(null);
   const [dragOverCol, setDragOverCol] = useState<string | null>(null);
+  const [detailsOpen, setDetailsOpen] = useState(false);
+  const [detailsItem, setDetailsItem] = useState<Revenda | null>(null);
 
   // Pipeline dialog
   const [pipelineDialogOpen, setPipelineDialogOpen] = useState(false);
@@ -435,7 +438,10 @@ export default function KanbanVendas() {
                           onDragEnd={handleDragEnd}
                           className="cursor-grab active:cursor-grabbing"
                         >
-                          <Card className="group border-border/60 hover:border-primary/30 hover:shadow-md transition-all">
+                          <Card
+                            onDoubleClick={() => { setDetailsItem(item); setDetailsOpen(true); }}
+                            className="group border-border/60 hover:border-primary/30 hover:shadow-md transition-all"
+                          >
                             <CardContent className="p-3 space-y-2">
                               <div className="flex items-start justify-between gap-1">
                                 <div className="flex items-center gap-1.5 min-w-0">
@@ -704,6 +710,14 @@ export default function KanbanVendas() {
           </form>
         </DialogContent>
       </Dialog>
+
+      <DetalhesVendaDialog
+        open={detailsOpen}
+        onOpenChange={setDetailsOpen}
+        revendaId={detailsItem?.id ?? null}
+        clienteNome={detailsItem?.cliente?.nome_empresa}
+        onSaved={fetchData}
+      />
     </div>
   );
 }
