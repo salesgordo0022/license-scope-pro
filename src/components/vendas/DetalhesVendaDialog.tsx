@@ -58,14 +58,17 @@ export default function DetalhesVendaDialog({ open, onOpenChange, revendaId, cli
     (async () => {
       setLoading(true);
       try {
-        const [{ data: profile }, { data: rv }] = await Promise.all([
-          supabase.from('usuario_perfil').select('nome,email').maybeSingle(),
-          supabase.from('revendas').select('anotacoes,valores_detalhados').eq('id', revendaId).maybeSingle(),
-        ]);
-        setAutorNome(profile?.nome || profile?.email || '');
+        const { data: rv, error } = await supabase
+          .from('revendas')
+          .select('anotacoes,valores_detalhados')
+          .eq('id', revendaId)
+          .maybeSingle();
+        if (error) throw error;
         const r = rv as any;
         setAnotacoes(Array.isArray(r?.anotacoes) ? r.anotacoes : []);
         setValores((r?.valores_detalhados && typeof r.valores_detalhados === 'object') ? r.valores_detalhados : {});
+        const { data: auth } = await supabase.auth.getUser();
+        setAutorNome(auth?.user?.email || '');
       } catch (e: any) {
         toast.error(e.message || 'Erro ao carregar detalhes');
       } finally {
