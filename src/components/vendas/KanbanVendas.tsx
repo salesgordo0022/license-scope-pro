@@ -438,7 +438,10 @@ export default function KanbanVendas() {
                           onDragEnd={handleDragEnd}
                           className="cursor-grab active:cursor-grabbing"
                         >
-                          <Card className="group border-border/60 hover:border-primary/30 hover:shadow-md transition-all">
+                          <Card
+                            onDoubleClick={() => { setDetailsItem(item); setDetailsOpen(true); }}
+                            className="group border-border/60 hover:border-primary/30 hover:shadow-md transition-all"
+                          >
                             <CardContent className="p-3 space-y-2">
                               <div className="flex items-start justify-between gap-1">
                                 <div className="flex items-center gap-1.5 min-w-0">
