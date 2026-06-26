@@ -716,7 +716,7 @@ export default function KanbanVendas() {
         onOpenChange={setDetailsOpen}
         revendaId={detailsItem?.id ?? null}
         clienteNome={detailsItem?.cliente?.nome_empresa}
-        onSaved={fetchAll}
+        onSaved={fetchData}
       />
     </div>
   );
