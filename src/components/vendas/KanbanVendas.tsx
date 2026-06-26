@@ -96,6 +96,8 @@ export default function KanbanVendas() {
   const [editing, setEditing] = useState<Revenda | null>(null);
   const [draggedId, setDraggedId] = useState<string | null>(null);
   const [dragOverCol, setDragOverCol] = useState<string | null>(null);
+  const [detailsOpen, setDetailsOpen] = useState(false);
+  const [detailsItem, setDetailsItem] = useState<Revenda | null>(null);
 
   // Pipeline dialog
   const [pipelineDialogOpen, setPipelineDialogOpen] = useState(false);
