@@ -991,6 +991,7 @@ export type Database = {
       }
       revendas: {
         Row: {
+          anotacoes: Json
           cliente_id: string
           created_at: string | null
           data_proxima_acao: string | null
@@ -1007,8 +1008,10 @@ export type Database = {
           tags: string[] | null
           temperatura: string | null
           valor_estimado: number | null
+          valores_detalhados: Json
         }
         Insert: {
+          anotacoes?: Json
           cliente_id: string
           created_at?: string | null
           data_proxima_acao?: string | null
@@ -1025,8 +1028,10 @@ export type Database = {
           tags?: string[] | null
           temperatura?: string | null
           valor_estimado?: number | null
+          valores_detalhados?: Json
         }
         Update: {
+          anotacoes?: Json
           cliente_id?: string
           created_at?: string | null
           data_proxima_acao?: string | null
@@ -1043,6 +1048,7 @@ export type Database = {
           tags?: string[] | null
           temperatura?: string | null
           valor_estimado?: number | null
+          valores_detalhados?: Json
         }
         Relationships: [
           {
