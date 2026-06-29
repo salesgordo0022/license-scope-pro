@@ -140,9 +140,16 @@ export default function ProspeccaoEmpresas() {
     const carregarMunicipios = async () => {
       try {
         const res = await fetch(`https://servicodados.ibge.gov.br/api/v1/localidades/estados/${uf}/municipios?orderBy=nome`);
+        if (!res.ok) throw new Error(`IBGE retornou ${res.status}`);
         const data = await res.json();
-        setMunicipios(data.map((m: any) => ({ id: m.id, nome: m.nome })));
-      } catch {
+        const lista = Array.isArray(data)
+          ? data
+              .filter((m: any) => m && m.id != null && typeof m.nome === 'string' && m.nome.trim() !== '')
+              .map((m: any) => ({ id: m.id, nome: m.nome }))
+          : [];
+        setMunicipios(lista);
+      } catch (e: any) {
+        console.error('[Prospecção] erro IBGE:', e);
         toast.error('Erro ao carregar municípios do IBGE');
         setMunicipios([]);
       }
