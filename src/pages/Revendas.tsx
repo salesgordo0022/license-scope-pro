@@ -4,6 +4,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import MetasVendas from '@/components/vendas/MetasVendas';
 import KanbanVendas from '@/components/vendas/KanbanVendas';
 import ProspeccaoEmpresas from '@/components/vendas/ProspeccaoEmpresas';
+import { ErrorBoundary } from '@/components/ErrorBoundary';
 
 export default function Revendas() {
   return (
@@ -31,15 +32,21 @@ export default function Revendas() {
         </TabsList>
 
         <TabsContent value="kanban">
-          <KanbanVendas />
+          <ErrorBoundary>
+            <KanbanVendas />
+          </ErrorBoundary>
         </TabsContent>
 
         <TabsContent value="prospeccao">
-          <ProspeccaoEmpresas />
+          <ErrorBoundary>
+            <ProspeccaoEmpresas />
+          </ErrorBoundary>
         </TabsContent>
 
         <TabsContent value="metas">
-          <MetasVendas />
+          <ErrorBoundary>
+            <MetasVendas />
+          </ErrorBoundary>
         </TabsContent>
       </Tabs>
     </div>
