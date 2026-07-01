@@ -60,23 +60,62 @@ interface Municipio {
   nome: string;
 }
 
+const STORAGE_KEY = 'prospeccao:estado:v1';
+
+type PersistedState = {
+  uf: string;
+  municipio: string;
+  dataInicio: string;
+  dataFim: string;
+  regimeTributario: string;
+  empresas: Empresa[];
+  buscou: boolean;
+  adicionados: string[];
+  savedAt: number;
+};
+
+function loadPersisted(): Partial<PersistedState> {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return {};
+    return JSON.parse(raw) as PersistedState;
+  } catch {
+    return {};
+  }
+}
+
 export default function ProspeccaoEmpresas() {
-  const [uf, setUf] = useState('');
-  const [municipio, setMunicipio] = useState('');
+  const persisted = loadPersisted();
+  const [uf, setUf] = useState(persisted.uf || '');
+  const [municipio, setMunicipio] = useState(persisted.municipio || '');
   const [municipios, setMunicipios] = useState<Municipio[]>([]);
   const [dataInicio, setDataInicio] = useState(() => {
+    if (persisted.dataInicio) return persisted.dataInicio;
     const d = new Date();
     d.setDate(1);
     return d.toISOString().split('T')[0];
   });
-  const [dataFim, setDataFim] = useState(() => new Date().toISOString().split('T')[0]);
-  const [regimeTributario, setRegimeTributario] = useState<string>('todos');
-  const [empresas, setEmpresas] = useState<Empresa[]>([]);
+  const [dataFim, setDataFim] = useState(() => persisted.dataFim || new Date().toISOString().split('T')[0]);
+  const [regimeTributario, setRegimeTributario] = useState<string>(persisted.regimeTributario || 'todos');
+  const [empresas, setEmpresas] = useState<Empresa[]>(persisted.empresas || []);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  const [buscou, setBuscou] = useState(false);
+  const [buscou, setBuscou] = useState(persisted.buscou || false);
   const [adicionando, setAdicionando] = useState<string | null>(null);
-  const [adicionados, setAdicionados] = useState<Set<string>>(new Set());
+  const [adicionados, setAdicionados] = useState<Set<string>>(new Set(persisted.adicionados || []));
+
+  // Persistir estado sempre que mudar
+  useEffect(() => {
+    try {
+      const payload: PersistedState = {
+        uf, municipio, dataInicio, dataFim, regimeTributario,
+        empresas, buscou, adicionados: Array.from(adicionados),
+        savedAt: Date.now(),
+      };
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(payload));
+    } catch {}
+  }, [uf, municipio, dataInicio, dataFim, regimeTributario, empresas, buscou, adicionados]);
+
 
   const adicionarCliente = useCallback(async (emp: Empresa) => {
     setAdicionando(emp.cnpj);
