@@ -383,7 +383,19 @@ export default function ProspeccaoEmpresas() {
         </CardContent>
       </Card>
 
-      {/* Resultados */}
+      {/* Barra de ações + Resultados */}
+      {buscou && empresas.length > 0 && (
+        <div className="flex items-center justify-between gap-3">
+          <p className="text-sm text-muted-foreground">
+            {empresas.length} empresa{empresas.length > 1 ? 's' : ''} encontrada{empresas.length > 1 ? 's' : ''}
+          </p>
+          <Button size="sm" variant="outline" onClick={exportarPlanilha}>
+            <Download className="h-4 w-4 mr-2" />
+            Exportar planilha (.xlsx)
+          </Button>
+        </div>
+      )}
+
       {buscou && empresas.length > 0 && (
         <motion.div
           initial={{ opacity: 0 }}
