@@ -273,8 +273,8 @@ export default function ProspeccaoEmpresas() {
                 </SelectTrigger>
                 <SelectContent className="max-h-72">
                   {municipios.map((m) => (
-                    <SelectItem key={m.id} value={m.nome}>
-                      {m.nome}
+                    <SelectItem key={m.id} value={m.nome} translate="no">
+                      <span translate="no" className="notranslate">{m.nome}</span>
                     </SelectItem>
                   ))}
                 </SelectContent>
