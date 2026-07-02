@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { motion } from 'framer-motion';
-import { Search, MapPin, Building2, Phone, Mail, Calendar, Loader2, AlertCircle, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Search, MapPin, Building2, Phone, Mail, Calendar, Loader2, AlertCircle, ChevronLeft, ChevronRight, Download } from 'lucide-react';
+import * as XLSX from 'xlsx';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -197,6 +198,47 @@ export default function ProspeccaoEmpresas() {
     carregarMunicipios();
   }, [uf]);
 
+  const exportarPlanilha = useCallback(() => {
+    if (empresas.length === 0) {
+      toast.error('Nenhuma empresa para exportar');
+      return;
+    }
+    const linhas = empresas.map((e) => ({
+      'CNPJ': e.cnpj,
+      'Razão Social': e.razaoSocial,
+      'Nome Fantasia': e.nomeFantasia,
+      'Atividade Principal': e.atividadePrincipal,
+      'Natureza Jurídica': e.naturezaJuridica,
+      'Situação': e.situacaoCadastral,
+      'Data de Abertura': e.dataAbertura,
+      'Logradouro': e.endereco.logradouro,
+      'Número': e.endereco.numero,
+      'Complemento': e.endereco.complemento,
+      'Bairro': e.endereco.bairro,
+      'Cidade': e.endereco.cidade,
+      'UF': e.endereco.uf,
+      'CEP': e.endereco.cep,
+      'Telefone': e.telefone,
+      'E-mail': e.email,
+      'Capital Social': e.capitalSocial,
+      'Porte': e.porte,
+      'Regime Tributário': e.regimeTributario || '',
+      'Já adicionado': adicionados.has(e.cnpj) ? 'Sim' : 'Não',
+    }));
+    const ws = XLSX.utils.json_to_sheet(linhas);
+    // largura automática por coluna
+    const cols = Object.keys(linhas[0]).map((k) => ({
+      wch: Math.min(40, Math.max(k.length + 2, ...linhas.map((r) => String((r as any)[k] ?? '').length + 2))),
+    }));
+    (ws as any)['!cols'] = cols;
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Prospecção');
+    const nome = `prospeccao_${uf || 'UF'}_${(municipio || 'municipio').replace(/\s+/g, '-')}_${new Date().toISOString().slice(0, 10)}.xlsx`;
+    XLSX.writeFile(wb, nome);
+    toast.success(`Planilha exportada (${empresas.length} empresas)`);
+  }, [empresas, uf, municipio, adicionados]);
+
+
   const buscar = useCallback(async () => {
     if (!uf || !municipio || !dataInicio || !dataFim) {
       toast.error('Preencha UF, Município e período');
@@ -341,7 +383,19 @@ export default function ProspeccaoEmpresas() {
         </CardContent>
       </Card>
 
-      {/* Resultados */}
+      {/* Barra de ações + Resultados */}
+      {buscou && empresas.length > 0 && (
+        <div className="flex items-center justify-between gap-3">
+          <p className="text-sm text-muted-foreground">
+            {empresas.length} empresa{empresas.length > 1 ? 's' : ''} encontrada{empresas.length > 1 ? 's' : ''}
+          </p>
+          <Button size="sm" variant="outline" onClick={exportarPlanilha}>
+            <Download className="h-4 w-4 mr-2" />
+            Exportar planilha (.xlsx)
+          </Button>
+        </div>
+      )}
+
       {buscou && empresas.length > 0 && (
         <motion.div
           initial={{ opacity: 0 }}
