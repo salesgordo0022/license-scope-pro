@@ -82,90 +82,45 @@ Deno.serve(async (req) => {
 
     const numero = telefone.startsWith("55") ? telefone : `55${telefone}`;
 
-    // Se houver mídia, baixa o arquivo e tenta enviar como documento (PDF/etc.)
+    // Se houver mídia, envia como documento via POST /api/send/document/{to} (JSON com URL pública)
     let resp: Response;
     let usedMedia = false;
-    let mediaDebug: Array<{ endpoint: string; status: number; body: string }> = [];
+    const mediaDebug: Array<{ endpoint: string; status: number; body: string }> = [];
     if (media_url) {
-      try {
-        const fileResp = await fetch(media_url);
-        if (!fileResp.ok) {
-          throw new Error(`Falha ao baixar mídia [${fileResp.status}]`);
-        }
-        const contentType = fileResp.headers.get("content-type") || "application/pdf";
-        const buf = new Uint8Array(await fileResp.arrayBuffer());
-        let binary = "";
-        const chunk = 0x8000;
-        for (let i = 0; i < buf.length; i += chunk) {
-          binary += String.fromCharCode.apply(null, Array.from(buf.subarray(i, i + chunk)));
-        }
-        const base64 = btoa(binary);
-        const dataUrl = `data:${contentType};base64,${base64}`;
-        const filename = media_filename || "documento.pdf";
+      // Detecta o tipo (document | image | video | audio) pela extensão/URL
+      const lowerUrl = media_url.toLowerCase();
+      let mediaType = "document";
+      if (/\.(png|jpe?g|gif|webp|bmp)(\?|$)/.test(lowerUrl)) mediaType = "image";
+      else if (/\.(mp4|mov|webm|mkv)(\?|$)/.test(lowerUrl)) mediaType = "video";
+      else if (/\.(mp3|ogg|wav|m4a|aac)(\?|$)/.test(lowerUrl)) mediaType = "audio";
 
-        // Endpoint/payload variants — try until one succeeds with a real WhatsApp payload
-        const attempts: Array<{ url: string; body: Record<string, unknown> }> = [
-          {
-            url: `https://api-imperial.zapcontabil.chat/api/send-document/${numero}`,
-            body: { base64: dataUrl, filename, caption: mensagem, mimetype: contentType, connectionFrom: 0 },
-          },
-          {
-            url: `https://api-imperial.zapcontabil.chat/api/send-file/${numero}`,
-            body: { base64: dataUrl, filename, caption: mensagem, mimetype: contentType, connectionFrom: 0 },
-          },
-          {
-            url: `https://api-imperial.zapcontabil.chat/api/send-pdf/${numero}`,
-            body: { base64: dataUrl, filename, caption: mensagem, connectionFrom: 0 },
-          },
-          {
-            url: `https://api-imperial.zapcontabil.chat/api/send-media/${numero}`,
-            body: { base64: dataUrl, filename, caption: mensagem, mimetype: contentType, connectionFrom: 0 },
-          },
-        ];
+      const endpoint = `https://api-imperial.zapcontabil.chat/api/send/${mediaType}/${numero}`;
+      const payload: Record<string, unknown> = {
+        url: media_url,
+        caption: mensagem,
+        connectionFrom: 0,
+      };
+      if (media_filename) payload.filename = media_filename;
 
-        let mediaOk = false;
-        resp = new Response("no_attempt", { status: 500 });
-        for (const att of attempts) {
-          const r = await fetch(att.url, {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              "accept": "application/json",
-              "Authorization": `Bearer ${ZAPCONTABIL_API_TOKEN}`,
-            },
-            body: JSON.stringify(att.body),
-          });
-          const bodyText = await r.clone().text().catch(() => "");
-          mediaDebug.push({ endpoint: att.url, status: r.status, body: bodyText.slice(0, 300) });
-          console.log(`[send-whatsapp] ${att.url} -> ${r.status} :: ${bodyText.slice(0, 200)}`);
-          if (r.ok) {
-            // Considera sucesso só se o body NÃO indicar erro explícito
-            const lower = bodyText.toLowerCase();
-            const looksError = lower.includes('"error"') || lower.includes('"erro"') || lower.includes('not found') || lower.includes('cannot') || lower.includes('invalid');
-            if (!looksError) {
-              resp = r;
-              mediaOk = true;
-              usedMedia = true;
-              break;
-            }
-          }
-        }
+      resp = await fetch(endpoint, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "accept": "application/json",
+          "Authorization": `Bearer ${ZAPCONTABIL_API_TOKEN}`,
+        },
+        body: JSON.stringify(payload),
+      });
 
-        if (!mediaOk) {
-          console.error("[send-whatsapp] todos endpoints de mídia falharam, fallback texto", JSON.stringify(mediaDebug));
-          const mensagemComLink = `${mensagem}\n\n${media_url}`;
-          resp = await fetch(`https://api-imperial.zapcontabil.chat/api/send/${numero}`, {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              "accept": "application/json",
-              "Authorization": `Bearer ${ZAPCONTABIL_API_TOKEN}`,
-            },
-            body: JSON.stringify({ body: mensagemComLink, connectionFrom: 0 }),
-          });
-        }
-      } catch (mediaErr) {
-        console.error("Erro ao preparar mídia:", mediaErr);
+      const debugText = await resp.clone().text().catch(() => "");
+      mediaDebug.push({ endpoint, status: resp.status, body: debugText.slice(0, 300) });
+      console.log(`[send-whatsapp] ${endpoint} -> ${resp.status} :: ${debugText.slice(0, 300)}`);
+
+      if (resp.ok) {
+        usedMedia = true;
+      } else {
+        // Fallback: envia texto com o link caso o endpoint de mídia falhe
+        console.error("[send-whatsapp] envio de mídia falhou, fallback texto", JSON.stringify(mediaDebug));
         const mensagemComLink = `${mensagem}\n\n${media_url}`;
         resp = await fetch(`https://api-imperial.zapcontabil.chat/api/send/${numero}`, {
           method: "POST",
