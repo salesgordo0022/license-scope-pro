@@ -16,6 +16,18 @@ interface SendBody {
 
 const onlyDigits = (s: string) => (s || "").replace(/\D/g, "");
 
+// Traduz códigos de erro conhecidos da API do WhatsApp/ZapContábil para uma
+// mensagem que ajuda a diagnosticar o problema sem precisar ler o JSON cru.
+function friendlyZapError(rawBody: string): string | null {
+  if (rawBody.includes("ERR_WAPP_INVALID_CONTACT")) {
+    return "Número de WhatsApp inválido — confira o DDD/telefone do cliente (o número pode estar incompleto, sem WhatsApp ou com o código do país duplicado).";
+  }
+  if (rawBody.includes("ERR_WAPP_NOT_INITIALIZED") || rawBody.includes("NOT_CONNECTED")) {
+    return "A conexão do WhatsApp (ZapContábil) está desconectada — reconecte o QR Code no painel do ZapContábil.";
+  }
+  return null;
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
@@ -80,11 +92,26 @@ Deno.serve(async (req) => {
       .eq("user_id", userData.user.id)
       .maybeSingle();
 
-    const numero = telefone.startsWith("55") ? telefone : `55${telefone}`;
+    // Números nacionais no Brasil têm 10 (fixo) ou 11 (celular, com o 9º dígito)
+    // dígitos de DDD+número. Prefixados com o código do país (55) viram 12/13
+    // dígitos. Usar telefone.startsWith("55") pra decidir se o código do país já
+    // está presente é um bug: DDDs que começam com 5 (51, 53, 54, 55 — todos no
+    // Rio Grande do Sul) colidem com esse prefixo, então um número de DDD 55
+    // (ex: 55991234567) era enviado sem o código do país e a API rejeitava com
+    // ERR_WAPP_INVALID_CONTACT.
+    const numero =
+      telefone.length === 12 || telefone.length === 13
+        ? telefone
+        : telefone.length === 10 || telefone.length === 11
+          ? `55${telefone}`
+          : telefone.startsWith("55")
+            ? telefone
+            : `55${telefone}`;
 
     // Se houver mídia, envia como documento via POST /api/send/document/{to} (JSON com URL pública)
     let resp: Response;
     let usedMedia = false;
+    let docFalhouMotivo: string | null = null;
     const mediaDebug: Array<{ endpoint: string; status: number; body: string }> = [];
     if (media_url) {
       // Detecta o tipo (document | image | video | audio) pela extensão/URL
@@ -94,13 +121,18 @@ Deno.serve(async (req) => {
       else if (/\.(mp4|mov|webm|mkv)(\?|$)/.test(lowerUrl)) mediaType = "video";
       else if (/\.(mp3|ogg|wav|m4a|aac)(\?|$)/.test(lowerUrl)) mediaType = "audio";
 
+      // Nome de arquivo sempre presente: alguns gateways rejeitam/ignoram o
+      // anexo quando "filename" vem vazio e caem para texto puro sem avisar.
+      const filenameFallback = mediaType === "document" ? "documento.pdf" : `arquivo.${mediaType}`;
+      const filename = media_filename || filenameFallback;
+
       const endpoint = `https://api-imperial.zapcontabil.chat/api/send/${mediaType}/${numero}`;
       const payload: Record<string, unknown> = {
         url: media_url,
         caption: mensagem,
+        filename,
         connectionFrom: 0,
       };
-      if (media_filename) payload.filename = media_filename;
 
       resp = await fetch(endpoint, {
         method: "POST",
@@ -119,7 +151,9 @@ Deno.serve(async (req) => {
       if (resp.ok) {
         usedMedia = true;
       } else {
-        // Fallback: envia texto com o link caso o endpoint de mídia falhe
+        // Fallback: envia texto com o link caso o endpoint de mídia falhe.
+        // Isso é reportado explicitamente ao usuário (não é mais um "sucesso" silencioso).
+        docFalhouMotivo = `Falha ao enviar documento [${resp.status}]: ${debugText.slice(0, 300)}`;
         console.error("[send-whatsapp] envio de mídia falhou, fallback texto", JSON.stringify(mediaDebug));
         const mensagemComLink = `${mensagem}\n\n${media_url}`;
         resp = await fetch(`https://api-imperial.zapcontabil.chat/api/send/${numero}`, {
@@ -151,7 +185,15 @@ Deno.serve(async (req) => {
     try { respJson = JSON.parse(respText); } catch { respJson = respText; }
 
     const sucesso = resp.ok;
-    const erroMsg = sucesso ? null : `Falha ZapContábil [${resp.status}]: ${respText.slice(0, 500)}`;
+    const docFalhou = !!media_url && !usedMedia;
+    // Status honesto: se o documento caiu para o fallback de texto, isso NÃO é
+    // um envio "enviado" comum — precisa ficar visível no histórico.
+    const status = !sucesso ? "erro" : docFalhou ? "enviado_sem_anexo" : "enviado";
+    const erroMsg = !sucesso
+      ? `Falha ZapContábil [${resp.status}]: ${friendlyZapError(respText) ?? respText.slice(0, 500)}`
+      : docFalhou
+        ? `Aviso: ${friendlyZapError(docFalhouMotivo ?? "") ?? docFalhouMotivo}`
+        : null;
 
     // Registra histórico
     try {
@@ -162,7 +204,7 @@ Deno.serve(async (req) => {
         tipo,
         telefone: numero,
         mensagem,
-        status: sucesso ? "enviado" : "erro",
+        status,
         erro: erroMsg,
       });
     } catch (logErr) {
@@ -178,7 +220,14 @@ Deno.serve(async (req) => {
     }
 
     return new Response(
-      JSON.stringify({ success: true, data: respJson, usedMedia, mediaDebug }),
+      JSON.stringify({
+        success: true,
+        data: respJson,
+        usedMedia,
+        docFalhou,
+        warning: docFalhou ? (friendlyZapError(docFalhouMotivo ?? "") ?? docFalhouMotivo) : null,
+        mediaDebug,
+      }),
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
 

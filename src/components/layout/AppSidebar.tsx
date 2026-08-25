@@ -16,6 +16,7 @@ import {
   UserCog,
   MessageSquare,
   Map as MapIcon,
+  FolderOpen,
 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { cn } from '@/lib/utils';
@@ -34,6 +35,7 @@ const navigation = [
   { name: 'Revendas', href: '/revendas', icon: ShoppingCart },
   { name: 'Rotas & GPS', href: '/rotas', icon: MapIcon },
   { name: 'Mensagens', href: '/mensagens', icon: MessageSquare },
+  { name: 'Pasta de Boletos', href: '/pasta-boletos', icon: FolderOpen },
   { name: 'Usuários', href: '/usuarios', icon: UserCog },
 ];
 

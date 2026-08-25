@@ -162,9 +162,13 @@ export default function Mensagens() {
 
       const ext = file.name.split(".").pop() || "pdf";
       const path = `${perfil.empresa_id}/boleto-${Date.now()}.${ext}`;
+      // Alguns navegadores/SOs não preenchem file.type para PDFs — sem um
+      // Content-Type correto no Storage, o gateway do WhatsApp pode rejeitar
+      // o anexo e o sistema cai silenciosamente para texto puro.
+      const contentType = file.type || (ext.toLowerCase() === "pdf" ? "application/pdf" : "application/octet-stream");
       const { error: upErr } = await supabase.storage
         .from("boletos")
-        .upload(path, file, { upsert: true, contentType: file.type });
+        .upload(path, file, { upsert: true, contentType });
       if (upErr) throw upErr;
       // Bucket is private — generate a signed URL (valid 30 days) to share via WhatsApp
       const { data: signed, error: signErr } = await supabase.storage
@@ -216,9 +220,13 @@ export default function Mensagens() {
         media_filename: arquivoNome || undefined,
       },
     });
-    if (error) return { ok: false, msg: error.message };
-    const res = data as { success: boolean; error?: string };
-    return { ok: !!res?.success, msg: res?.error };
+    if (error) return { ok: false, docOk: false, msg: error.message };
+    const res = data as { success: boolean; error?: string; usedMedia?: boolean; docFalhou?: boolean; warning?: string | null };
+    if (!res?.success) return { ok: false, docOk: false, msg: res?.error };
+    // Se um anexo foi solicitado mas o gateway caiu para o fallback de texto,
+    // o envio "funcionou" mas o documento NÃO chegou — isso precisa ser visível.
+    const docOk = !arquivoUrl || !!res.usedMedia;
+    return { ok: true, docOk, msg: res.warning || undefined };
   }
 
   async function enviar() {
@@ -249,9 +257,16 @@ export default function Mensagens() {
           },
         });
         if (error) throw error;
-        const res = data as { success: boolean; error?: string };
-        if (!res.success) toast.error(res.error || "Falha ao enviar");
-        else {
+        const res = data as { success: boolean; error?: string; usedMedia?: boolean; docFalhou?: boolean; warning?: string | null };
+        if (!res.success) {
+          toast.error(res.error || "Falha ao enviar");
+        } else if (arquivoUrl && !res.usedMedia) {
+          toast.warning("Mensagem enviada, mas o DOCUMENTO falhou — apenas o texto chegou ao cliente.", {
+            description: res.warning || undefined,
+            duration: 8000,
+          });
+          carregarHistorico();
+        } else {
           toast.success("Mensagem enviada!");
           carregarHistorico();
         }
@@ -265,14 +280,23 @@ export default function Mensagens() {
           toast.error("Nenhum cliente selecionado tem telefone");
           return;
         }
-        let ok = 0;
+        let okComDoc = 0;
+        let okSemDoc = 0;
         let fail = 0;
         for (const c of alvos) {
           const r = await enviarUm(c);
-          if (r.ok) ok++;
-          else fail++;
+          if (!r.ok) fail++;
+          else if (!r.docOk) okSemDoc++;
+          else okComDoc++;
         }
-        toast.success(`Envios concluídos: ${ok} ok, ${fail} falhas`);
+        if (okSemDoc > 0) {
+          toast.warning(
+            `Envios concluídos: ${okComDoc + okSemDoc} ok (${okSemDoc} SEM o documento), ${fail} falhas`,
+            { duration: 8000 }
+          );
+        } else {
+          toast.success(`Envios concluídos: ${okComDoc} ok, ${fail} falhas`);
+        }
         carregarHistorico();
       }
     } catch (e) {
@@ -568,8 +592,16 @@ export default function Mensagens() {
                       <div className="mb-2 flex items-center justify-between">
                         <div className="flex items-center gap-2">
                           <Badge variant="outline">{h.tipo}</Badge>
-                          <Badge variant={h.status === "enviado" ? "default" : "destructive"}>
-                            {h.status}
+                          <Badge
+                            variant={
+                              h.status === "enviado"
+                                ? "default"
+                                : h.status === "enviado_sem_anexo"
+                                  ? "outline"
+                                  : "destructive"
+                            }
+                          >
+                            {h.status === "enviado_sem_anexo" ? "enviado sem anexo" : h.status}
                           </Badge>
                           <span className="text-sm font-medium">
                             {nomeCliente(h.cliente_id)}

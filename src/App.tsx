@@ -17,6 +17,7 @@ import Implantacoes from "./pages/Implantacoes";
 import Contratos from "./pages/Contratos";
 import Usuarios from "./pages/Usuarios";
 import Mensagens from "./pages/Mensagens";
+import PastaBoletos from "./pages/PastaBoletos";
 import Rotas from "./pages/Rotas";
 import NotFound from "./pages/NotFound";
 
@@ -44,6 +45,7 @@ const App = () => (
               <Route path="/revendas" element={<Revendas />} />
               <Route path="/usuarios" element={<Usuarios />} />
               <Route path="/mensagens" element={<Mensagens />} />
+              <Route path="/pasta-boletos" element={<PastaBoletos />} />
               <Route path="/rotas" element={<Rotas />} />
             </Route>
             <Route path="*" element={<NotFound />} />
