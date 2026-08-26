@@ -108,64 +108,27 @@ Deno.serve(async (req) => {
             ? telefone
             : `55${telefone}`;
 
-    // Se houver mídia, envia como documento via POST /api/send/document/{to} (JSON com URL pública)
+    // Documentos são enviados como link clicável. Isso evita a incompatibilidade
+    // do endpoint de mídia do provedor e permite que o cliente abra/baixe o PDF.
     let resp: Response;
     let usedMedia = false;
-    let docFalhouMotivo: string | null = null;
-    const mediaDebug: Array<{ endpoint: string; status: number; body: string }> = [];
+    let documentByLink = false;
+    let mensagemEnviada = mensagem;
     if (media_url) {
-      // Detecta o tipo (document | image | video | audio) pela extensão/URL
-      const lowerUrl = media_url.toLowerCase();
-      let mediaType = "document";
-      if (/\.(png|jpe?g|gif|webp|bmp)(\?|$)/.test(lowerUrl)) mediaType = "image";
-      else if (/\.(mp4|mov|webm|mkv)(\?|$)/.test(lowerUrl)) mediaType = "video";
-      else if (/\.(mp3|ogg|wav|m4a|aac)(\?|$)/.test(lowerUrl)) mediaType = "audio";
-
-      // Nome de arquivo sempre presente: alguns gateways rejeitam/ignoram o
-      // anexo quando "filename" vem vazio e caem para texto puro sem avisar.
-      const filenameFallback = mediaType === "document" ? "documento.pdf" : `arquivo.${mediaType}`;
-      const filename = media_filename || filenameFallback;
-
-      const endpoint = `https://api-imperial.zapcontabil.chat/api/send/${mediaType}/${numero}`;
-      const payload: Record<string, unknown> = {
-        url: media_url,
-        caption: mensagem,
-        filename,
-        connectionFrom: 0,
-      };
-
-      resp = await fetch(endpoint, {
+      const nomeDocumento = media_filename || (tipo === "boleto" ? "boleto.pdf" : "documento.pdf");
+      if (!mensagem.includes(media_url)) {
+        mensagemEnviada = `${mensagem}\n\n📄 ${nomeDocumento}\nBaixar documento: ${media_url}`;
+      }
+      documentByLink = true;
+      resp = await fetch(`https://api-imperial.zapcontabil.chat/api/send/${numero}`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           "accept": "application/json",
           "Authorization": `Bearer ${ZAPCONTABIL_API_TOKEN}`,
         },
-        body: JSON.stringify(payload),
+        body: JSON.stringify({ body: mensagemEnviada, connectionFrom: 0 }),
       });
-
-      const debugText = await resp.clone().text().catch(() => "");
-      mediaDebug.push({ endpoint, status: resp.status, body: debugText.slice(0, 300) });
-      console.log(`[send-whatsapp] ${endpoint} -> ${resp.status} :: ${debugText.slice(0, 300)}`);
-
-      if (resp.ok) {
-        usedMedia = true;
-      } else {
-        // Fallback: envia texto com o link caso o endpoint de mídia falhe.
-        // Isso é reportado explicitamente ao usuário (não é mais um "sucesso" silencioso).
-        docFalhouMotivo = `Falha ao enviar documento [${resp.status}]: ${debugText.slice(0, 300)}`;
-        console.error("[send-whatsapp] envio de mídia falhou, fallback texto", JSON.stringify(mediaDebug));
-        const mensagemComLink = `${mensagem}\n\n${media_url}`;
-        resp = await fetch(`https://api-imperial.zapcontabil.chat/api/send/${numero}`, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "accept": "application/json",
-            "Authorization": `Bearer ${ZAPCONTABIL_API_TOKEN}`,
-          },
-          body: JSON.stringify({ body: mensagemComLink, connectionFrom: 0 }),
-        });
-      }
     } else {
 
       const zapUrl = `https://api-imperial.zapcontabil.chat/api/send/${numero}`;
@@ -185,15 +148,11 @@ Deno.serve(async (req) => {
     try { respJson = JSON.parse(respText); } catch { respJson = respText; }
 
     const sucesso = resp.ok;
-    const docFalhou = !!media_url && !usedMedia;
-    // Status honesto: se o documento caiu para o fallback de texto, isso NÃO é
-    // um envio "enviado" comum — precisa ficar visível no histórico.
-    const status = !sucesso ? "erro" : docFalhou ? "enviado_sem_anexo" : "enviado";
+    const docFalhou = !!media_url && !documentByLink;
+    const status = !sucesso ? "erro" : "enviado";
     const erroMsg = !sucesso
       ? `Falha ZapContábil [${resp.status}]: ${friendlyZapError(respText) ?? respText.slice(0, 500)}`
-      : docFalhou
-        ? `Aviso: ${friendlyZapError(docFalhouMotivo ?? "") ?? docFalhouMotivo}`
-        : null;
+      : null;
 
     // Registra histórico
     try {
@@ -203,7 +162,7 @@ Deno.serve(async (req) => {
         usuario_id: perfil?.id ?? null,
         tipo,
         telefone: numero,
-        mensagem,
+        mensagem: mensagemEnviada,
         status,
         erro: erroMsg,
       });
@@ -224,9 +183,9 @@ Deno.serve(async (req) => {
         success: true,
         data: respJson,
         usedMedia,
+        documentByLink,
         docFalhou,
-        warning: docFalhou ? (friendlyZapError(docFalhouMotivo ?? "") ?? docFalhouMotivo) : null,
-        mediaDebug,
+        warning: null,
       }),
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );

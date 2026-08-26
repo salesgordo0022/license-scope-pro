@@ -221,11 +221,9 @@ export default function Mensagens() {
       },
     });
     if (error) return { ok: false, docOk: false, msg: error.message };
-    const res = data as { success: boolean; error?: string; usedMedia?: boolean; docFalhou?: boolean; warning?: string | null };
+    const res = data as { success: boolean; error?: string; usedMedia?: boolean; documentByLink?: boolean; docFalhou?: boolean; warning?: string | null };
     if (!res?.success) return { ok: false, docOk: false, msg: res?.error };
-    // Se um anexo foi solicitado mas o gateway caiu para o fallback de texto,
-    // o envio "funcionou" mas o documento NÃO chegou — isso precisa ser visível.
-    const docOk = !arquivoUrl || !!res.usedMedia;
+    const docOk = !arquivoUrl || !!res.usedMedia || !!res.documentByLink;
     return { ok: true, docOk, msg: res.warning || undefined };
   }
 
@@ -257,10 +255,10 @@ export default function Mensagens() {
           },
         });
         if (error) throw error;
-        const res = data as { success: boolean; error?: string; usedMedia?: boolean; docFalhou?: boolean; warning?: string | null };
+        const res = data as { success: boolean; error?: string; usedMedia?: boolean; documentByLink?: boolean; docFalhou?: boolean; warning?: string | null };
         if (!res.success) {
           toast.error(res.error || "Falha ao enviar");
-        } else if (arquivoUrl && !res.usedMedia) {
+        } else if (arquivoUrl && !res.usedMedia && !res.documentByLink) {
           toast.warning("Mensagem enviada, mas o DOCUMENTO falhou — apenas o texto chegou ao cliente.", {
             description: res.warning || undefined,
             duration: 8000,
