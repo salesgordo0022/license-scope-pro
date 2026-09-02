@@ -5,16 +5,33 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
+const ZAP_BASE = "https://api-imperial.zapcontabil.chat";
+
 interface SendBody {
   telefone: string;
   mensagem: string;
   cliente_id?: string;
   tipo?: string; // avulsa | contrato | boleto | aniversario
-  media_url?: string;          // URL pública do anexo (PDF do boleto, etc.)
-  media_filename?: string;     // nome do arquivo opcional
+  media_url?: string;          // URL (assinada) do anexo — PDF do boleto etc.
+  media_filename?: string;     // nome do arquivo mostrado ao cliente
+  media_path?: string;         // caminho no bucket "boletos" (preferido: baixamos com service role)
+  media_bucket?: string;       // bucket do Storage (padrão: boletos)
+}
+
+interface Attempt {
+  endpoint: string;
+  modo: string;
+  status: number;
+  body: string;
 }
 
 const onlyDigits = (s: string) => (s || "").replace(/\D/g, "");
+
+const json = (payload: unknown) =>
+  new Response(JSON.stringify(payload), {
+    status: 200,
+    headers: { ...corsHeaders, "Content-Type": "application/json" },
+  });
 
 // Traduz códigos de erro conhecidos da API do WhatsApp/ZapContábil para uma
 // mensagem que ajuda a diagnosticar o problema sem precisar ler o JSON cru.
@@ -25,7 +42,100 @@ function friendlyZapError(rawBody: string): string | null {
   if (rawBody.includes("ERR_WAPP_NOT_INITIALIZED") || rawBody.includes("NOT_CONNECTED")) {
     return "A conexão do WhatsApp (ZapContábil) está desconectada — reconecte o QR Code no painel do ZapContábil.";
   }
+  if (rawBody.includes("ERR_OFFICIAL_API_WINDOW_CLOSED")) {
+    return "Janela de 24h da API oficial fechada — o cliente precisa mandar uma mensagem primeiro ou é necessário usar um template aprovado.";
+  }
+  if (rawBody.includes("ERR_NO_PERMISSION") || rawBody.includes("Unauthorized") || rawBody.includes("jwt")) {
+    return "Chave da API do ZapContábil inválida ou sem permissão — gere uma nova chave em Configurações > Integração > Chaves de API.";
+  }
   return null;
+}
+
+// Normaliza o telefone para o formato DDI+DDD+número.
+// Números nacionais no Brasil têm 10 (fixo) ou 11 (celular, com o 9º dígito)
+// dígitos de DDD+número. Prefixados com o código do país (55) viram 12/13.
+// Não usar startsWith("55"): DDDs 51/53/54/55 (RS) colidem com o prefixo.
+function normalizarNumero(telefone: string): string {
+  if (telefone.length === 12 || telefone.length === 13) return telefone;
+  if (telefone.length === 10 || telefone.length === 11) return `55${telefone}`;
+  return telefone.startsWith("55") ? telefone : `55${telefone}`;
+}
+
+function zapHeaders(token: string, contentType?: string): Record<string, string> {
+  const h: Record<string, string> = {
+    accept: "application/json",
+    Authorization: `Bearer ${token}`,
+  };
+  if (contentType) h["Content-Type"] = contentType;
+  return h;
+}
+
+async function enviarTexto(token: string, numero: string, body: string, connectionFrom: number | null) {
+  const payload: Record<string, unknown> = { body };
+  if (connectionFrom !== null) payload.connectionFrom = connectionFrom;
+  const resp = await fetch(`${ZAP_BASE}/api/send/${numero}`, {
+    method: "POST",
+    headers: zapHeaders(token, "application/json"),
+    body: JSON.stringify(payload),
+  });
+  const text = await resp.text();
+  return { ok: resp.ok, status: resp.status, text };
+}
+
+/**
+ * Envia o documento pelo endpoint de mídia. Ordem das tentativas:
+ *  1. multipart/form-data com o binário (mais confiável — o provedor não
+ *     precisa conseguir baixar a URL assinada do Supabase)
+ *  2. JSON { url } apontando para a URL assinada
+ * Cada tentativa é feita com e sem connectionFrom, pois algumas contas
+ * rejeitam o valor 0 no endpoint de mídia.
+ */
+async function enviarDocumento(
+  token: string,
+  numero: string,
+  file: { bytes: Uint8Array; contentType: string; filename: string } | null,
+  mediaUrl: string,
+  connectionFrom: number | null,
+  attempts: Attempt[],
+): Promise<boolean> {
+  const endpoint = `${ZAP_BASE}/api/send/document/${numero}`;
+  const conexoes: Array<number | null> = connectionFrom === null ? [null] : [connectionFrom, null];
+
+  if (file) {
+    for (const conn of conexoes) {
+      const form = new FormData();
+      form.append("media", new Blob([file.bytes], { type: file.contentType }), file.filename);
+      if (conn !== null) form.append("connectionFrom", String(conn));
+      try {
+        const resp = await fetch(endpoint, { method: "POST", headers: zapHeaders(token), body: form });
+        const text = await resp.text();
+        attempts.push({ endpoint, modo: `multipart conn=${conn}`, status: resp.status, body: text.slice(0, 300) });
+        if (resp.ok) return true;
+      } catch (e) {
+        attempts.push({ endpoint, modo: `multipart conn=${conn}`, status: 0, body: String(e).slice(0, 300) });
+      }
+    }
+  }
+
+  if (mediaUrl) {
+    for (const conn of conexoes) {
+      const payload: Record<string, unknown> = { url: mediaUrl };
+      if (conn !== null) payload.connectionFrom = conn;
+      try {
+        const resp = await fetch(endpoint, {
+          method: "POST",
+          headers: zapHeaders(token, "application/json"),
+          body: JSON.stringify(payload),
+        });
+        const text = await resp.text();
+        attempts.push({ endpoint, modo: `json-url conn=${conn}`, status: resp.status, body: text.slice(0, 300) });
+        if (resp.ok) return true;
+      } catch (e) {
+        attempts.push({ endpoint, modo: `json-url conn=${conn}`, status: 0, body: String(e).slice(0, 300) });
+      }
+    }
+  }
+  return false;
 }
 
 Deno.serve(async (req) => {
@@ -36,33 +146,24 @@ Deno.serve(async (req) => {
   try {
     const ZAPCONTABIL_API_TOKEN = Deno.env.get("ZAPCONTABIL_API_TOKEN");
     if (!ZAPCONTABIL_API_TOKEN) {
-      return new Response(
-        JSON.stringify({ success: false, error: "ZAPCONTABIL_API_TOKEN não configurado" }),
-        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
+      return json({ success: false, error: "ZAPCONTABIL_API_TOKEN não configurado" });
     }
+    // Conexão do WhatsApp a usar. Padrão 0 (comportamento histórico); pode ser
+    // sobrescrito com o ID real obtido em /api/connections, ou "none" para
+    // deixar o ZapContábil escolher a conexão padrão.
+    const connEnv = (Deno.env.get("ZAPCONTABIL_CONNECTION_ID") ?? "0").trim();
+    const connectionFrom: number | null = connEnv === "" || connEnv.toLowerCase() === "none" ? null : Number(connEnv);
 
     const authHeader = req.headers.get("Authorization");
-    if (!authHeader) {
-      return new Response(
-        JSON.stringify({ success: false, error: "Não autenticado" }),
-        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
+    if (!authHeader) return json({ success: false, error: "Não autenticado" });
 
-    const supabase = createClient(
-      Deno.env.get("SUPABASE_URL") ?? "",
-      Deno.env.get("SUPABASE_ANON_KEY") ?? "",
-      { global: { headers: { Authorization: authHeader } } }
-    );
+    const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
+    const supabase = createClient(supabaseUrl, Deno.env.get("SUPABASE_ANON_KEY") ?? "", {
+      global: { headers: { Authorization: authHeader } },
+    });
 
     const { data: userData, error: userErr } = await supabase.auth.getUser();
-    if (userErr || !userData.user) {
-      return new Response(
-        JSON.stringify({ success: false, error: "Sessão inválida" }),
-        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
+    if (userErr || !userData.user) return json({ success: false, error: "Sessão inválida" });
 
     const body = (await req.json()) as SendBody;
     const telefone = onlyDigits(body.telefone || "");
@@ -70,19 +171,14 @@ Deno.serve(async (req) => {
     const tipo = (body.tipo || "avulsa").trim();
     const cliente_id = body.cliente_id || null;
     const media_url = (body.media_url || "").trim();
-    const media_filename = (body.media_filename || "").trim();
+    const media_path = (body.media_path || "").trim();
+    const media_bucket = (body.media_bucket || "boletos").trim();
+    const media_filename =
+      (body.media_filename || "").trim() || (tipo === "boleto" ? "boleto.pdf" : "documento.pdf");
 
-    if (!telefone || telefone.length < 10) {
-      return new Response(
-        JSON.stringify({ success: false, error: "Telefone inválido" }),
-        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
+    if (!telefone || telefone.length < 10) return json({ success: false, error: "Telefone inválido" });
     if (!mensagem || mensagem.length > 4000) {
-      return new Response(
-        JSON.stringify({ success: false, error: "Mensagem inválida (vazia ou > 4000 caracteres)" }),
-        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
+      return json({ success: false, error: "Mensagem inválida (vazia ou > 4000 caracteres)" });
     }
 
     // Carrega perfil para obter empresa_id e usuario_id
@@ -92,69 +188,105 @@ Deno.serve(async (req) => {
       .eq("user_id", userData.user.id)
       .maybeSingle();
 
-    // Números nacionais no Brasil têm 10 (fixo) ou 11 (celular, com o 9º dígito)
-    // dígitos de DDD+número. Prefixados com o código do país (55) viram 12/13
-    // dígitos. Usar telefone.startsWith("55") pra decidir se o código do país já
-    // está presente é um bug: DDDs que começam com 5 (51, 53, 54, 55 — todos no
-    // Rio Grande do Sul) colidem com esse prefixo, então um número de DDD 55
-    // (ex: 55991234567) era enviado sem o código do país e a API rejeitava com
-    // ERR_WAPP_INVALID_CONTACT.
-    const numero =
-      telefone.length === 12 || telefone.length === 13
-        ? telefone
-        : telefone.length === 10 || telefone.length === 11
-          ? `55${telefone}`
-          : telefone.startsWith("55")
-            ? telefone
-            : `55${telefone}`;
+    const numero = normalizarNumero(telefone);
+    const temAnexo = !!(media_url || media_path);
+    const attempts: Attempt[] = [];
 
-    // Documentos são enviados como link clicável. Isso evita a incompatibilidade
-    // do endpoint de mídia do provedor e permite que o cliente abra/baixe o PDF.
-    let resp: Response;
-    let usedMedia = false;
-    let documentByLink = false;
-    let mensagemEnviada = mensagem;
-    if (media_url) {
-      const nomeDocumento = media_filename || (tipo === "boleto" ? "boleto.pdf" : "documento.pdf");
-      if (!mensagem.includes(media_url)) {
-        mensagemEnviada = `${mensagem}\n\n📄 ${nomeDocumento}\nBaixar documento: ${media_url}`;
+    // 1) Texto da mensagem
+    const texto = await enviarTexto(ZAPCONTABIL_API_TOKEN, numero, mensagem, connectionFrom);
+    attempts.push({ endpoint: `${ZAP_BASE}/api/send/${numero}`, modo: "texto", status: texto.status, body: texto.text.slice(0, 300) });
+    let respJson: unknown = null;
+    try { respJson = JSON.parse(texto.text); } catch { respJson = texto.text; }
+
+    if (!texto.ok) {
+      const erroMsg = `Falha ZapContábil [${texto.status}]: ${friendlyZapError(texto.text) ?? texto.text.slice(0, 500)}`;
+      try {
+        await supabase.from("mensagens_enviadas").insert({
+          empresa_id: perfil?.empresa_id ?? null,
+          cliente_id,
+          usuario_id: perfil?.id ?? null,
+          tipo,
+          telefone: numero,
+          mensagem: temAnexo ? `${mensagem}\n\n📎 ${media_filename}` : mensagem,
+          status: "erro",
+          erro: erroMsg,
+        });
+      } catch (logErr) {
+        console.error("Falha ao registrar histórico:", logErr);
       }
-      documentByLink = true;
-      resp = await fetch(`https://api-imperial.zapcontabil.chat/api/send/${numero}`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "accept": "application/json",
-          "Authorization": `Bearer ${ZAPCONTABIL_API_TOKEN}`,
-        },
-        body: JSON.stringify({ body: mensagemEnviada, connectionFrom: 0 }),
-      });
-    } else {
-
-      const zapUrl = `https://api-imperial.zapcontabil.chat/api/send/${numero}`;
-      resp = await fetch(zapUrl, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "accept": "application/json",
-          "Authorization": `Bearer ${ZAPCONTABIL_API_TOKEN}`,
-        },
-        body: JSON.stringify({ body: mensagem, connectionFrom: 0 }),
-      });
+      console.error("ZapContábil error:", texto.status, texto.text);
+      return json({ success: false, error: erroMsg, detalhe: respJson, attempts });
     }
 
-    const respText = await resp.text();
-    let respJson: unknown = null;
-    try { respJson = JSON.parse(respText); } catch { respJson = respText; }
+    // 2) Documento (se houver)
+    let usedMedia = false;
+    let documentByLink = false;
+    let warning: string | null = null;
+    let mensagemRegistrada = mensagem;
 
-    const sucesso = resp.ok;
-    const docFalhou = !!media_url && !documentByLink;
-    const status = !sucesso ? "erro" : "enviado";
-    const erroMsg = !sucesso
-      ? `Falha ZapContábil [${resp.status}]: ${friendlyZapError(respText) ?? respText.slice(0, 500)}`
-      : null;
+    if (temAnexo) {
+      // Baixa o arquivo: preferimos o caminho no Storage (service role, não
+      // depende da URL assinada); senão baixamos a própria URL assinada.
+      let file: { bytes: Uint8Array; contentType: string; filename: string } | null = null;
+      try {
+        if (media_path) {
+          const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
+          const admin = createClient(supabaseUrl, serviceKey || (Deno.env.get("SUPABASE_ANON_KEY") ?? ""), {
+            global: serviceKey ? {} : { headers: { Authorization: authHeader } },
+          });
+          const { data: blob, error: dlErr } = await admin.storage.from(media_bucket).download(media_path);
+          if (dlErr) throw dlErr;
+          if (blob) {
+            file = {
+              bytes: new Uint8Array(await blob.arrayBuffer()),
+              contentType: blob.type || "application/pdf",
+              filename: media_filename,
+            };
+          }
+        }
+        if (!file && media_url) {
+          const r = await fetch(media_url);
+          if (r.ok) {
+            file = {
+              bytes: new Uint8Array(await r.arrayBuffer()),
+              contentType: r.headers.get("content-type") || "application/pdf",
+              filename: media_filename,
+            };
+          } else {
+            attempts.push({ endpoint: media_url.slice(0, 120), modo: "download", status: r.status, body: "" });
+          }
+        }
+      } catch (e) {
+        attempts.push({ endpoint: media_path || media_url.slice(0, 120), modo: "download", status: 0, body: String(e).slice(0, 300) });
+      }
 
-    // Registra histórico
+      usedMedia = await enviarDocumento(ZAPCONTABIL_API_TOKEN, numero, file, media_url, connectionFrom, attempts);
+
+      if (!usedMedia) {
+        // Fallback: manda o link para download como mensagem separada.
+        const ultimo = attempts[attempts.length - 1];
+        const motivo = ultimo ? `[${ultimo.status}] ${friendlyZapError(ultimo.body) ?? ultimo.body}` : "sem detalhes";
+        if (media_url) {
+          const link = await enviarTexto(
+            ZAPCONTABIL_API_TOKEN,
+            numero,
+            `📄 ${media_filename}\nBaixar documento: ${media_url}`,
+            connectionFrom,
+          );
+          attempts.push({ endpoint: `${ZAP_BASE}/api/send/${numero}`, modo: "texto-link", status: link.status, body: link.text.slice(0, 300) });
+          documentByLink = link.ok;
+        }
+        warning = documentByLink
+          ? `O anexo não foi aceito pelo WhatsApp (${motivo}); o cliente recebeu um LINK para baixar o documento.`
+          : `O documento NÃO foi entregue (${motivo}); apenas o texto chegou ao cliente.`;
+        console.error("[send-whatsapp] anexo falhou", JSON.stringify(attempts));
+      }
+      // Marcador usado pela tela "Pasta de Boletos" para saber quais arquivos já foram enviados.
+      mensagemRegistrada = `${mensagem}\n\n📎 ${media_filename}`;
+    }
+
+    const status = !temAnexo || usedMedia ? "enviado" : documentByLink ? "enviado_link" : "enviado_sem_anexo";
+
     try {
       await supabase.from("mensagens_enviadas").insert({
         empresa_id: perfil?.empresa_id ?? null,
@@ -162,40 +294,26 @@ Deno.serve(async (req) => {
         usuario_id: perfil?.id ?? null,
         tipo,
         telefone: numero,
-        mensagem: mensagemEnviada,
+        mensagem: mensagemRegistrada,
         status,
-        erro: erroMsg,
+        erro: warning,
       });
     } catch (logErr) {
       console.error("Falha ao registrar histórico:", logErr);
     }
 
-    if (!sucesso) {
-      console.error("ZapContábil error:", resp.status, respText);
-      return new Response(
-        JSON.stringify({ success: false, error: erroMsg, detalhe: respJson }),
-        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
-
-    return new Response(
-      JSON.stringify({
-        success: true,
-        data: respJson,
-        usedMedia,
-        documentByLink,
-        docFalhou,
-        warning: null,
-      }),
-      { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-    );
-
+    return json({
+      success: true,
+      data: respJson,
+      usedMedia,
+      documentByLink,
+      docFalhou: temAnexo && !usedMedia && !documentByLink,
+      warning,
+      attempts,
+    });
   } catch (err) {
     const msg = err instanceof Error ? err.message : "Erro desconhecido";
     console.error("send-whatsapp exception:", msg);
-    return new Response(
-      JSON.stringify({ success: false, error: msg }),
-      { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-    );
+    return json({ success: false, error: msg });
   }
 });

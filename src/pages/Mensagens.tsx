@@ -69,6 +69,7 @@ export default function Mensagens() {
   const [uploading, setUploading] = useState(false);
   const [arquivoUrl, setArquivoUrl] = useState("");
   const [arquivoNome, setArquivoNome] = useState("");
+  const [arquivoPath, setArquivoPath] = useState("");
 
   const [enviando, setEnviando] = useState(false);
   const [busca, setBusca] = useState("");
@@ -177,6 +178,7 @@ export default function Mensagens() {
       if (signErr) throw signErr;
       setArquivoUrl(signed.signedUrl);
       setArquivoNome(file.name);
+      setArquivoPath(path);
       toast.success("Arquivo enviado!");
     } catch (e: any) {
       toast.error(e.message || "Erro no upload");
@@ -218,6 +220,7 @@ export default function Mensagens() {
         tipo,
         media_url: arquivoUrl || undefined,
         media_filename: arquivoNome || undefined,
+        media_path: arquivoPath || undefined,
       },
     });
     if (error) return { ok: false, docOk: false, msg: error.message };
@@ -252,6 +255,7 @@ export default function Mensagens() {
             tipo,
             media_url: arquivoUrl || undefined,
             media_filename: arquivoNome || undefined,
+            media_path: arquivoPath || undefined,
           },
         });
         if (error) throw error;
@@ -260,6 +264,12 @@ export default function Mensagens() {
           toast.error(res.error || "Falha ao enviar");
         } else if (arquivoUrl && !res.usedMedia && !res.documentByLink) {
           toast.warning("Mensagem enviada, mas o DOCUMENTO falhou — apenas o texto chegou ao cliente.", {
+            description: res.warning || undefined,
+            duration: 8000,
+          });
+          carregarHistorico();
+        } else if (arquivoUrl && !res.usedMedia && res.documentByLink) {
+          toast.warning("Mensagem enviada; o documento foi entregue como LINK para download.", {
             description: res.warning || undefined,
             duration: 8000,
           });
@@ -495,6 +505,7 @@ export default function Mensagens() {
                             onClick={() => {
                               setArquivoUrl("");
                               setArquivoNome("");
+                              setArquivoPath("");
                             }}
                           >
                             remover
@@ -594,12 +605,16 @@ export default function Mensagens() {
                             variant={
                               h.status === "enviado"
                                 ? "default"
-                                : h.status === "enviado_sem_anexo"
+                                : h.status === "enviado_sem_anexo" || h.status === "enviado_link"
                                   ? "outline"
                                   : "destructive"
                             }
                           >
-                            {h.status === "enviado_sem_anexo" ? "enviado sem anexo" : h.status}
+                            {h.status === "enviado_sem_anexo"
+                              ? "enviado sem anexo"
+                              : h.status === "enviado_link"
+                                ? "enviado (link)"
+                                : h.status}
                           </Badge>
                           <span className="text-sm font-medium">
                             {nomeCliente(h.cliente_id)}

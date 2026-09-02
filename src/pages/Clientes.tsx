@@ -32,6 +32,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import type { Database } from '@/integrations/supabase/types';
 import { GrupoClienteManager } from '@/components/GrupoClienteManager';
+import * as XLSX from 'xlsx';
 
 interface Grupo {
   id: string;
@@ -69,6 +70,7 @@ export default function Clientes() {
   const [filterStatus, setFilterStatus] = useState<string>('ativo');
   const [filterSistema, setFilterSistema] = useState<string>('all');
   const [sistemasPorCliente, setSistemasPorCliente] = useState<Record<string, string[]>>({});
+  const [exportando, setExportando] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingCliente, setEditingCliente] = useState<Cliente | null>(null);
   const [buscandoCnpj, setBuscandoCnpj] = useState(false);
@@ -501,31 +503,155 @@ export default function Clientes() {
     return valor - (valor * desconto / 100);
   };
 
-  const exportarRelatorio = (status: 'ativo' | 'inativo' | 'all') => {
+  const exportarRelatorio = async (status: 'ativo' | 'inativo' | 'all') => {
     const lista = status === 'all' ? clientes : clientes.filter(c => (c.status || 'ativo') === status);
     if (lista.length === 0) {
       toast.error('Nenhum cliente para exportar');
       return;
     }
-    const headers = ['Empresa', 'CNPJ', 'Segmento', 'Email', 'Telefone', 'Cidade', 'Estado', 'Data Entrada', 'Status', 'Mensalidade', 'Implantacao', 'Desconto (%)'];
-    const escape = (v: any) => {
-      const s = String(v ?? '').replace(/"/g, '""');
-      return `"${s}"`;
-    };
-    const rows = lista.map(c => [
-      c.nome_empresa, c.cnpj, c.segmento, c.email, c.telefone,
-      c.cidade, c.estado, c.data_entrada, c.status, c.valor_mensalidade, c.valor_implantacao, c.desconto_percentual,
-    ].map(escape).join(';'));
-    const csv = '\ufeff' + [headers.map(escape).join(';'), ...rows].join('\n');
-    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    const label = status === 'all' ? 'todos' : status === 'ativo' ? 'ativos' : 'inativos';
-    a.download = `clientes-${label}-${new Date().toISOString().split('T')[0]}.csv`;
-    a.click();
-    URL.revokeObjectURL(url);
-    toast.success(`Relatório exportado (${lista.length} clientes)`);
+    setExportando(true);
+    try {
+      // Licenças = sistemas contratados por cliente (tipo = nome do sistema)
+      const ids = lista.map((c) => c.id);
+      const licencas: any[] = [];
+      for (let i = 0; i < ids.length; i += 200) {
+        const { data, error } = await supabase
+          .from('licencas')
+          .select('cliente_id, tipo, status, modelo_cobranca, quantidade, valor_venda, valor_custo, dia_vencimento, data_inicio, validade, data_pagamento_sistema')
+          .in('cliente_id', ids.slice(i, i + 200));
+        if (error) throw error;
+        licencas.push(...(data || []));
+      }
+
+      const licencasPorCliente: Record<string, any[]> = {};
+      for (const l of licencas) {
+        (licencasPorCliente[l.cliente_id] ||= []).push(l);
+      }
+      const nomeGrupo = (id: string | null) => grupos.find((g) => g.id === id)?.nome ?? '';
+      const fmtData = (d: string | null) => (d ? new Date(d + (d.length === 10 ? 'T00:00:00' : '')).toLocaleDateString('pt-BR') : '');
+      const num = (v: number | null | undefined) => (v === null || v === undefined ? null : Number(v));
+
+      // Colunas fixas de sistemas: todos cadastrados + qualquer tipo de licença não cadastrado
+      const nomesSistemas = Array.from(
+        new Set([...sistemas.map((sis) => sis.nome), ...licencas.map((l) => l.tipo).filter(Boolean)])
+      ).sort((a, b) => a.localeCompare(b, 'pt-BR'));
+
+      // Aba 1: dados do cliente + sistemas
+      const linhasClientes = lista.map((c) => {
+        const lics = licencasPorCliente[c.id] || [];
+        const ativos = Array.from(new Set(lics.filter((l) => (l.status || 'ativo') === 'ativo').map((l) => l.tipo).filter(Boolean)));
+        const todos = Array.from(new Set(lics.map((l) => l.tipo).filter(Boolean)));
+        const linha: Record<string, unknown> = {
+          'Empresa': c.nome_empresa,
+          'CNPJ': c.cnpj ?? '',
+          'Nome do Dono': c.nome_dono ?? '',
+          'CPF do Dono': c.cpf_dono ?? '',
+          'Segmento': c.segmento ?? '',
+          'Grupo': nomeGrupo(c.grupo_id),
+          'Regime Tributário': c.regime_tributario ?? '',
+          'Email': c.email ?? '',
+          'Telefone': c.telefone ?? '',
+          'Endereço': c.endereco ?? '',
+          'Cidade': c.cidade ?? '',
+          'Estado': c.estado ?? '',
+          'Data Entrada': fmtData(c.data_entrada),
+          'Status': c.status || 'ativo',
+          'Mensalidade (R$)': num(c.valor_mensalidade),
+          'Implantação (R$)': num(c.valor_implantacao),
+          'Desconto (%)': num(c.desconto_percentual),
+          'Mensalidade c/ Desconto (R$)': c.valor_mensalidade != null ? Number(calcularValorComDesconto(c.valor_mensalidade, c.desconto_percentual || 0).toFixed(2)) : null,
+          'Qtd Sistemas Ativos': ativos.length,
+          'Sistemas Ativos': ativos.join(', '),
+          'Sistemas (todos, inclusive inativos)': todos.join(', '),
+          'Valor Total Licenças (R$)': Number(lics.filter((l) => (l.status || 'ativo') === 'ativo').reduce((acc, l) => acc + (Number(l.valor_venda) || 0), 0).toFixed(2)),
+          'Observações': c.observacoes ?? '',
+        };
+        for (const nome of nomesSistemas) {
+          const lic = lics.find((l) => l.tipo === nome);
+          linha[`Sistema: ${nome}`] = lic ? ((lic.status || 'ativo') === 'ativo' ? 'SIM' : `SIM (${lic.status})`) : '';
+        }
+        return linha;
+      });
+
+      // Aba 2: uma linha por sistema/licença de cada cliente
+      const linhasSistemas = lista.flatMap((c) =>
+        (licencasPorCliente[c.id] || [])
+          .slice()
+          .sort((a, b) => String(a.tipo).localeCompare(String(b.tipo), 'pt-BR'))
+          .map((l) => ({
+            'Empresa': c.nome_empresa,
+            'CNPJ': c.cnpj ?? '',
+            'Telefone': c.telefone ?? '',
+            'Cidade': c.cidade ?? '',
+            'Status Cliente': c.status || 'ativo',
+            'Sistema': l.tipo,
+            'Status Sistema': l.status || 'ativo',
+            'Modelo de Cobrança': l.modelo_cobranca ?? '',
+            'Quantidade': num(l.quantidade),
+            'Valor Venda (R$)': num(l.valor_venda),
+            'Valor Custo (R$)': num(l.valor_custo),
+            'Dia Vencimento': num(l.dia_vencimento),
+            'Data Início': fmtData(l.data_inicio),
+            'Validade': fmtData(l.validade),
+            'Pagamento do Sistema': fmtData(l.data_pagamento_sistema),
+          }))
+      );
+
+      // Aba 3: resumo por sistema
+      const resumo = nomesSistemas.map((nome) => {
+        const doSistema = lista.filter((c) => (licencasPorCliente[c.id] || []).some((l) => l.tipo === nome));
+        const ativosNoSistema = lista.filter((c) =>
+          (licencasPorCliente[c.id] || []).some((l) => l.tipo === nome && (l.status || 'ativo') === 'ativo')
+        );
+        return {
+          'Sistema': nome,
+          'Clientes com o Sistema': doSistema.length,
+          'Clientes Ativos no Sistema': ativosNoSistema.length,
+          'Receita Mensal Licenças (R$)': Number(
+            licencas
+              .filter((l) => l.tipo === nome && (l.status || 'ativo') === 'ativo' && ids.includes(l.cliente_id))
+              .reduce((acc, l) => acc + (Number(l.valor_venda) || 0), 0)
+              .toFixed(2)
+          ),
+          'Clientes': doSistema.map((c) => c.nome_empresa).join(', '),
+        };
+      });
+
+      const larguras = (rows: Record<string, unknown>[], max = 50) => {
+        if (rows.length === 0) return [];
+        return Object.keys(rows[0]).map((k) => ({
+          wch: Math.min(max, Math.max(k.length, ...rows.map((r) => String(r[k] ?? '').length)) + 2),
+        }));
+      };
+
+      const wb = XLSX.utils.book_new();
+      const wsClientes = XLSX.utils.json_to_sheet(linhasClientes);
+      wsClientes['!cols'] = larguras(linhasClientes);
+      wsClientes['!autofilter'] = { ref: wsClientes['!ref'] as string };
+      XLSX.utils.book_append_sheet(wb, wsClientes, 'Clientes');
+
+      const wsSistemas = XLSX.utils.json_to_sheet(
+        linhasSistemas.length > 0 ? linhasSistemas : [{ 'Empresa': '', 'Sistema': 'Nenhum sistema vinculado aos clientes exportados' }]
+      );
+      wsSistemas['!cols'] = larguras(linhasSistemas);
+      if (linhasSistemas.length > 0) wsSistemas['!autofilter'] = { ref: wsSistemas['!ref'] as string };
+      XLSX.utils.book_append_sheet(wb, wsSistemas, 'Sistemas por Cliente');
+
+      if (resumo.length > 0) {
+        const wsResumo = XLSX.utils.json_to_sheet(resumo);
+        wsResumo['!cols'] = larguras(resumo, 80);
+        XLSX.utils.book_append_sheet(wb, wsResumo, 'Resumo por Sistema');
+      }
+
+      const label = status === 'all' ? 'todos' : status === 'ativo' ? 'ativos' : 'inativos';
+      XLSX.writeFile(wb, `clientes-${label}-${new Date().toISOString().split('T')[0]}.xlsx`);
+      toast.success(`Relatório Excel exportado (${lista.length} clientes, ${linhasSistemas.length} sistemas vinculados)`);
+    } catch (error) {
+      console.error('Erro ao exportar:', error);
+      toast.error('Erro ao exportar relatório');
+    } finally {
+      setExportando(false);
+    }
   };
 
   return (
@@ -545,9 +671,9 @@ export default function Clientes() {
           <GrupoClienteManager onGroupsChange={fetchGrupos} />
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="outline">
-                <Download className="mr-2 h-4 w-4" />
-                Exportar
+              <Button variant="outline" disabled={exportando}>
+                {exportando ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Download className="mr-2 h-4 w-4" />}
+                Exportar Excel
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
