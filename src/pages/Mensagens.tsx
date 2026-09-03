@@ -66,10 +66,10 @@ export default function Mensagens() {
   const [mensagem, setMensagem] = useState("");
 
   const [pagamentoSelecionado, setPagamentoSelecionado] = useState<string>("");
-  const [uploading, setUploading] = useState(false);
-  const [arquivoUrl, setArquivoUrl] = useState("");
-  const [arquivoNome, setArquivoNome] = useState("");
-  const [arquivoPath, setArquivoPath] = useState("");
+  const uploading = false;
+  const [arquivo, setArquivo] = useState<File | null>(null);
+  const arquivoNome = arquivo?.name ?? "";
+  const arquivoUrl = arquivo ? "anexo" : ""; // flag: há anexo selecionado (o arquivo vai em base64 na hora do envio)
 
   const [enviando, setEnviando] = useState(false);
   const [busca, setBusca] = useState("");
@@ -87,16 +87,14 @@ export default function Mensagens() {
     if (modo !== "individual") return;
     if (cliente) {
       setTelefone(cliente.telefone || "");
-      const anexo = arquivoUrl || link;
-      setMensagem(TEMPLATES[tipo](cliente.nome_empresa, anexo));
+      setMensagem(TEMPLATES[tipo](cliente.nome_empresa, link));
     }
   }, [cliente, tipo, link, arquivoUrl, modo]);
 
   // Em modo massa, regenera mensagem template baseado no tipo
   useEffect(() => {
     if (modo !== "massa") return;
-    const anexo = arquivoUrl || link;
-    setMensagem(TEMPLATES[tipo]("{nome}", anexo));
+    setMensagem(TEMPLATES[tipo]("{nome}", link));
   }, [tipo, link, arquivoUrl, modo]);
 
   async function carregarClientes() {
@@ -143,48 +141,28 @@ export default function Mensagens() {
     return pagamentos.filter((p) => ids.includes(p.cliente_id));
   }, [pagamentos, clienteId, selecionados, modo]);
 
-  async function handleUpload(file: File) {
-    if (file.size > 10 * 1024 * 1024) {
-      toast.error("Arquivo muito grande (máx 10MB)");
+  // O arquivo NÃO é enviado ao Storage aqui: ele vai em base64 para a função
+  // send-whatsapp, que grava no bucket com a service role e anexa no WhatsApp.
+  // Assim o envio funciona mesmo para usuários sem empresa vinculada.
+  function handleUpload(file: File) {
+    if (file.size > 8 * 1024 * 1024) {
+      toast.error("Arquivo muito grande (máx 8MB)");
       return;
     }
-    setUploading(true);
-    try {
-      // Resolve empresa_id of current user to scope the upload to their folder
-      const { data: userData } = await supabase.auth.getUser();
-      if (!userData?.user) throw new Error("Sessão expirada");
-      const { data: perfil, error: perfilErr } = await supabase
-        .from("usuario_perfil")
-        .select("empresa_id")
-        .eq("user_id", userData.user.id)
-        .maybeSingle();
-      if (perfilErr) throw perfilErr;
-      if (!perfil?.empresa_id) throw new Error("Sua conta não está vinculada a uma empresa");
+    setArquivo(file);
+    toast.success(`Anexo selecionado: ${file.name}`);
+  }
 
-      const ext = file.name.split(".").pop() || "pdf";
-      const path = `${perfil.empresa_id}/boleto-${Date.now()}.${ext}`;
-      // Alguns navegadores/SOs não preenchem file.type para PDFs — sem um
-      // Content-Type correto no Storage, o gateway do WhatsApp pode rejeitar
-      // o anexo e o sistema cai silenciosamente para texto puro.
-      const contentType = file.type || (ext.toLowerCase() === "pdf" ? "application/pdf" : "application/octet-stream");
-      const { error: upErr } = await supabase.storage
-        .from("boletos")
-        .upload(path, file, { upsert: true, contentType });
-      if (upErr) throw upErr;
-      // Bucket is private — generate a signed URL (valid 30 days) to share via WhatsApp
-      const { data: signed, error: signErr } = await supabase.storage
-        .from("boletos")
-        .createSignedUrl(path, 60 * 60 * 24 * 30);
-      if (signErr) throw signErr;
-      setArquivoUrl(signed.signedUrl);
-      setArquivoNome(file.name);
-      setArquivoPath(path);
-      toast.success("Arquivo enviado!");
-    } catch (e: any) {
-      toast.error(e.message || "Erro no upload");
-    } finally {
-      setUploading(false);
-    }
+  function fileToBase64(file: Blob): Promise<string> {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => {
+        const result = String(reader.result || "");
+        resolve(result.includes(",") ? result.slice(result.indexOf(",") + 1) : result);
+      };
+      reader.onerror = () => reject(reader.error);
+      reader.readAsDataURL(file);
+    });
   }
 
   function aplicarPagamento(pagId: string) {
@@ -210,7 +188,7 @@ export default function Mensagens() {
     setSelecionados([]);
   }
 
-  async function enviarUm(c: Cliente) {
+  async function enviarUm(c: Cliente, base64?: string) {
     const msgPersonalizada = mensagem.replace(/\{nome\}/g, c.nome_empresa);
     const { data, error } = await supabase.functions.invoke("send-whatsapp", {
       body: {
@@ -218,9 +196,9 @@ export default function Mensagens() {
         mensagem: msgPersonalizada,
         cliente_id: c.id,
         tipo,
-        media_url: arquivoUrl || undefined,
+        media_base64: base64 || undefined,
+        media_content_type: arquivo?.type || "application/pdf",
         media_filename: arquivoNome || undefined,
-        media_path: arquivoPath || undefined,
       },
     });
     if (error) return { ok: false, docOk: false, msg: error.message };
@@ -247,15 +225,16 @@ export default function Mensagens() {
           toast.error("Telefone inválido");
           return;
         }
+        const base64 = arquivo ? await fileToBase64(arquivo) : undefined;
         const { data, error } = await supabase.functions.invoke("send-whatsapp", {
           body: {
             telefone,
             mensagem,
             cliente_id: clienteId || undefined,
             tipo,
-            media_url: arquivoUrl || undefined,
+            media_base64: base64,
+            media_content_type: arquivo?.type || "application/pdf",
             media_filename: arquivoNome || undefined,
-            media_path: arquivoPath || undefined,
           },
         });
         if (error) throw error;
@@ -291,8 +270,9 @@ export default function Mensagens() {
         let okComDoc = 0;
         let okSemDoc = 0;
         let fail = 0;
+        const base64 = arquivo ? await fileToBase64(arquivo) : undefined;
         for (const c of alvos) {
-          const r = await enviarUm(c);
+          const r = await enviarUm(c, base64);
           if (!r.ok) fail++;
           else if (!r.docOk) okSemDoc++;
           else okComDoc++;
@@ -502,11 +482,7 @@ export default function Mensagens() {
                           <button
                             type="button"
                             className="underline"
-                            onClick={() => {
-                              setArquivoUrl("");
-                              setArquivoNome("");
-                              setArquivoPath("");
-                            }}
+                            onClick={() => setArquivo(null)}
                           >
                             remover
                           </button>

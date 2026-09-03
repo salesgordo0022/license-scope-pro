@@ -16,6 +16,8 @@ interface SendBody {
   media_filename?: string;     // nome do arquivo mostrado ao cliente
   media_path?: string;         // caminho no bucket "boletos" (preferido: baixamos com service role)
   media_bucket?: string;       // bucket do Storage (padrão: boletos)
+  media_base64?: string;       // conteúdo do arquivo em base64 (o servidor grava no Storage com service role)
+  media_content_type?: string; // MIME do arquivo em base64 (padrão: application/pdf)
 }
 
 interface Attempt {
@@ -59,6 +61,14 @@ function normalizarNumero(telefone: string): string {
   if (telefone.length === 12 || telefone.length === 13) return telefone;
   if (telefone.length === 10 || telefone.length === 11) return `55${telefone}`;
   return telefone.startsWith("55") ? telefone : `55${telefone}`;
+}
+
+function base64ToBytes(b64: string): Uint8Array {
+  const limpo = b64.includes(",") ? b64.slice(b64.indexOf(",") + 1) : b64;
+  const bin = atob(limpo.replace(/\s/g, ""));
+  const out = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
+  return out;
 }
 
 function zapHeaders(token: string, contentType?: string): Record<string, string> {
@@ -170,9 +180,11 @@ Deno.serve(async (req) => {
     const mensagem = (body.mensagem || "").trim();
     const tipo = (body.tipo || "avulsa").trim();
     const cliente_id = body.cliente_id || null;
-    const media_url = (body.media_url || "").trim();
-    const media_path = (body.media_path || "").trim();
+    let media_path = (body.media_path || "").trim();
+    let media_url = (body.media_url || "").trim();
     const media_bucket = (body.media_bucket || "boletos").trim();
+    const media_base64 = (body.media_base64 || "").trim();
+    const media_content_type = (body.media_content_type || "application/pdf").trim();
     const media_filename =
       (body.media_filename || "").trim() || (tipo === "boleto" ? "boleto.pdf" : "documento.pdf");
 
@@ -189,8 +201,37 @@ Deno.serve(async (req) => {
       .maybeSingle();
 
     const numero = normalizarNumero(telefone);
-    const temAnexo = !!(media_url || media_path);
     const attempts: Attempt[] = [];
+    const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
+    const admin = createClient(supabaseUrl, serviceKey || (Deno.env.get("SUPABASE_ANON_KEY") ?? ""), {
+      global: serviceKey ? {} : { headers: { Authorization: authHeader } },
+    });
+
+    // Arquivo enviado em base64: gravamos no Storage com a service role, para
+    // não depender do vínculo do usuário com uma empresa nem das policies do bucket.
+    let arquivoBase64: { bytes: Uint8Array; contentType: string; filename: string } | null = null;
+    if (media_base64) {
+      try {
+        arquivoBase64 = { bytes: base64ToBytes(media_base64), contentType: media_content_type, filename: media_filename };
+        const pasta = perfil?.empresa_id ?? userData.user.id;
+        const nomeSeguro = media_filename.replace(/[^\w.\-]+/g, "_");
+        const path = `${pasta}/${cliente_id ?? "avulso"}/${Date.now()}-${nomeSeguro}`;
+        const { error: upErr } = await admin.storage
+          .from(media_bucket)
+          .upload(path, arquivoBase64.bytes, { upsert: true, contentType: media_content_type });
+        if (upErr) {
+          attempts.push({ endpoint: `storage/${media_bucket}`, modo: "upload", status: 0, body: String(upErr.message ?? upErr).slice(0, 300) });
+        } else {
+          media_path = path;
+          const { data: signed } = await admin.storage.from(media_bucket).createSignedUrl(path, 60 * 60 * 24 * 30);
+          if (signed?.signedUrl) media_url = signed.signedUrl;
+        }
+      } catch (e) {
+        attempts.push({ endpoint: "base64", modo: "decode", status: 0, body: String(e).slice(0, 300) });
+        arquivoBase64 = null;
+      }
+    }
+    const temAnexo = !!(media_url || media_path || arquivoBase64);
 
     // 1) Texto da mensagem
     const texto = await enviarTexto(ZAPCONTABIL_API_TOKEN, numero, mensagem, connectionFrom);
@@ -201,7 +242,7 @@ Deno.serve(async (req) => {
     if (!texto.ok) {
       const erroMsg = `Falha ZapContábil [${texto.status}]: ${friendlyZapError(texto.text) ?? texto.text.slice(0, 500)}`;
       try {
-        await supabase.from("mensagens_enviadas").insert({
+        await admin.from("mensagens_enviadas").insert({
           empresa_id: perfil?.empresa_id ?? null,
           cliente_id,
           usuario_id: perfil?.id ?? null,
@@ -227,13 +268,9 @@ Deno.serve(async (req) => {
     if (temAnexo) {
       // Baixa o arquivo: preferimos o caminho no Storage (service role, não
       // depende da URL assinada); senão baixamos a própria URL assinada.
-      let file: { bytes: Uint8Array; contentType: string; filename: string } | null = null;
+      let file: { bytes: Uint8Array; contentType: string; filename: string } | null = arquivoBase64;
       try {
-        if (media_path) {
-          const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
-          const admin = createClient(supabaseUrl, serviceKey || (Deno.env.get("SUPABASE_ANON_KEY") ?? ""), {
-            global: serviceKey ? {} : { headers: { Authorization: authHeader } },
-          });
+        if (!file && media_path) {
           const { data: blob, error: dlErr } = await admin.storage.from(media_bucket).download(media_path);
           if (dlErr) throw dlErr;
           if (blob) {
@@ -288,7 +325,7 @@ Deno.serve(async (req) => {
     const status = !temAnexo || usedMedia ? "enviado" : documentByLink ? "enviado_link" : "enviado_sem_anexo";
 
     try {
-      await supabase.from("mensagens_enviadas").insert({
+      await admin.from("mensagens_enviadas").insert({
         empresa_id: perfil?.empresa_id ?? null,
         cliente_id,
         usuario_id: perfil?.id ?? null,

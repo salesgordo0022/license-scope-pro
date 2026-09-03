@@ -77,6 +77,7 @@ interface FileEntry {
 
 const AUTO_SCAN_INTERVAL_MS = 20000;
 const DELAY_ENTRE_ENVIOS_MS = 1500;
+const MAX_PDF_BYTES = 8 * 1024 * 1024;
 const SENT_KEYS_STORAGE = "boletos_pasta_enviados_v1";
 const TEMPLATE_STORAGE = "boletos_pasta_template_v2";
 const IDB_NAME = "license-scope-pro-fs";
@@ -249,17 +250,19 @@ export default function PastaBoletos() {
     }
   }
 
-  async function getEmpresaId(): Promise<string> {
-    const { data: userData } = await supabase.auth.getUser();
-    if (!userData?.user) throw new Error("Sessão expirada");
-    const { data: perfil, error } = await supabase
-      .from("usuario_perfil")
-      .select("empresa_id")
-      .eq("user_id", userData.user.id)
-      .maybeSingle();
-    if (error) throw error;
-    if (!perfil?.empresa_id) throw new Error("Sua conta não está vinculada a uma empresa");
-    return perfil.empresa_id;
+  // Converte o PDF para base64: o upload no Storage é feito pela função
+  // send-whatsapp (service role), então não depende do vínculo do usuário com
+  // uma empresa nem das policies do bucket.
+  async function fileToBase64(file: Blob): Promise<string> {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => {
+        const result = String(reader.result || "");
+        resolve(result.includes(",") ? result.slice(result.indexOf(",") + 1) : result);
+      };
+      reader.onerror = () => reject(reader.error);
+      reader.readAsDataURL(file);
+    });
   }
 
   async function selecionarPasta() {
@@ -436,21 +439,8 @@ export default function PastaBoletos() {
     try {
       const file = entry.fileHandle ? await entry.fileHandle.getFile() : entry.file;
       if (!file) throw new Error("Arquivo indisponível");
-
-      const empresaId = await getEmpresaId();
-      const contentType = file.type || "application/pdf";
-      const nomeSeguro = entry.name.replace(/[^\w.-]+/g, "_");
-      const path = `${empresaId}/pasta/${entry.clienteId}/${Date.now()}-${nomeSeguro}`;
-
-      const { error: upErr } = await supabase.storage
-        .from("boletos")
-        .upload(path, file, { upsert: true, contentType });
-      if (upErr) throw upErr;
-
-      const { data: signed, error: signErr } = await supabase.storage
-        .from("boletos")
-        .createSignedUrl(path, 60 * 60 * 24 * 30);
-      if (signErr) throw signErr;
+      if (file.size > MAX_PDF_BYTES) throw new Error("PDF maior que 8 MB");
+      const base64 = await fileToBase64(file);
 
       const mensagem = montarMensagem(templateRef.current, {
         nome: entry.clienteNome || "",
@@ -464,9 +454,9 @@ export default function PastaBoletos() {
           mensagem,
           cliente_id: entry.clienteId,
           tipo: "boleto",
-          media_url: signed.signedUrl,
+          media_base64: base64,
+          media_content_type: file.type || "application/pdf",
           media_filename: entry.name,
-          media_path: path,
           media_bucket: "boletos",
         },
       });
