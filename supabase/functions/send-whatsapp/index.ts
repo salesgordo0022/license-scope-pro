@@ -184,11 +184,36 @@ Deno.serve(async (req) => {
     const cliente_id = body.cliente_id || null;
     let media_path = (body.media_path || "").trim();
     let media_url = (body.media_url || "").trim();
-    const media_bucket = (body.media_bucket || "boletos").trim();
     const media_base64 = (body.media_base64 || "").trim();
-    const media_content_type = (body.media_content_type || "application/pdf").trim();
     const media_filename =
-      (body.media_filename || "").trim() || (tipo === "boleto" ? "boleto.pdf" : "documento.pdf");
+      (body.media_filename || "").trim().slice(0, 150) || (tipo === "boleto" ? "boleto.pdf" : "documento.pdf");
+
+    // --- Limites de segurança dos anexos ---------------------------------
+    // A função usa a service role para gravar/ler no Storage, então NÃO pode
+    // confiar em bucket/caminho/URL vindos do cliente: só o bucket "boletos",
+    // só tipos de arquivo esperados, só caminhos da própria empresa/usuário e
+    // só URLs do Storage deste projeto.
+    const media_bucket = "boletos";
+    if (body.media_bucket && body.media_bucket.trim() !== media_bucket) {
+      return json({ success: false, error: "Bucket de anexo não permitido" });
+    }
+    const TIPOS_PERMITIDOS = new Set(["application/pdf", "image/png", "image/jpeg", "image/jpg", "image/webp"]);
+    const media_content_type = (body.media_content_type || "application/pdf").trim().toLowerCase().split(";")[0];
+    if (media_base64 && !TIPOS_PERMITIDOS.has(media_content_type)) {
+      return json({ success: false, error: `Tipo de arquivo não permitido (${media_content_type}). Envie PDF ou imagem.` });
+    }
+    const MAX_BASE64_CHARS = 11 * 1024 * 1024; // ~8 MB de arquivo
+    if (media_base64.length > MAX_BASE64_CHARS) {
+      return json({ success: false, error: "Anexo maior que 8 MB" });
+    }
+    if (media_url) {
+      let host = "";
+      try { host = new URL(media_url).host; } catch { host = ""; }
+      const hostProjeto = (() => { try { return new URL(supabaseUrl).host; } catch { return ""; } })();
+      if (!host || host !== hostProjeto) {
+        return json({ success: false, error: "media_url deve apontar para o Storage deste projeto" });
+      }
+    }
 
     if (!telefone || telefone.length < 10) return json({ success: false, error: "Telefone inválido" });
     if (!mensagem || mensagem.length > 4000) {
@@ -204,6 +229,17 @@ Deno.serve(async (req) => {
 
     const numero = normalizarNumero(telefone);
     const attempts: Attempt[] = [];
+
+    // Caminho no Storage só pode estar na pasta da empresa do usuário ou na
+    // pasta do próprio usuário (evita baixar/enviar arquivos de outra empresa).
+    if (media_path) {
+      if (media_path.includes("..")) return json({ success: false, error: "Caminho de anexo inválido" });
+      const pastaRaiz = media_path.split("/")[0];
+      const permitidas = [perfil?.empresa_id, userData.user.id].filter(Boolean) as string[];
+      if (!permitidas.includes(pastaRaiz)) {
+        return json({ success: false, error: "Você não tem acesso a esse arquivo" });
+      }
+    }
     const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
     const admin = createClient(supabaseUrl, serviceKey || (Deno.env.get("SUPABASE_ANON_KEY") ?? ""), {
       global: serviceKey ? {} : { headers: { Authorization: authHeader } },
