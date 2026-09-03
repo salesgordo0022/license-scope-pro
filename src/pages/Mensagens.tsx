@@ -238,9 +238,12 @@ export default function Mensagens() {
           },
         });
         if (error) throw error;
-        const res = data as { success: boolean; error?: string; usedMedia?: boolean; documentByLink?: boolean; docFalhou?: boolean; warning?: string | null };
+        const res = data as { success: boolean; version?: number; error?: string; usedMedia?: boolean; documentByLink?: boolean; docFalhou?: boolean; warning?: string | null };
         if (!res.success) {
           toast.error(res.error || "Falha ao enviar");
+        } else if (arquivo && (!res.version || res.version < 3)) {
+          toast.error("A função send-whatsapp publicada no Supabase está desatualizada e ignorou o anexo. Republique a função e reenvie.", { duration: 10000 });
+          carregarHistorico();
         } else if (arquivoUrl && !res.usedMedia && !res.documentByLink) {
           toast.warning("Mensagem enviada, mas o DOCUMENTO falhou — apenas o texto chegou ao cliente.", {
             description: res.warning || undefined,

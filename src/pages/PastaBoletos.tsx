@@ -78,6 +78,7 @@ interface FileEntry {
 const AUTO_SCAN_INTERVAL_MS = 20000;
 const DELAY_ENTRE_ENVIOS_MS = 1500;
 const MAX_PDF_BYTES = 8 * 1024 * 1024;
+const FUNCAO_ENVIO_VERSAO_MINIMA = 3; // versão da função send-whatsapp que aceita media_base64
 const SENT_KEYS_STORAGE = "boletos_pasta_enviados_v1";
 const TEMPLATE_STORAGE = "boletos_pasta_template_v2";
 const IDB_NAME = "license-scope-pro-fs";
@@ -463,22 +464,36 @@ export default function PastaBoletos() {
       if (error) throw error;
       const res = data as {
         success: boolean;
+        version?: number;
         error?: string;
         usedMedia?: boolean;
         documentByLink?: boolean;
         warning?: string | null;
+        attempts?: Array<{ endpoint: string; modo: string; status: number; body: string }>;
       };
       if (!res?.success) throw new Error(res?.error || "Falha ao enviar");
+      if (!res.version || res.version < FUNCAO_ENVIO_VERSAO_MINIMA) {
+        // A função no servidor ainda é a versão antiga: ela ignora o arquivo.
+        marcarComoEnviado(entry);
+        updateEntry(entry.key, {
+          status: "enviado_sem_anexo",
+          erro:
+            "A função send-whatsapp publicada no Supabase está desatualizada e ignorou o PDF. Republique (redeploy) a função com o código atual e reenvie.",
+        });
+        return;
+      }
+      const ultimaTentativa = res.attempts?.filter((a) => a.modo !== "texto").slice(-1)[0];
+      const detalhe = ultimaTentativa ? ` [${ultimaTentativa.modo} → HTTP ${ultimaTentativa.status}: ${ultimaTentativa.body.slice(0, 160)}]` : "";
 
       marcarComoEnviado(entry);
       if (res.usedMedia) {
         updateEntry(entry.key, { status: "enviado", erro: undefined });
       } else if (res.documentByLink) {
-        updateEntry(entry.key, { status: "enviado_link", erro: res.warning || undefined });
+        updateEntry(entry.key, { status: "enviado_link", erro: (res.warning || "") + detalhe || undefined });
       } else {
         updateEntry(entry.key, {
           status: "enviado_sem_anexo",
-          erro: res.warning || "O documento não foi entregue; apenas o texto chegou ao cliente.",
+          erro: (res.warning || "O documento não foi entregue; apenas o texto chegou ao cliente.") + detalhe,
         });
       }
     } catch (e) {

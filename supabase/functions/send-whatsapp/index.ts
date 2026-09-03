@@ -6,6 +6,8 @@ const corsHeaders = {
 };
 
 const ZAP_BASE = "https://api-imperial.zapcontabil.chat";
+// Versão da função: o frontend usa para detectar deploy desatualizado.
+const FUNCTION_VERSION = 3;
 
 interface SendBody {
   telefone: string;
@@ -232,6 +234,7 @@ Deno.serve(async (req) => {
       }
     }
     const temAnexo = !!(media_url || media_path || arquivoBase64);
+    const anexoSolicitado = !!(media_base64 || body.media_url || body.media_path);
 
     // 1) Texto da mensagem
     const texto = await enviarTexto(ZAPCONTABIL_API_TOKEN, numero, mensagem, connectionFrom);
@@ -256,7 +259,7 @@ Deno.serve(async (req) => {
         console.error("Falha ao registrar histórico:", logErr);
       }
       console.error("ZapContábil error:", texto.status, texto.text);
-      return json({ success: false, error: erroMsg, detalhe: respJson, attempts });
+      return json({ success: false, version: FUNCTION_VERSION, error: erroMsg, detalhe: respJson, attempts });
     }
 
     // 2) Documento (se houver)
@@ -322,7 +325,11 @@ Deno.serve(async (req) => {
       mensagemRegistrada = `${mensagem}\n\n📎 ${media_filename}`;
     }
 
-    const status = !temAnexo || usedMedia ? "enviado" : documentByLink ? "enviado_link" : "enviado_sem_anexo";
+    if (anexoSolicitado && !temAnexo && !warning) {
+      const ultimo = attempts.find((a) => a.modo === "decode" || a.modo === "upload");
+      warning = `O documento NÃO foi entregue: falha ao processar o arquivo no servidor (${ultimo ? ultimo.body : "arquivo vazio"}).`;
+    }
+    const status = !anexoSolicitado || usedMedia ? "enviado" : documentByLink ? "enviado_link" : "enviado_sem_anexo";
 
     try {
       await admin.from("mensagens_enviadas").insert({
@@ -341,6 +348,7 @@ Deno.serve(async (req) => {
 
     return json({
       success: true,
+      version: FUNCTION_VERSION,
       data: respJson,
       usedMedia,
       documentByLink,
