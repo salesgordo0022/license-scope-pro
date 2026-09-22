@@ -368,7 +368,16 @@ export default function Contratos() {
     try {
       const { data: profile } = await supabase.from('usuario_perfil').select('empresa_id').maybeSingle();
       const dataFim = calcularDataFim(formData.data_inicio, formData.vigencia_meses);
-      const payload = { ...formData, empresa_id: profile?.empresa_id || null, data_fim: dataFim, status: 'ativo' };
+      const payload = {
+        ...formData,
+        modelo_id: formData.modelo_id || null,
+        plano_id: formData.plano_id || null,
+        plano_nome: formData.plano_nome || null,
+        plano_recursos: formData.plano_recursos?.length ? formData.plano_recursos : null,
+        empresa_id: profile?.empresa_id || null,
+        data_fim: dataFim,
+        status: 'ativo',
+      };
 
       if (editingContrato) {
         const { error } = await supabase.from('contratos').update({ ...payload, updated_at: new Date().toISOString() }).eq('id', editingContrato.id);
