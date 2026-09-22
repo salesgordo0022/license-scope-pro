@@ -406,6 +406,10 @@ export default function Contratos() {
       contratante_cpf_dono: (contrato as any).contratante_cpf_dono || '',
       observacoes: contrato.observacoes || '',
       link_documento: contrato.link_documento || '',
+      modelo_id: (contrato as any).modelo_id || '',
+      plano_id: (contrato as any).plano_id || '',
+      plano_nome: (contrato as any).plano_nome || '',
+      plano_recursos: ((contrato as any).plano_recursos || []) as string[],
     });
     setDialogOpen(true);
   };
