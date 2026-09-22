@@ -227,8 +227,12 @@ export type Database = {
           id: string
           is_digital_sign: boolean | null
           link_documento: string | null
+          modelo_id: string | null
           numero_contrato: string | null
           observacoes: string | null
+          plano_id: string | null
+          plano_nome: string | null
+          plano_recursos: string[] | null
           quantidade_licencas: number | null
           sistema: string | null
           status: string
@@ -256,8 +260,12 @@ export type Database = {
           id?: string
           is_digital_sign?: boolean | null
           link_documento?: string | null
+          modelo_id?: string | null
           numero_contrato?: string | null
           observacoes?: string | null
+          plano_id?: string | null
+          plano_nome?: string | null
+          plano_recursos?: string[] | null
           quantidade_licencas?: number | null
           sistema?: string | null
           status?: string
@@ -285,8 +293,12 @@ export type Database = {
           id?: string
           is_digital_sign?: boolean | null
           link_documento?: string | null
+          modelo_id?: string | null
           numero_contrato?: string | null
           observacoes?: string | null
+          plano_id?: string | null
+          plano_nome?: string | null
+          plano_recursos?: string[] | null
           quantidade_licencas?: number | null
           sistema?: string | null
           status?: string
@@ -309,6 +321,20 @@ export type Database = {
             columns: ["empresa_id"]
             isOneToOne: false
             referencedRelation: "empresas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "contratos_modelo_id_fkey"
+            columns: ["modelo_id"]
+            isOneToOne: false
+            referencedRelation: "modelos_contrato"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "contratos_plano_id_fkey"
+            columns: ["plano_id"]
+            isOneToOne: false
+            referencedRelation: "tabela_precos"
             referencedColumns: ["id"]
           },
         ]

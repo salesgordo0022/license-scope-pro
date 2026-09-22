@@ -136,6 +136,8 @@ export default function Contratos() {
   const [certPassword, setCertPassword] = useState('');
   const [isSigning, setIsSigning] = useState(false);
   const [signatures, setSignatures] = useState<any[]>([]);
+  const [modelos, setModelos] = useState<{ id: string; nome: string; clausulas: { id: string; titulo: string; conteudo: string }[] }[]>([]);
+  const [planos, setPlanos] = useState<{ id: string; nome: string; valor_mensalidade: number; valor_implantacao: number; recursos: string[] | null }[]>([]);
 
   const [formData, setFormData] = useState({
     cliente_id: '',
@@ -156,21 +158,39 @@ export default function Contratos() {
     contratante_cpf_dono: '',
     observacoes: '',
     link_documento: '',
+    modelo_id: '',
+    plano_id: '',
+    plano_nome: '',
+    plano_recursos: [] as string[],
   });
 
   const fetchData = async () => {
     try {
-      const [contratosRes, clientesRes, sistemasRes, configRes] = await Promise.all([
+      const [contratosRes, clientesRes, sistemasRes, configRes, modelosRes, planosRes] = await Promise.all([
         supabase.from('contratos').select('*').order('created_at', { ascending: false }),
         supabase.from('clientes').select('id, nome_empresa, email, telefone, segmento, valor_mensalidade, valor_implantacao, cnpj, nome_dono, cpf_dono, endereco, cidade, estado'),
         supabase.from('sistemas').select('id, nome').eq('ativo', true),
         supabase.from('configuracao_contrato').select('*').maybeSingle(),
+        supabase.from('modelos_contrato').select('id, nome, clausulas').eq('ativo', true).order('nome'),
+        supabase.from('tabela_precos').select('id, nome, valor_mensalidade, valor_implantacao, recursos').eq('ativo', true).order('ordem'),
       ]);
 
       if (contratosRes.error) throw contratosRes.error;
       setContratos(contratosRes.data || []);
       setClientes(clientesRes.data || []);
       setSistemas(sistemasRes.data || []);
+      setModelos(((modelosRes.data || []) as any[]).map((m) => ({
+        id: m.id,
+        nome: m.nome,
+        clausulas: Array.isArray(m.clausulas) ? m.clausulas : [],
+      })));
+      setPlanos(((planosRes.data || []) as any[]).map((p) => ({
+        id: p.id,
+        nome: p.nome,
+        valor_mensalidade: Number(p.valor_mensalidade) || 0,
+        valor_implantacao: Number(p.valor_implantacao) || 0,
+        recursos: p.recursos || [],
+      })));
       
       // Fetch active licenses for clients to show in the table
       const clienteIds = (clientesRes.data || []).map(c => c.id);
@@ -280,6 +300,7 @@ export default function Contratos() {
       contratante_nome: '', contratante_endereco: '', contratante_cidade: '',
       contratante_estado: '', contratante_cnpj: '', contratante_nome_dono: '', contratante_cpf_dono: '',
       observacoes: '', link_documento: '',
+      modelo_id: '', plano_id: '', plano_nome: '', plano_recursos: [] as string[],
     });
   };
 
@@ -347,7 +368,16 @@ export default function Contratos() {
     try {
       const { data: profile } = await supabase.from('usuario_perfil').select('empresa_id').maybeSingle();
       const dataFim = calcularDataFim(formData.data_inicio, formData.vigencia_meses);
-      const payload = { ...formData, empresa_id: profile?.empresa_id || null, data_fim: dataFim, status: 'ativo' };
+      const payload = {
+        ...formData,
+        modelo_id: formData.modelo_id || null,
+        plano_id: formData.plano_id || null,
+        plano_nome: formData.plano_nome || null,
+        plano_recursos: formData.plano_recursos?.length ? formData.plano_recursos : null,
+        empresa_id: profile?.empresa_id || null,
+        data_fim: dataFim,
+        status: 'ativo',
+      };
 
       if (editingContrato) {
         const { error } = await supabase.from('contratos').update({ ...payload, updated_at: new Date().toISOString() }).eq('id', editingContrato.id);
@@ -385,6 +415,10 @@ export default function Contratos() {
       contratante_cpf_dono: (contrato as any).contratante_cpf_dono || '',
       observacoes: contrato.observacoes || '',
       link_documento: contrato.link_documento || '',
+      modelo_id: (contrato as any).modelo_id || '',
+      plano_id: (contrato as any).plano_id || '',
+      plano_nome: (contrato as any).plano_nome || '',
+      plano_recursos: ((contrato as any).plano_recursos || []) as string[],
     });
     setDialogOpen(true);
   };
@@ -653,6 +687,52 @@ export default function Contratos() {
     const nomeContratado = config.contratado_nome || 'ImperialTech';
     const logoUrl = config.logo_url || "/__l5e/assets-v1/2bd820be-8ac9-46e0-b258-dbf77ce4946f/impertech-logo.png";
 
+    const planoNome = (contrato as any).plano_nome as string | null;
+    const planoRecursos: string[] = ((contrato as any).plano_recursos || []) as string[];
+    const modelo = modelos.find((m) => m.id === (contrato as any).modelo_id);
+
+    const variaveis: Record<string, string> = {
+      sistema: contrato.sistema || '……………...',
+      plano: planoNome || '——',
+      quantidade_licencas: String(contrato.quantidade_licencas ?? ''),
+      vigencia_meses: String(contrato.vigencia_meses ?? ''),
+      data_inicio: dataInicio,
+      data_fim: dataFim,
+      valor_software: formatCurrency(contrato.valor_software),
+      valor_mensalidade: formatCurrency(contrato.valor_mensalidade),
+      valor_km_deslocamento: formatCurrency(contrato.valor_km_deslocamento),
+      horario_atendimento: config.horario_atendimento || '',
+      foro_comarca: config.foro_comarca || '…………………..',
+      prazo_aviso_rescisao: String(config.prazo_aviso_rescisao ?? 30),
+      contratante: nomeContratante,
+      contratado: nomeContratado,
+      indice_reajuste: config.indice_reajuste || '',
+    };
+    const aplicarVariaveis = (texto: string) =>
+      (texto || '').replace(/\{\{\s*(\w+)\s*\}\}/g, (_m, chave) => variaveis[chave] ?? '');
+
+    const modeloClausulas = modelo && modelo.clausulas.length > 0 ? (
+      <>
+        {modelo.clausulas.map((c, i) => (
+          <section key={c.id || i} className="relative z-10 mb-6">
+            <h2 className="font-bold uppercase text-sm mb-3 text-[#331470] flex items-center gap-2">
+              <span className="w-6 h-6 bg-[#331470] text-white flex items-center justify-center rounded text-[10px]">
+                {String(i + 1).padStart(2, '0')}
+              </span>
+              {aplicarVariaveis(c.titulo)}
+            </h2>
+            <div className="text-justify whitespace-pre-line">{aplicarVariaveis(c.conteudo)}</div>
+          </section>
+        ))}
+        {config.clausulas_adicionais && (
+          <section>
+            <h2 className="font-bold uppercase text-sm mb-2 text-black">Cláusulas Adicionais</h2>
+            <div className="text-justify indent-8 whitespace-pre-line">{config.clausulas_adicionais}</div>
+          </section>
+        )}
+      </>
+    ) : null;
+
     return (
       <div id="contract-document" className="bg-white text-black shadow-xl rounded-sm mx-auto print:shadow-none relative overflow-hidden" style={{ 
         width: '210mm', 
@@ -773,6 +853,22 @@ export default function Contratos() {
         </p>
 
         <div className="space-y-6" style={{ pageBreakInside: 'auto' }}>
+          {planoNome && (
+            <section className="relative z-10 mb-6 border border-[#33147030] rounded-lg p-4 bg-[#9470db0d]">
+              <h2 className="font-bold uppercase text-sm mb-2 text-[#331470]">Plano Contratado</h2>
+              <p className="text-justify">
+                <strong>{planoNome}</strong> — Mensalidade de <strong>{formatCurrency(contrato.valor_mensalidade)}</strong>
+                {Number(contrato.valor_software) > 0 && <> e implantação de <strong>{formatCurrency(contrato.valor_software)}</strong></>}.
+              </p>
+              {planoRecursos.length > 0 && (
+                <ul className="mt-2 list-disc pl-8">
+                  {planoRecursos.map((r, i) => (<li key={i}>{r}</li>))}
+                </ul>
+              )}
+            </section>
+          )}
+          {modeloClausulas ? modeloClausulas : (<>
+
           {/* CLÁUSULA PRIMEIRA */}
           <section className="relative z-10 mb-6">
             <h2 className="font-bold uppercase text-sm mb-4 text-[#331470] flex items-center gap-2">
@@ -918,6 +1014,7 @@ export default function Contratos() {
               </div>
             </section>
           )}
+          </>)}
         </div>
 
         {/* Assinaturas Modernas */}
@@ -1049,6 +1146,56 @@ export default function Contratos() {
                         ))}
                       </SelectContent>
                     </Select>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label>Modelo de Contrato</Label>
+                      <Select
+                        value={formData.modelo_id || 'padrao'}
+                        onValueChange={(v) => setFormData({ ...formData, modelo_id: v === 'padrao' ? '' : v })}
+                      >
+                        <SelectTrigger><SelectValue placeholder="Modelo padrão do sistema" /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="padrao">Modelo padrão do sistema</SelectItem>
+                          {modelos.map((m) => (
+                            <SelectItem key={m.id} value={m.id}>{m.nome}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Plano</Label>
+                      <Select
+                        value={formData.plano_id || 'nenhum'}
+                        onValueChange={(v) => {
+                          if (v === 'nenhum') {
+                            setFormData({ ...formData, plano_id: '', plano_nome: '', plano_recursos: [] });
+                            return;
+                          }
+                          const plano = planos.find((p) => p.id === v);
+                          if (!plano) return;
+                          setFormData({
+                            ...formData,
+                            plano_id: plano.id,
+                            plano_nome: plano.nome,
+                            plano_recursos: plano.recursos || [],
+                            valor_mensalidade: plano.valor_mensalidade,
+                            valor_software: plano.valor_implantacao,
+                          });
+                        }}
+                      >
+                        <SelectTrigger><SelectValue placeholder="Sem plano" /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="nenhum">Sem plano</SelectItem>
+                          {planos.map((p) => (
+                            <SelectItem key={p.id} value={p.id}>
+                              {p.nome} — {formatCurrency(p.valor_mensalidade)}/mês
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
                   </div>
 
                   <div className="grid grid-cols-2 gap-4">
