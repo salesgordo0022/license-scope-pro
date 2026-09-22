@@ -46,6 +46,11 @@ const defaultClausulas: Clausula[] = [
   { id: crypto.randomUUID(), titulo: 'Cláusula Décima — Do Foro', conteudo: '10.1. As partes elegem o foro da Comarca de {{foro_comarca}} para dirimir eventuais controvérsias oriundas do presente Contrato.' },
 ];
 
+/**
+ * Editor dos modelos de contrato: define as cláusulas que serão impressas no
+ * PDF gerado. Os modelos são por empresa — o RLS impede ler ou editar o de
+ * outro tenant.
+ */
 export default function ModelosContrato() {
   const [modelos, setModelos] = useState<ModeloContrato[]>([]);
   const [loading, setLoading] = useState(true);
@@ -58,6 +63,7 @@ export default function ModelosContrato() {
   const [formDescricao, setFormDescricao] = useState('');
   const [formClausulas, setFormClausulas] = useState<Clausula[]>([]);
 
+  /** Carrega os modelos de contrato da empresa. */
   const fetchModelos = async () => {
     try {
       const { data, error } = await supabase
@@ -98,6 +104,7 @@ export default function ModelosContrato() {
     setDialogOpen(true);
   };
 
+  /** Cria uma cópia do modelo para servir de ponto de partida a um novo. */
   const handleDuplicate = (modelo: ModeloContrato) => {
     setEditingModelo(null);
     setFormNome(`${modelo.nome} (cópia)`);
@@ -107,6 +114,7 @@ export default function ModelosContrato() {
     setDialogOpen(true);
   };
 
+  /** Salva o modelo em edição com suas cláusulas. */
   const handleSave = async () => {
     if (!formNome.trim()) { toast.error('Informe o nome do modelo'); return; }
     setSaving(true);
@@ -138,6 +146,7 @@ export default function ModelosContrato() {
     }
   };
 
+  /** Exclui o modelo após confirmação. */
   const handleDelete = async (id: string) => {
     if (!confirm('Excluir este modelo de contrato?')) return;
     try {
@@ -148,6 +157,7 @@ export default function ModelosContrato() {
     } catch { toast.error('Erro ao excluir modelo'); }
   };
 
+  /** Liga/desliga o modelo; o ativo é o usado ao gerar contratos. */
   const handleToggleAtivo = async (modelo: ModeloContrato) => {
     try {
       const { error } = await supabase.from('modelos_contrato').update({ ativo: !modelo.ativo }).eq('id', modelo.id);

@@ -56,6 +56,10 @@ interface Licenca {
 
 const tiposLicenca = ['Anual', 'Mensal', 'Perpétua', 'Trial', 'Enterprise'];
 
+/**
+ * Controle de licenças por cliente: tipo, quantidade, validade e status,
+ * com destaque para as que estão vencendo.
+ */
 export default function Licencas() {
   const [licencas, setLicencas] = useState<Licenca[]>([]);
   const [clientes, setClientes] = useState<Cliente[]>([]);
@@ -79,6 +83,7 @@ export default function Licencas() {
     modelo_cobranca: 'saas_full',
   });
 
+  /** Carrega licenças e a lista de clientes usada no seletor do formulário. */
   const fetchData = async () => {
     try {
       const [licencasRes, clientesRes] = await Promise.all([
@@ -142,6 +147,7 @@ export default function Licencas() {
     }
   };
 
+  /** Salva o formulário: cria um registro novo ou atualiza o que está em edição. */
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
@@ -235,6 +241,7 @@ export default function Licencas() {
     });
   };
 
+  /** Preenche o formulário com o registro escolhido e abre o diálogo de edição. */
   const handleEdit = (licenca: Licenca) => {
     setEditingLicenca(licenca);
     setFormData({
@@ -253,6 +260,7 @@ export default function Licencas() {
     setDialogOpen(true);
   };
 
+  /** Exclui o registro após confirmação do usuário. */
   const handleDelete = async (id: string) => {
     if (!confirm('Tem certeza que deseja excluir esta licença?')) return;
 
@@ -267,6 +275,7 @@ export default function Licencas() {
     }
   };
 
+  /** Aplica busca e filtro de status sobre a lista carregada. */
   const filteredLicencas = licencas.filter((licenca) => {
     const matchesSearch =
       licenca.clientes?.nome_empresa?.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -275,6 +284,7 @@ export default function Licencas() {
     return matchesSearch && matchesStatus;
   });
 
+  /** Monta o selo de status considerando também se a validade já passou. */
   const getStatusBadge = (status: string | null, validade: string | null) => {
     if (validade) {
       const hoje = new Date();
@@ -305,6 +315,7 @@ export default function Licencas() {
     return dias > 0 && dias <= 30;
   };
 
+  /** Formata um número como moeda brasileira. */
   const formatCurrency = (value: number | null) => {
     if (value === null || value === undefined) return 'R$ 0,00';
     return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);

@@ -6,6 +6,13 @@ import KanbanVendas from '@/components/vendas/KanbanVendas';
 import ProspeccaoEmpresas from '@/components/vendas/ProspeccaoEmpresas';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
 
+/**
+ * Módulo de vendas. Só orquestra as abas — Kanban de negociações, metas e
+ * prospecção de empresas —, cada uma num componente de `components/vendas`.
+ *
+ * O conteúdo fica dentro de um ErrorBoundary: são telas pesadas (mapa, planilha,
+ * drag-and-drop) e um erro em qualquer uma delas derrubaria a aplicação inteira.
+ */
 export default function Revendas() {
   return (
     <div className="space-y-6">

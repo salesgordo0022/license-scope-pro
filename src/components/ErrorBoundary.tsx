@@ -5,6 +5,13 @@ import { Button } from '@/components/ui/button';
 type Props = { children: ReactNode };
 type State = { error: Error | null; info: ErrorInfo | null };
 
+/**
+ * Captura erros de renderização da árvore React abaixo dele e mostra uma
+ * mensagem em vez de deixar a aplicação inteira em tela branca.
+ *
+ * Só pega erro durante a renderização — erro dentro de `async`/`setTimeout`
+ * ou de handler de evento não passa por aqui.
+ */
 export class ErrorBoundary extends Component<Props, State> {
   state: State = { error: null, info: null };
 

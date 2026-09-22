@@ -26,6 +26,13 @@ interface DashboardStats {
 
 const COLORS = ['hsl(234, 89%, 60%)', 'hsl(142, 76%, 36%)', 'hsl(38, 92%, 50%)', 'hsl(199, 89%, 48%)', 'hsl(280, 68%, 60%)'];
 
+/**
+ * Painel inicial: consolida os indicadores da empresa do usuário — total de
+ * clientes, licenças ativas e a vencer, receita e distribuição por segmento.
+ *
+ * Todas as consultas passam pelo RLS, então os números já vêm restritos ao
+ * tenant de quem está logado; não há filtro de empresa no código da tela.
+ */
 export default function Dashboard() {
   const { profile } = useAuth();
   const [stats, setStats] = useState<DashboardStats>({

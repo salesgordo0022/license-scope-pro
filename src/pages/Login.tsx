@@ -1,8 +1,9 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate, Navigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { Key, Mail, Lock, Loader2, ArrowRight, Eye, EyeOff } from 'lucide-react';
-import { useAuth } from '@/contexts/AuthContext';
+import { useAuth, PUBLIC_SIGNUP_ENABLED } from '@/contexts/AuthContext';
+import { estadoBloqueio } from '@/lib/authPolicy';
 import { DottedSurface } from '@/components/ui/dotted-surface';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -13,10 +14,19 @@ import { toast } from 'sonner';
 import TetrisLoading from '@/components/ui/tetris-loader';
 import { TextLoop } from '@/components/ui/text-loop';
 
+/**
+ * Tela de autenticação.
+ *
+ * Redireciona para o dashboard se já houver sessão. A aba "Criar conta" só
+ * é montada quando o auto-cadastro público está habilitado por variável de
+ * ambiente — por padrão, acessos são provisionados por um administrador.
+ */
 export default function Login() {
   const { signIn, signUp, user, loading: authLoading } = useAuth();
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
+  // Estado do freio de tentativas, recalculado a cada segundo enquanto travado.
+  const [bloqueio, setBloqueio] = useState(estadoBloqueio);
   
   // Login form
   const [loginEmail, setLoginEmail] = useState('');
@@ -31,6 +41,14 @@ export default function Login() {
   const [showLoginPassword, setShowLoginPassword] = useState(false);
   const [showRegisterPassword, setShowRegisterPassword] = useState(false);
 
+  // Enquanto o formulário está travado, atualiza o contador regressivo. O
+  // intervalo só roda nesse caso — sem bloqueio ativo não há timer pendurado.
+  useEffect(() => {
+    if (!bloqueio.bloqueado) return;
+    const t = setInterval(() => setBloqueio(estadoBloqueio()), 1000);
+    return () => clearInterval(t);
+  }, [bloqueio.bloqueado]);
+
   if (authLoading) {
     return (
       <div className="flex h-screen items-center justify-center bg-background">
@@ -43,24 +61,44 @@ export default function Login() {
     return <Navigate to="/dashboard" replace />;
   }
 
+  /** Autentica o usuário. A mensagem de erro é genérica de propósito: dizer se
+   *  o email existe permitiria enumerar contas do sistema. */
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    // Trava local depois de 5 erros em 15 minutos. Não substitui o rate limit
+    // do Supabase — encarece o ataque de força bruta feito por esta tela.
+    const estado = estadoBloqueio();
+    if (estado.bloqueado) {
+      setBloqueio(estado);
+      toast.error('Muitas tentativas', {
+        description: `Aguarde ${estado.segundosRestantes}s antes de tentar de novo.`,
+      });
+      return;
+    }
+
     setLoading(true);
-    
     const { error } = await signIn(loginEmail, loginPassword);
-    
+    const depois = estadoBloqueio();
+    setBloqueio(depois);
+
     if (error) {
+      setLoginPassword('');
       toast.error('Erro ao fazer login', {
-        description: 'Verifique suas credenciais e tente novamente.',
+        description: depois.tentativasRestantes > 0 && depois.tentativasRestantes <= 2
+          ? `Verifique suas credenciais. Restam ${depois.tentativasRestantes} tentativa(s).`
+          : 'Verifique suas credenciais e tente novamente.',
       });
     } else {
       toast.success('Login realizado com sucesso!');
       navigate('/dashboard');
     }
-    
+
     setLoading(false);
   };
 
+  /** Cria uma conta pelo formulário público (quando habilitado). O papel do
+   *  usuário é definido no banco pelo trigger handle_new_user, nunca aqui. */
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
@@ -126,10 +164,14 @@ export default function Login() {
           </div>
 
           <Tabs defaultValue="login" className="w-full">
-            <TabsList className="grid w-full grid-cols-2 mb-6">
-              <TabsTrigger value="login">Entrar</TabsTrigger>
-              <TabsTrigger value="register">Criar conta</TabsTrigger>
-            </TabsList>
+            {/* A aba de cadastro só aparece quando VITE_ENABLE_PUBLIC_SIGNUP="true".
+                Em produção os acessos são criados por um admin na tela de Usuários. */}
+            {PUBLIC_SIGNUP_ENABLED && (
+              <TabsList className="grid w-full grid-cols-2 mb-6">
+                <TabsTrigger value="login">Entrar</TabsTrigger>
+                <TabsTrigger value="register">Criar conta</TabsTrigger>
+              </TabsList>
+            )}
 
             <TabsContent value="login">
               <Card className="border-border/50 shadow-lg">
@@ -178,7 +220,7 @@ export default function Login() {
                         </button>
                       </div>
                     </div>
-                    <Button type="submit" className="w-full" disabled={loading}>
+                    <Button type="submit" className="w-full" disabled={loading || bloqueio.bloqueado}>
                       {loading ? (
                         <Loader2 className="h-4 w-4 animate-spin" />
                       ) : (
@@ -193,6 +235,7 @@ export default function Login() {
               </Card>
             </TabsContent>
 
+            {PUBLIC_SIGNUP_ENABLED && (
             <TabsContent value="register">
               <Card className="border-border/50 shadow-lg">
                 <CardHeader className="space-y-1">
@@ -266,6 +309,7 @@ export default function Login() {
                 </CardContent>
               </Card>
             </TabsContent>
+            )}
           </Tabs>
         </motion.div>
       </div>

@@ -39,6 +39,7 @@ interface Segmento {
   created_at: string;
 }
 
+/** Cadastro dos segmentos de mercado usados para classificar os clientes. */
 export default function Segmentos() {
   const [segmentos, setSegmentos] = useState<Segmento[]>([]);
   const [loading, setLoading] = useState(true);
@@ -49,6 +50,7 @@ export default function Segmentos() {
     descricao: '',
   });
 
+  /** Carrega os segmentos da empresa. */
   const fetchSegmentos = async () => {
     try {
       const { data, error } = await supabase
@@ -69,6 +71,7 @@ export default function Segmentos() {
     fetchSegmentos();
   }, []);
 
+  /** Salva o segmento (novo ou editado). */
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
@@ -104,6 +107,7 @@ export default function Segmentos() {
     }
   };
 
+  /** Abre o formulário preenchido com o segmento escolhido. */
   const handleEdit = (segmento: Segmento) => {
     setEditingSegmento(segmento);
     setFormData({
@@ -113,6 +117,7 @@ export default function Segmentos() {
     setDialogOpen(true);
   };
 
+  /** Exclui o segmento após confirmação. */
   const handleDelete = async (id: string) => {
     if (!confirm('Tem certeza que deseja excluir este segmento?')) return;
 

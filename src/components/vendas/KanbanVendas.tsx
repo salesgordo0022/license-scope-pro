@@ -86,6 +86,10 @@ const TEMPERATURAS = [
 const formatCurrency = (v: number) =>
   new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(v);
 
+/**
+ * Funil de vendas em quadro Kanban: cada coluna é um estágio da negociação e
+ * os cartões são arrastados entre elas para mudar o status.
+ */
 export default function KanbanVendas() {
   const [revendas, setRevendas] = useState<Revenda[]>([]);
   const [clientes, setClientes] = useState<Cliente[]>([]);
@@ -118,6 +122,7 @@ export default function KanbanVendas() {
   });
   const [tagInput, setTagInput] = useState('');
 
+  /** Carrega negociações, clientes e pipelines configurados. */
   const fetchData = async () => {
     try {
       const [{ data: rv }, { data: cl }, { data: pl }] = await Promise.all([
@@ -165,6 +170,7 @@ export default function KanbanVendas() {
     return data.id;
   };
 
+  /** Salva a negociação (nova ou editada). */
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
@@ -195,6 +201,7 @@ export default function KanbanVendas() {
     }
   };
 
+  /** Abre o formulário preenchido com a negociação escolhida. */
   const handleEdit = (r: Revenda) => {
     setEditing(r);
     setForm({
@@ -212,6 +219,7 @@ export default function KanbanVendas() {
     setDialogOpen(true);
   };
 
+  /** Exclui a negociação após confirmação. */
   const handleDelete = async (id: string) => {
     if (!confirm('Excluir esta venda?')) return;
     try {
@@ -222,9 +230,12 @@ export default function KanbanVendas() {
     } catch { toast.error('Erro ao excluir'); }
   };
 
+  /** Marca qual cartão está sendo arrastado. */
   const handleDragStart = (id: string) => setDraggedId(id);
+  /** Limpa o estado de arraste quando o usuário solta o cartão fora de uma coluna. */
   const handleDragEnd = () => { setDraggedId(null); setDragOverCol(null); };
 
+  /** Move o cartão para a coluna alvo e persiste o novo status no banco. */
   const handleDrop = async (newStatus: string) => {
     if (!draggedId) return;
     setDragOverCol(null);
@@ -259,6 +270,7 @@ export default function KanbanVendas() {
     setPipelineDialogOpen(true);
   };
 
+  /** Salva a configuração de um pipeline de vendas. */
   const handleSavePipeline = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!pipelineForm.nome.trim()) { toast.error('Nome obrigatório'); return; }
@@ -288,6 +300,7 @@ export default function KanbanVendas() {
     }
   };
 
+  /** Exclui um pipeline após confirmação. */
   const handleDeletePipeline = async (p: Pipeline) => {
     const count = revendas.filter(r => r.pipeline_id === p.id).length;
     if (!confirm(`Excluir pipeline "${p.nome}"?${count ? ` ${count} oportunidade(s) ficarão sem pipeline.` : ''}`)) return;

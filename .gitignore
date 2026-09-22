@@ -22,3 +22,12 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Variáveis de ambiente — NUNCA versionar (contêm URLs de projeto e chaves)
+.env
+.env.*
+!.env.example
+
+# Arquivos de certificado digital (.pfx/.p12) — jamais entram no repositório
+*.pfx
+*.p12

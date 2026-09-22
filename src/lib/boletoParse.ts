@@ -53,6 +53,7 @@ export const CRITERIO_LABEL: Record<CriterioMatch, string> = {
 
 export const onlyDigits = (s: string | null | undefined) => (s || "").replace(/\D/g, "");
 
+/** Reduz um texto a letras e dígitos minúsculos sem acento, para comparação. */
 export function normalizeToken(s: string) {
   return s
     .normalize("NFD")
@@ -69,10 +70,12 @@ function normalizeNome(s: string) {
   );
 }
 
+/** Remove duplicatas preservando a ordem de aparição. */
 function unique<T>(arr: T[]): T[] {
   return Array.from(new Set(arr));
 }
 
+/** Lê um valor no formato brasileiro ("1.234,56") e devolve o número. */
 function parseValorBr(s: string): number | null {
   const m = s.match(/(\d{1,3}(?:\.\d{3})*|\d+),(\d{2})/);
   if (!m) return null;
@@ -80,6 +83,7 @@ function parseValorBr(s: string): number | null {
   return Number.isFinite(v) ? v : null;
 }
 
+/** Formata a data em dd/mm/aaaa usando UTC (evita deslocar o dia por fuso). */
 function formatData(d: Date) {
   const dd = String(d.getUTCDate()).padStart(2, "0");
   const mm = String(d.getUTCMonth() + 1).padStart(2, "0");
@@ -99,6 +103,7 @@ function dataDoFator(fator: number): Date | null {
   return new Date(escolhido);
 }
 
+/** Localiza a linha digitável de 47 dígitos, com ou sem separadores impressos. */
 function extrairLinhaDigitavel(texto: string): string | null {
   // Formato impresso: 00000.00000 00000.000000 00000.000000 0 00000000000000
   const m = texto.match(
@@ -114,12 +119,18 @@ function extrairLinhaDigitavel(texto: string): string | null {
   return null;
 }
 
+/** Devolve os N caracteres seguintes à primeira ocorrência de um rótulo. */
 function trechoApos(texto: string, rotulo: RegExp, tamanho: number): string | null {
   const m = rotulo.exec(texto);
   if (!m) return null;
   return texto.slice(m.index + m[0].length, m.index + m[0].length + tamanho);
 }
 
+/**
+ * Extrai do texto do boleto tudo que serve para identificar o cliente e
+ * montar a mensagem: CNPJ/CPF, telefone, nome do pagador, valor, vencimento e
+ * linha digitável.
+ */
 export function analisarBoleto(texto: string): DadosBoleto {
   const t = texto || "";
   const cnpjs = unique(
@@ -177,6 +188,7 @@ export function analisarBoleto(texto: string): DadosBoleto {
   return { texto: t, cnpjs, cpfs, telefones, valor, vencimento, linhaDigitavel, trechoPagador };
 }
 
+/** Tenta casar o pagador do boleto com um cliente pelo nome normalizado. */
 function matchPorNome<C extends ClienteIdentificavel>(
   alvo: string,
   clientes: C[],
@@ -205,6 +217,13 @@ function matchPorNome<C extends ClienteIdentificavel>(
  * Identifica o cliente do boleto. Ordem de prioridade (da mais para a menos
  * confiável): CNPJ no PDF → CPF do dono no PDF → telefone/CNPJ no nome do
  * arquivo → nome no trecho "Pagador" do PDF → nome no arquivo → telefone no PDF.
+ */
+/**
+ * Descobre a qual cliente o boleto pertence.
+ *
+ * Tenta os critérios do mais confiável para o menos: CNPJ, depois CPF, depois
+ * telefone e por último o nome. O critério usado volta no resultado para a
+ * tela poder sinalizar quando o casamento foi apenas por nome.
  */
 export function identificarCliente<C extends ClienteIdentificavel>(
   filename: string,
@@ -275,17 +294,20 @@ export function identificarCliente<C extends ClienteIdentificavel>(
   return null;
 }
 
+/** Formata um número como moeda brasileira (R$ 1.234,56). */
 export function formatarValor(v: number | null | undefined) {
   if (v === null || v === undefined) return "";
   return v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 }
 
+/** Reinsere os separadores visuais da linha digitável para exibição. */
 export function formatarLinhaDigitavel(l: string | null | undefined) {
   if (!l || l.length !== 47) return l || "";
   return `${l.slice(0, 5)}.${l.slice(5, 10)} ${l.slice(10, 15)}.${l.slice(15, 21)} ${l.slice(21, 26)}.${l.slice(26, 32)} ${l.slice(32, 33)} ${l.slice(33)}`;
 }
 
 /** Substitui os placeholders do template pelos dados do boleto/cliente. */
+/** Monta o texto do WhatsApp com os dados do boleto (valor, vencimento, código). */
 export function montarMensagem(
   template: string,
   ctx: { nome: string; arquivo: string; dados: DadosBoleto | null }

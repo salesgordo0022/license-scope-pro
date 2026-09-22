@@ -37,6 +37,14 @@ import type { Database } from '@/integrations/supabase/types';
 type UsuarioPerfil = Database['public']['Tables']['usuario_perfil']['Row'];
 type UserRole = Database['public']['Enums']['user_role'];
 
+/**
+ * Gestão de usuários da empresa.
+ *
+ * A tela inteira é bloqueada para quem não é admin (`if (!isAdmin)` mais
+ * abaixo) e o link dela some da sidebar. Isso é conveniência: a autorização
+ * que vale está na Edge Function `create-user` e nas policies de RLS — um
+ * usuário comum que forçasse a URL não conseguiria ler nem gravar nada.
+ */
 export default function Usuarios() {
   const { isAdmin, isSuperAdmin, profile: currentProfile } = useAuth();
   const [usuarios, setUsuarios] = useState<UsuarioPerfil[]>([]);
@@ -60,6 +68,7 @@ export default function Usuarios() {
     tipo: 'revendedor' as UserRole,
   });
 
+  /** Lista os perfis visíveis para o usuário atual (limitados pelo RLS). */
   const fetchUsuarios = async () => {
     try {
       const { data, error } = await supabase
@@ -81,6 +90,13 @@ export default function Usuarios() {
     fetchUsuarios();
   }, []);
 
+  /**
+   * Cria um usuário chamando a Edge Function `create-user`.
+   *
+   * A criação não pode acontecer no navegador: exige a service role do Supabase,
+   * que jamais deve ir para o bundle. A function revalida no servidor tudo que é
+   * checado aqui — as validações desta tela são só para dar retorno rápido.
+   */
   const handleCreateUser = async (e: React.FormEvent) => {
     e.preventDefault();
     setCreating(true);
@@ -122,6 +138,7 @@ export default function Usuarios() {
     }
   };
 
+  /** Atualiza nome e papel do usuário em edição. */
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
@@ -159,6 +176,7 @@ export default function Usuarios() {
     }
   };
 
+  /** Abre o formulário preenchido com o usuário escolhido. */
   const handleEdit = (usuario: UsuarioPerfil) => {
     setEditingUsuario(usuario);
     setFormData({
@@ -169,6 +187,7 @@ export default function Usuarios() {
     setDialogOpen(true);
   };
 
+  /** Remove o perfil do usuário após confirmação. */
   const handleDelete = async (id: string) => {
     const usuario = usuarios.find((u) => u.id === id);
     
@@ -195,6 +214,7 @@ export default function Usuarios() {
     }
   };
 
+  /** Filtra a lista pelo termo de busca digitado. */
   const filteredUsuarios = usuarios.filter((usuario) => {
     return (
       usuario.nome?.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -202,6 +222,7 @@ export default function Usuarios() {
     );
   });
 
+  /** Devolve o selo visual do papel (super admin, admin, revendedor). */
   const getRoleBadge = (tipo: UserRole | null) => {
     const config: Record<string, { label: string; className: string }> = {
       super_admin: { label: 'Super Admin', className: 'bg-primary/10 text-primary border-primary/20' },

@@ -3,9 +3,17 @@ import { useAuth } from '@/contexts/AuthContext';
 import { AppSidebar } from '@/components/layout/AppSidebar';
 import TetrisLoading from '@/components/ui/tetris-loader';
 import { useState } from 'react';
+import { DesafioMfa } from '@/components/auth/DesafioMfa';
 
+/**
+ * Moldura das telas autenticadas: sidebar + área de conteúdo.
+ *
+ * Também é o guarda de rota — sem sessão, redireciona para /login. Isso é
+ * proteção de navegação, não de dados: quem chamasse a API direto esbarraria
+ * no RLS do Postgres, que é onde o isolamento por empresa é garantido.
+ */
 export function DashboardLayout() {
-  const { user, loading } = useAuth();
+  const { user, loading, mfa } = useAuth();
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
 
   if (loading) {
@@ -18,6 +26,14 @@ export function DashboardLayout() {
 
   if (!user) {
     return <Navigate to="/login" replace />;
+  }
+
+  // Senha aceita, mas falta o segundo fator: a sessão existe e mesmo assim não
+  // pode ver o painel. Sem esta trava o usuário entraria com a sessão em `aal1`
+  // e as telas quebrariam de forma confusa ao esbarrar nas policies que exigem
+  // `aal2` — ou pior, veria dados se alguma policy não exigisse.
+  if (mfa.precisaMfa) {
+    return <DesafioMfa />;
   }
 
   return (
