@@ -225,12 +225,6 @@ export type Database = {
           data_inicio: string
           empresa_id: string | null
           id: string
-          clausulas_snapshot: Json | null
-
-          documento_path: string | null
-
-          snapshot_gerado_em: string | null
-
           is_digital_sign: boolean | null
           link_documento: string | null
           modelo_id: string | null
@@ -264,12 +258,6 @@ export type Database = {
           data_inicio?: string
           empresa_id?: string | null
           id?: string
-          clausulas_snapshot?: Json | null
-
-          documento_path?: string | null
-
-          snapshot_gerado_em?: string | null
-
           is_digital_sign?: boolean | null
           link_documento?: string | null
           modelo_id?: string | null
@@ -303,12 +291,6 @@ export type Database = {
           data_inicio?: string
           empresa_id?: string | null
           id?: string
-          clausulas_snapshot?: Json | null
-
-          documento_path?: string | null
-
-          snapshot_gerado_em?: string | null
-
           is_digital_sign?: boolean | null
           link_documento?: string | null
           modelo_id?: string | null
