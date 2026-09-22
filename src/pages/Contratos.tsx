@@ -300,6 +300,7 @@ export default function Contratos() {
       contratante_nome: '', contratante_endereco: '', contratante_cidade: '',
       contratante_estado: '', contratante_cnpj: '', contratante_nome_dono: '', contratante_cpf_dono: '',
       observacoes: '', link_documento: '',
+      modelo_id: '', plano_id: '', plano_nome: '', plano_recursos: [] as string[],
     });
   };
 
