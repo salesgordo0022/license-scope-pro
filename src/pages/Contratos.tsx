@@ -952,6 +952,7 @@ export default function Contratos() {
               </div>
             </section>
           )}
+          </>)}
         </div>
 
         {/* Assinaturas Modernas */}
