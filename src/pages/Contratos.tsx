@@ -158,6 +158,10 @@ export default function Contratos() {
     contratante_cpf_dono: '',
     observacoes: '',
     link_documento: '',
+    modelo_id: '',
+    plano_id: '',
+    plano_nome: '',
+    plano_recursos: [] as string[],
   });
 
   const fetchData = async () => {
