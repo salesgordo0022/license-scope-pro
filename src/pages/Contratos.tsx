@@ -136,6 +136,8 @@ export default function Contratos() {
   const [certPassword, setCertPassword] = useState('');
   const [isSigning, setIsSigning] = useState(false);
   const [signatures, setSignatures] = useState<any[]>([]);
+  const [modelos, setModelos] = useState<{ id: string; nome: string; clausulas: { id: string; titulo: string; conteudo: string }[] }[]>([]);
+  const [planos, setPlanos] = useState<{ id: string; nome: string; valor_mensalidade: number; valor_implantacao: number; recursos: string[] | null }[]>([]);
 
   const [formData, setFormData] = useState({
     cliente_id: '',
