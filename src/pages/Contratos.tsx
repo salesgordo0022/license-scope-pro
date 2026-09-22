@@ -687,6 +687,52 @@ export default function Contratos() {
     const nomeContratado = config.contratado_nome || 'ImperialTech';
     const logoUrl = config.logo_url || "/__l5e/assets-v1/2bd820be-8ac9-46e0-b258-dbf77ce4946f/impertech-logo.png";
 
+    const planoNome = (contrato as any).plano_nome as string | null;
+    const planoRecursos: string[] = ((contrato as any).plano_recursos || []) as string[];
+    const modelo = modelos.find((m) => m.id === (contrato as any).modelo_id);
+
+    const variaveis: Record<string, string> = {
+      sistema: contrato.sistema || '……………...',
+      plano: planoNome || '——',
+      quantidade_licencas: String(contrato.quantidade_licencas ?? ''),
+      vigencia_meses: String(contrato.vigencia_meses ?? ''),
+      data_inicio: dataInicio,
+      data_fim: dataFim,
+      valor_software: formatCurrency(contrato.valor_software),
+      valor_mensalidade: formatCurrency(contrato.valor_mensalidade),
+      valor_km_deslocamento: formatCurrency(contrato.valor_km_deslocamento),
+      horario_atendimento: config.horario_atendimento || '',
+      foro_comarca: config.foro_comarca || '…………………..',
+      prazo_aviso_rescisao: String(config.prazo_aviso_rescisao ?? 30),
+      contratante: nomeContratante,
+      contratado: nomeContratado,
+      indice_reajuste: config.indice_reajuste || '',
+    };
+    const aplicarVariaveis = (texto: string) =>
+      (texto || '').replace(/\{\{\s*(\w+)\s*\}\}/g, (_m, chave) => variaveis[chave] ?? '');
+
+    const modeloClausulas = modelo && modelo.clausulas.length > 0 ? (
+      <>
+        {modelo.clausulas.map((c, i) => (
+          <section key={c.id || i} className="relative z-10 mb-6">
+            <h2 className="font-bold uppercase text-sm mb-3 text-[#331470] flex items-center gap-2">
+              <span className="w-6 h-6 bg-[#331470] text-white flex items-center justify-center rounded text-[10px]">
+                {String(i + 1).padStart(2, '0')}
+              </span>
+              {aplicarVariaveis(c.titulo)}
+            </h2>
+            <div className="text-justify whitespace-pre-line">{aplicarVariaveis(c.conteudo)}</div>
+          </section>
+        ))}
+        {config.clausulas_adicionais && (
+          <section>
+            <h2 className="font-bold uppercase text-sm mb-2 text-black">Cláusulas Adicionais</h2>
+            <div className="text-justify indent-8 whitespace-pre-line">{config.clausulas_adicionais}</div>
+          </section>
+        )}
+      </>
+    ) : null;
+
     return (
       <div id="contract-document" className="bg-white text-black shadow-xl rounded-sm mx-auto print:shadow-none relative overflow-hidden" style={{ 
         width: '210mm', 
