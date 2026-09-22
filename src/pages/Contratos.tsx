@@ -166,17 +166,31 @@ export default function Contratos() {
 
   const fetchData = async () => {
     try {
-      const [contratosRes, clientesRes, sistemasRes, configRes] = await Promise.all([
+      const [contratosRes, clientesRes, sistemasRes, configRes, modelosRes, planosRes] = await Promise.all([
         supabase.from('contratos').select('*').order('created_at', { ascending: false }),
         supabase.from('clientes').select('id, nome_empresa, email, telefone, segmento, valor_mensalidade, valor_implantacao, cnpj, nome_dono, cpf_dono, endereco, cidade, estado'),
         supabase.from('sistemas').select('id, nome').eq('ativo', true),
         supabase.from('configuracao_contrato').select('*').maybeSingle(),
+        supabase.from('modelos_contrato').select('id, nome, clausulas').eq('ativo', true).order('nome'),
+        supabase.from('tabela_precos').select('id, nome, valor_mensalidade, valor_implantacao, recursos').eq('ativo', true).order('ordem'),
       ]);
 
       if (contratosRes.error) throw contratosRes.error;
       setContratos(contratosRes.data || []);
       setClientes(clientesRes.data || []);
       setSistemas(sistemasRes.data || []);
+      setModelos(((modelosRes.data || []) as any[]).map((m) => ({
+        id: m.id,
+        nome: m.nome,
+        clausulas: Array.isArray(m.clausulas) ? m.clausulas : [],
+      })));
+      setPlanos(((planosRes.data || []) as any[]).map((p) => ({
+        id: p.id,
+        nome: p.nome,
+        valor_mensalidade: Number(p.valor_mensalidade) || 0,
+        valor_implantacao: Number(p.valor_implantacao) || 0,
+        recursos: p.recursos || [],
+      })));
       
       // Fetch active licenses for clients to show in the table
       const clienteIds = (clientesRes.data || []).map(c => c.id);
