@@ -27,6 +27,7 @@ interface Sistema {
   created_at: string;
 }
 
+/** Catálogo de sistemas comercializados, com preço base usado nos contratos. */
 export default function Sistemas() {
   const [sistemas, setSistemas] = useState<Sistema[]>([]);
   const [loading, setLoading] = useState(true);
@@ -45,6 +46,7 @@ export default function Sistemas() {
     fetchSistemas();
   }, []);
 
+  /** Carrega o catálogo de sistemas. */
   const fetchSistemas = async () => {
     try {
       const { data, error } = await supabase
@@ -65,6 +67,7 @@ export default function Sistemas() {
     }
   };
 
+  /** Salva o sistema (novo ou editado). */
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
@@ -109,6 +112,7 @@ export default function Sistemas() {
     }
   };
 
+  /** Abre o formulário preenchido com o sistema escolhido. */
   const handleEdit = (sistema: Sistema) => {
     setEditingSistema(sistema);
     setFormData({
@@ -120,6 +124,7 @@ export default function Sistemas() {
     setIsDialogOpen(true);
   };
 
+  /** Exclui o sistema após confirmação. */
   const handleDelete = async (id: string) => {
     if (!confirm('Tem certeza que deseja excluir este sistema?')) return;
 
@@ -139,6 +144,7 @@ export default function Sistemas() {
     }
   };
 
+  /** Filtra o catálogo pelo termo de busca. */
   const filteredSistemas = sistemas.filter((s) =>
     s.nome.toLowerCase().includes(searchTerm.toLowerCase())
   );

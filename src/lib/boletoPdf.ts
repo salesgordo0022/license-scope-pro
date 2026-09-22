@@ -7,6 +7,16 @@ pdfjsLib.GlobalWorkerOptions.workerSrc = pdfWorkerUrl;
 
 export * from "./boletoParse";
 
+/**
+ * Extrai a camada de texto de um PDF de boleto (no máximo 5 páginas).
+ *
+ * `isEvalSupported: false` desliga o uso de `eval` pelo pdf.js: os arquivos
+ * vêm de upload do usuário e um PDF malicioso não deve conseguir executar
+ * código no navegador de quem abre.
+ *
+ * Boletos escaneados não têm camada de texto e devolvem string vazia — quem
+ * chama trata isso caindo para a identificação pelo nome do arquivo.
+ */
 export async function extrairTextoPdf(file: Blob): Promise<string> {
   const data = new Uint8Array(await file.arrayBuffer());
   const doc = await pdfjsLib.getDocument({ data, isEvalSupported: false }).promise;

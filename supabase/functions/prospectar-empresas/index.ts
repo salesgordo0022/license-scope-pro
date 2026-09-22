@@ -1,49 +1,73 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { autenticar, ehAdmin, json, respostaPreflight } from "../_shared/auth.ts";
 
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
-};
+/** Teto de registros por consulta — cada registro é um crédito pago na CNPJá. */
+const LIMITE_MAXIMO = 100;
 
+/** Aceita apenas `AAAA-MM-DD`, para não repassar lixo à query da API externa. */
+const DATA_ISO = /^\d{4}-\d{2}-\d{2}$/;
+
+/** Formata 14 dígitos como `00.000.000/0000-00`. */
 function formatCnpj(taxId: string): string {
   if (!taxId || taxId.length !== 14) return taxId || "";
   return `${taxId.slice(0, 2)}.${taxId.slice(2, 5)}.${taxId.slice(5, 8)}/${taxId.slice(8, 12)}-${taxId.slice(12, 14)}`;
 }
 
+/**
+ * Lista empresas abertas num município/período para a tela de prospecção.
+ *
+ * Exige admin autenticado. Cada chamada consome créditos pagos da API CNPJá;
+ * antes a function era pública e o `limit` vinha do corpo sem teto, então um
+ * único request podia esvaziar a cota contratada.
+ */
 serve(async (req) => {
-  if (req.method === "OPTIONS") {
-    return new Response("ok", { headers: corsHeaders });
-  }
+  if (req.method === "OPTIONS") return respostaPreflight(req);
 
   try {
+    const { auth, erro } = await autenticar(req);
+    if (erro) return erro;
+    if (!ehAdmin(auth)) {
+      return json(req, { error: "Sem permissão para prospectar empresas" }, 403);
+    }
+
     const token = Deno.env.get("CNPJA_API_TOKEN");
     if (!token) {
-      return new Response(
-        JSON.stringify({
-          error: "Token CNPJá não configurado. Cadastre-se em https://cnpja.com/me e adicione o token como secret CNPJA_API_TOKEN.",
-        }),
-        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
+      return json(req, {
+        error: "Token CNPJá não configurado. Cadastre-se em https://cnpja.com/me e adicione o token como secret CNPJA_API_TOKEN.",
+      }, 503);
     }
 
     const body = await req.json();
     const { uf, municipioId, dataInicio, dataFim, limit, regimeTributario } = body;
 
     if (!uf || !municipioId || !dataInicio || !dataFim) {
-      return new Response(
-        JSON.stringify({ error: "Parâmetros obrigatórios: uf, municipioId, dataInicio, dataFim" }),
-        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
+      return json(req, { error: "Parâmetros obrigatórios: uf, municipioId, dataInicio, dataFim" }, 400);
     }
+    if (!DATA_ISO.test(String(dataInicio)) || !DATA_ISO.test(String(dataFim))) {
+      return json(req, { error: "Datas devem estar no formato AAAA-MM-DD" }, 400);
+    }
+    if (!/^[A-Z]{2}$/.test(String(uf).toUpperCase())) {
+      return json(req, { error: "UF inválida" }, 400);
+    }
+    if (!/^\d+$/.test(String(municipioId))) {
+      return json(req, { error: "Município inválido" }, 400);
+    }
+
+    // `limit` é preso entre 1 e LIMITE_MAXIMO; valor ausente ou absurdo cai
+    // no padrão de 50 em vez de ir cru para a API paga.
+    const limiteSolicitado = Number(limit);
+    const limiteSeguro = Number.isFinite(limiteSolicitado)
+      ? Math.min(Math.max(Math.trunc(limiteSolicitado), 1), LIMITE_MAXIMO)
+      : 50;
 
     // Filtros da API CNPJá (GET /office) — usa notação .in/.gte/.lte
     const qp = new URLSearchParams();
-    qp.set("address.state.in", uf);
+    qp.set("address.state.in", String(uf).toUpperCase());
     qp.set("address.municipality.in", String(municipioId));
     qp.set("founded.gte", dataInicio);
     qp.set("founded.lte", dataFim);
     qp.set("status.id.in", "2"); // Apenas Ativa
-    qp.set("limit", String(limit || 50));
+    qp.set("limit", String(limiteSeguro));
 
     // Filtro por regime tributário é aplicado pós-resposta (API CNPJá não aceita filtrar por simples/simei)
 
@@ -57,15 +81,15 @@ serve(async (req) => {
     });
 
     if (!res.ok) {
-      const err = await res.text();
-      return new Response(
-        JSON.stringify({ error: `Erro CNPJá (${res.status}): ${err}` }),
-        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
+      // O corpo cru da CNPJá fica só no log do servidor: ele pode conter eco
+      // de credenciais e detalhes da conta que não devem chegar ao navegador.
+      console.error("[prospectar-empresas] CNPJá respondeu", res.status, await res.text());
+      return json(req, { error: `Não foi possível consultar a base de empresas (${res.status}).` }, 502);
     }
 
     const data = await res.json();
 
+    // Normaliza o retorno da CNPJá para o formato que a tela de prospecção usa.
     const empresas = (data.records || []).map((item: any) => {
       const simples = item.company?.simples?.optant === true;
       const simei = item.company?.simei?.optant === true;
@@ -102,7 +126,8 @@ serve(async (req) => {
       };
     });
 
-    // Filtro pós-resposta por regime tributário
+    // Filtro por regime é aplicado aqui porque a API CNPJá não aceita
+    // simples/simei como parâmetro de busca.
     let filtradas = empresas;
     if (regimeTributario === "simples") {
       filtradas = empresas.filter((e: any) => e.optanteSimples && !e.optanteSimei);
@@ -112,14 +137,14 @@ serve(async (req) => {
       filtradas = empresas.filter((e: any) => !e.optanteSimples && !e.optanteSimei);
     }
 
-    return new Response(
-      JSON.stringify({ empresas: filtradas, total: filtradas.length, totalBruto: data.count ?? empresas.length, next: data.next || null }),
-      { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-    );
+    return json(req, {
+      empresas: filtradas,
+      total: filtradas.length,
+      totalBruto: data.count ?? empresas.length,
+      next: data.next || null,
+    });
   } catch (err: any) {
-    return new Response(
-      JSON.stringify({ error: err.message || "Erro interno" }),
-      { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-    );
+    console.error("[prospectar-empresas] erro:", err);
+    return json(req, { error: "Erro interno ao prospectar empresas" }, 500);
   }
 });

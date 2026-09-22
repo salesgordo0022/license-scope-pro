@@ -85,6 +85,14 @@ function loadPersisted(): Partial<PersistedState> {
   }
 }
 
+/**
+ * Prospecção: busca empresas abertas num município e período pela Edge
+ * Function `prospectar-empresas`, permitindo importá-las como clientes ou
+ * exportá-las em planilha.
+ *
+ * A busca consome créditos pagos da API CNPJá, e por isso a function exige
+ * perfil de admin e limita a quantidade de registros por chamada.
+ */
 export default function ProspeccaoEmpresas() {
   const persisted = loadPersisted();
   const [uf, setUf] = useState(persisted.uf || '');
@@ -118,6 +126,7 @@ export default function ProspeccaoEmpresas() {
   }, [uf, municipio, dataInicio, dataFim, regimeTributario, empresas, buscou, adicionados]);
 
 
+  /** Importa a empresa encontrada como um cliente da carteira. */
   const adicionarCliente = useCallback(async (emp: Empresa) => {
     setAdicionando(emp.cnpj);
     try {
@@ -177,6 +186,7 @@ export default function ProspeccaoEmpresas() {
       return;
     }
 
+    /** Carrega os municípios do estado selecionado para o filtro. */
     const carregarMunicipios = async () => {
       try {
         const res = await fetch(`https://servicodados.ibge.gov.br/api/v1/localidades/estados/${uf}/municipios?orderBy=nome`);
@@ -198,6 +208,11 @@ export default function ProspeccaoEmpresas() {
     carregarMunicipios();
   }, [uf]);
 
+  /**
+   * Exporta o resultado da prospecção em .xlsx.
+   * A biblioteca xlsx é usada só para ESCRITA aqui; os problemas conhecidos dela
+   * estão no caminho de leitura de arquivos, que este projeto não exercita.
+   */
   const exportarPlanilha = useCallback(() => {
     if (empresas.length === 0) {
       toast.error('Nenhuma empresa para exportar');
@@ -239,6 +254,7 @@ export default function ProspeccaoEmpresas() {
   }, [empresas, uf, municipio, adicionados]);
 
 
+  /** Dispara a busca de empresas com os filtros escolhidos. */
   const buscar = useCallback(async () => {
     if (!uf || !municipio || !dataInicio || !dataFim) {
       toast.error('Preencha UF, Município e período');

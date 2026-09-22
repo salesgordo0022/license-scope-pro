@@ -50,6 +50,13 @@ const TEMPLATES: Record<string, (nome: string, link?: string) => string> = {
 
 type Modo = "individual" | "massa";
 
+/**
+ * Envio de mensagens por WhatsApp para clientes, com anexo opcional e
+ * histórico dos envios.
+ *
+ * O envio passa sempre pela Edge Function `send-whatsapp`: o token do provedor
+ * fica no servidor e nunca chega ao navegador.
+ */
 export default function Mensagens() {
   const [clientes, setClientes] = useState<Cliente[]>([]);
   const [pagamentos, setPagamentos] = useState<Pagamento[]>([]);
@@ -97,6 +104,7 @@ export default function Mensagens() {
     setMensagem(TEMPLATES[tipo]("{nome}", link));
   }, [tipo, link, arquivoUrl, modo]);
 
+  /** Carrega os clientes disponíveis para envio. */
   async function carregarClientes() {
     const { data, error } = await supabase
       .from("clientes")
@@ -109,6 +117,7 @@ export default function Mensagens() {
     setClientes((data || []) as Cliente[]);
   }
 
+  /** Carrega as cobranças em aberto, para montar mensagens de cobrança. */
   async function carregarPagamentos() {
     const { data, error } = await supabase
       .from("pagamentos")
@@ -122,6 +131,7 @@ export default function Mensagens() {
     setPagamentos((data || []) as Pagamento[]);
   }
 
+  /** Carrega o histórico de mensagens já enviadas. */
   async function carregarHistorico() {
     const { data, error } = await supabase
       .from("mensagens_enviadas")
@@ -144,6 +154,7 @@ export default function Mensagens() {
   // O arquivo NÃO é enviado ao Storage aqui: ele vai em base64 para a função
   // send-whatsapp, que grava no bucket com a service role e anexa no WhatsApp.
   // Assim o envio funciona mesmo para usuários sem empresa vinculada.
+  /** Aceita o arquivo escolhido como anexo da mensagem. */
   function handleUpload(file: File) {
     if (file.size > 8 * 1024 * 1024) {
       toast.error("Arquivo muito grande (máx 8MB)");
@@ -153,6 +164,7 @@ export default function Mensagens() {
     toast.success(`Anexo selecionado: ${file.name}`);
   }
 
+  /** Converte o anexo para base64, formato esperado pela Edge Function. */
   function fileToBase64(file: Blob): Promise<string> {
     return new Promise((resolve, reject) => {
       const reader = new FileReader();
@@ -165,6 +177,7 @@ export default function Mensagens() {
     });
   }
 
+  /** Preenche a mensagem com os dados da cobrança selecionada. */
   function aplicarPagamento(pagId: string) {
     setPagamentoSelecionado(pagId);
     // pagamentos não têm URL — vamos pedir link manual ou usar como referência no texto
@@ -175,19 +188,23 @@ export default function Mensagens() {
     }
   }
 
+  /** Alterna a seleção de um cliente na lista de destinatários. */
   function toggleSelecionado(id: string) {
     setSelecionados((s) => (s.includes(id) ? s.filter((x) => x !== id) : [...s, id]));
   }
 
+  /** Seleciona todos os clientes visíveis no filtro atual. */
   function selecionarTodos() {
     const filtrados = clientes.filter((c) => c.telefone && c.nome_empresa.toLowerCase().includes(filtroClientes.toLowerCase()));
     setSelecionados(filtrados.map((c) => c.id));
   }
 
+  /** Limpa a seleção de destinatários. */
   function limparSelecao() {
     setSelecionados([]);
   }
 
+  /** Envia a mensagem para um único cliente e devolve o resultado. */
   async function enviarUm(c: Cliente, base64?: string) {
     const msgPersonalizada = mensagem.replace(/\{nome\}/g, c.nome_empresa);
     const { data, error } = await supabase.functions.invoke("send-whatsapp", {
@@ -208,6 +225,7 @@ export default function Mensagens() {
     return { ok: true, docOk, msg: res.warning || undefined };
   }
 
+  /** Envia para todos os destinatários selecionados, um a um, e consolida o resultado. */
   async function enviar() {
     if (!mensagem.trim()) {
       toast.error("Mensagem vazia");
@@ -308,6 +326,7 @@ export default function Mensagens() {
     );
   });
 
+  /** Resolve o nome do cliente a partir do id, para exibir no histórico. */
   const nomeCliente = (id: string | null) =>
     clientes.find((c) => c.id === id)?.nome_empresa ?? "—";
 

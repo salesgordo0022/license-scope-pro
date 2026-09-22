@@ -6,13 +6,34 @@ import { brokeredPreviewStorage } from './previewAuthStorage';
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 const SUPABASE_PUBLISHABLE_KEY = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
 
-// Import the supabase client like this:
-// import { supabase } from "@/integrations/supabase/client";
+// Sem as variáveis, `createClient` recebia `undefined` e a aplicação quebrava
+// com uma tela branca e um erro obscuro do SDK. Falhar aqui, com mensagem
+// clara, evita meia hora de depuração em cima do sintoma errado.
+if (!SUPABASE_URL || !SUPABASE_PUBLISHABLE_KEY) {
+  throw new Error(
+    'Configuração ausente: defina VITE_SUPABASE_URL e VITE_SUPABASE_PUBLISHABLE_KEY no arquivo .env (use .env.example como base).'
+  );
+}
 
+/**
+ * Client único do Supabase usado por toda a aplicação.
+ *
+ * A chave "publishable" é pública por natureza — ela vai no bundle que o
+ * navegador baixa. Quem protege os dados são as policies de RLS no Postgres,
+ * não o segredo desta chave.
+ *
+ * Uso: import { supabase } from "@/integrations/supabase/client";
+ */
 export const supabase = createClient<Database>(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, {
   auth: {
     storage: brokeredPreviewStorage(),
     persistSession: true,
     autoRefreshToken: true,
+    // PKCE em vez do fluxo implícito. No implícito o token vem no fragmento da
+    // URL (`#access_token=...`), onde acaba em histórico do navegador, log de
+    // proxy e header Referer. No PKCE volta um código de uso único que só vale
+    // junto com um verificador guardado nesta aba — interceptar o link de
+    // recuperação de senha deixa de ser suficiente para assumir a sessão.
+    flowType: 'pkce',
   }
 });

@@ -121,6 +121,7 @@ async function idbGet<T>(key: string): Promise<T | undefined> {
   });
 }
 
+/** Pausa entre envios, para não estourar o rate limit do provedor de WhatsApp. */
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 const STATUS_INFO: Record<EntryStatus, { label: string; icon: typeof Clock; className: string }> = {
@@ -142,6 +143,16 @@ const CONFIANCA_BADGE: Record<"alta" | "media" | "baixa", { label: string; varia
   baixa: { label: "confiança baixa — confira", variant: "outline" },
 };
 
+/**
+ * Disparo de boletos em lote a partir de uma pasta local.
+ *
+ * Usa a File System Access API para ler a pasta escolhida pelo usuário, extrai
+ * o texto de cada PDF no próprio navegador, identifica o cliente pelo
+ * CNPJ/CPF/telefone/nome e enfileira o envio por WhatsApp.
+ *
+ * Os PDFs são lidos localmente; só sobem para o servidor no momento do envio,
+ * para o bucket privado `boletos`.
+ */
 export default function PastaBoletos() {
   const supported = typeof window !== "undefined" && !!window.showDirectoryPicker;
 
@@ -196,6 +207,7 @@ export default function PastaBoletos() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  /** Carrega os clientes usados para casar com os boletos lidos. */
   async function carregarClientes() {
     const { data, error } = await supabase
       .from("clientes")
@@ -213,6 +225,7 @@ export default function PastaBoletos() {
   // Histórico do servidor: a função send-whatsapp registra "📎 <arquivo>" na
   // mensagem, o que permite reconhecer boletos já enviados mesmo em outro
   // computador/navegador.
+  /** Carrega quais boletos já foram enviados, para não repetir o disparo. */
   async function carregarHistoricoEnviados() {
     const { data, error } = await supabase
       .from("mensagens_enviadas")
@@ -233,6 +246,7 @@ export default function PastaBoletos() {
     sentNamesRef.current = nomes;
   }
 
+  /** Reabre a última pasta autorizada, se a permissão ainda estiver válida. */
   async function restaurarPasta() {
     if (!supported) return;
     try {
@@ -254,6 +268,7 @@ export default function PastaBoletos() {
   // Converte o PDF para base64: o upload no Storage é feito pela função
   // send-whatsapp (service role), então não depende do vínculo do usuário com
   // uma empresa nem das policies do bucket.
+  /** Converte o PDF para base64, formato esperado pela Edge Function de envio. */
   async function fileToBase64(file: Blob): Promise<string> {
     return new Promise((resolve, reject) => {
       const reader = new FileReader();
@@ -266,6 +281,7 @@ export default function PastaBoletos() {
     });
   }
 
+  /** Abre o seletor de pastas do navegador e guarda o handle escolhido. */
   async function selecionarPasta() {
     if (!window.showDirectoryPicker) return;
     try {
@@ -282,6 +298,7 @@ export default function PastaBoletos() {
     }
   }
 
+  /** Pede novamente a permissão de leitura da pasta quando ela expira. */
   async function concederAcesso() {
     if (!dirHandle) return;
     const perm = await dirHandle.requestPermission({ mode: "read" });
@@ -293,10 +310,12 @@ export default function PastaBoletos() {
     }
   }
 
+  /** Atualiza um item da fila preservando os demais campos. */
   function updateEntry(key: string, patch: Partial<FileEntry>) {
     setEntries((prev) => prev.map((e) => (e.key === key ? { ...e, ...patch } : e)));
   }
 
+  /** Define o status inicial do item conforme o cliente e o telefone encontrados. */
   function statusInicial(entry: Pick<FileEntry, "key" | "name" | "clienteId" | "telefone">): EntryStatus {
     if (sentKeysRef.current.has(entry.key) || sentNamesRef.current.has(entry.name.toLowerCase())) return "ja_enviado";
     if (!entry.clienteId) return "sem_cliente";
@@ -305,6 +324,12 @@ export default function PastaBoletos() {
   }
 
   /** Lê o PDF (se ainda não lido) e identifica o cliente. */
+  /**
+   * Lê o PDF, extrai os dados do boleto e tenta identificar o cliente.
+   *
+   * Boletos escaneados não têm camada de texto; nesse caso a identificação cai
+   * para o nome do arquivo.
+   */
   async function analisarEntry(entry: FileEntry): Promise<FileEntry> {
     let dados = dadosCacheRef.current.get(entry.key);
     if (dados === undefined) {
@@ -337,6 +362,7 @@ export default function PastaBoletos() {
    * estavam lá (evita reenviar/reler), analisa os novos e devolve os que
    * ficaram prontos para envio.
    */
+  /** Acrescenta arquivos à fila, evitando duplicatas, e dispara a análise de cada um. */
   async function incorporarArquivos(
     brutos: Array<{ name: string; size: number; lastModified: number; fileHandle?: FileSystemFileHandle; file?: File }>,
     opts: { substituir: boolean }
@@ -421,12 +447,14 @@ export default function PastaBoletos() {
     return () => clearInterval(id);
   }, [autoWatch, dirHandle, rescan]);
 
+  /** Marca o boleto como já enviado, sem disparar nada. */
   function marcarComoEnviado(entry: FileEntry) {
     sentKeysRef.current.add(entry.key);
     sentNamesRef.current.add(entry.name.toLowerCase());
     localStorage.setItem(SENT_KEYS_STORAGE, JSON.stringify(Array.from(sentKeysRef.current)));
   }
 
+  /** Desfaz a marcação de enviado, devolvendo o boleto para a fila. */
   function desmarcarEnviado(entry: FileEntry) {
     sentKeysRef.current.delete(entry.key);
     sentNamesRef.current.delete(entry.name.toLowerCase());
@@ -434,6 +462,7 @@ export default function PastaBoletos() {
     updateEntry(entry.key, { status: !entry.clienteId ? "sem_cliente" : !entry.telefone ? "sem_telefone" : "pendente" });
   }
 
+  /** Envia um boleto pela Edge Function e registra o resultado no item. */
   async function enviarEntryInterno(entry: FileEntry) {
     if (!entry.clienteId || !entry.telefone) return;
     updateEntry(entry.key, { status: "enviando", erro: undefined });
@@ -505,6 +534,7 @@ export default function PastaBoletos() {
   }
 
   /** Envia em série (uma mensagem por vez, com pausa) para não estourar limites do WhatsApp. */
+  /** Coloca os boletos na fila de envio, respeitando o intervalo entre disparos. */
   function enfileirarEnvios(lista: FileEntry[]) {
     for (const entry of lista) {
       filaEnvioRef.current = filaEnvioRef.current.then(async () => {
@@ -517,6 +547,7 @@ export default function PastaBoletos() {
     return filaEnvioRef.current;
   }
 
+  /** Dispara todos os boletos prontos que ainda não foram enviados. */
   async function enviarTodosPendentes() {
     const pendentes = entriesRef.current.filter((e) => e.status === "pendente");
     if (pendentes.length === 0) {
@@ -533,6 +564,7 @@ export default function PastaBoletos() {
     else toast.success(`Envio em lote concluído: ${ok} boleto(s) enviado(s)`);
   }
 
+  /** Permite corrigir à mão o cliente quando a identificação automática falha. */
   function definirClienteManual(key: string, clienteId: string) {
     const cliente = clientes.find((c) => c.id === clienteId);
     if (!cliente) return;
@@ -549,6 +581,7 @@ export default function PastaBoletos() {
     updateEntry(key, patch);
   }
 
+  /** Recebe arquivos por seleção manual ou arrastar-e-soltar. */
   async function adicionarArquivos(fileList: FileList | File[] | null) {
     if (!fileList) return;
     const pdfs = Array.from(fileList).filter((f) => /\.pdf$/i.test(f.name) || f.type === "application/pdf");
@@ -568,6 +601,7 @@ export default function PastaBoletos() {
     }
   }
 
+  /** Remove um boleto da fila. */
   function removerEntry(key: string) {
     setEntries((prev) => prev.filter((e) => e.key !== key));
     entriesRef.current = entriesRef.current.filter((e) => e.key !== key);

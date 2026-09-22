@@ -83,6 +83,10 @@ const prioridadeOptions = [
   { value: 'urgente', label: 'Urgente', color: 'bg-red-500/20 text-red-400' },
 ];
 
+/**
+ * Acompanhamento de implantações: status, prioridade, responsável, checklist
+ * de etapas, comentários e histórico de alterações.
+ */
 export default function Implantacoes() {
   const { toast } = useToast();
   const { profile } = useAuth();
@@ -116,6 +120,7 @@ export default function Implantacoes() {
     fetchData();
   }, []);
 
+  /** Carrega as implantações e os clientes usados no seletor. */
   const fetchData = async () => {
     try {
       const [implantacoesRes, clientesRes, usuariosRes] = await Promise.all([
@@ -145,6 +150,7 @@ export default function Implantacoes() {
     }
   };
 
+  /** Carrega checklist, comentários e histórico de uma implantação específica. */
   const fetchImplantacaoDetails = async (id: string) => {
     try {
       const [checklistRes, comentariosRes, historicoRes] = await Promise.all([
@@ -173,6 +179,7 @@ export default function Implantacoes() {
     }
   };
 
+  /** Cria uma nova implantação a partir do formulário. */
   const handleCreate = async () => {
     try {
       const { error } = await supabase.from('implantacoes').insert({
@@ -198,6 +205,7 @@ export default function Implantacoes() {
     }
   };
 
+  /** Atualiza a implantação em edição. */
   const handleUpdate = async () => {
     if (!selectedImplantacao) return;
 
@@ -232,6 +240,7 @@ export default function Implantacoes() {
     }
   };
 
+  /** Exclui a implantação após confirmação. */
   const handleDelete = async (id: string) => {
     if (!confirm('Tem certeza que deseja excluir esta implantação?')) return;
 
@@ -246,6 +255,7 @@ export default function Implantacoes() {
     }
   };
 
+  /** Acrescenta uma etapa ao checklist da implantação aberta. */
   const handleAddChecklistItem = async () => {
     if (!selectedImplantacao || !novoChecklistItem.trim()) return;
 
@@ -266,6 +276,7 @@ export default function Implantacoes() {
     }
   };
 
+  /** Marca ou desmarca uma etapa do checklist como concluída. */
   const handleToggleChecklistItem = async (item: ChecklistItem) => {
     if (!selectedImplantacao) return;
 
@@ -284,6 +295,7 @@ export default function Implantacoes() {
     }
   };
 
+  /** Remove uma etapa do checklist. */
   const handleDeleteChecklistItem = async (id: string) => {
     if (!selectedImplantacao) return;
 
@@ -317,6 +329,7 @@ export default function Implantacoes() {
     }
   };
 
+  /** Registra um comentário na implantação aberta. */
   const handleAddComentario = async () => {
     if (!selectedImplantacao || !novoComentario.trim()) return;
 
@@ -336,6 +349,7 @@ export default function Implantacoes() {
     }
   };
 
+  /** Abre o formulário preenchido com a implantação escolhida. */
   const openEditDialog = (implantacao: Implantacao) => {
     setSelectedImplantacao(implantacao);
     setFormData({
@@ -365,6 +379,7 @@ export default function Implantacoes() {
     });
   };
 
+  /** Filtra a lista pelo termo de busca e pelo status selecionado. */
   const filteredImplantacoes = implantacoes.filter((item) =>
     item.titulo.toLowerCase().includes(searchTerm.toLowerCase()) ||
     item.cliente?.nome_empresa?.toLowerCase().includes(searchTerm.toLowerCase())
@@ -382,11 +397,13 @@ export default function Implantacoes() {
     ? Math.round(implantacoes.reduce((acc, i) => acc + i.progresso, 0) / implantacoes.length)
     : 0;
 
+  /** Devolve o selo visual do status da implantação. */
   const getStatusBadge = (status: string) => {
     const option = statusOptions.find((o) => o.value === status);
     return <Badge className={option?.color}>{option?.label}</Badge>;
   };
 
+  /** Devolve o selo visual da prioridade. */
   const getPrioridadeBadge = (prioridade: string) => {
     const option = prioridadeOptions.find((o) => o.value === prioridade);
     return <Badge className={option?.color}>{option?.label}</Badge>;

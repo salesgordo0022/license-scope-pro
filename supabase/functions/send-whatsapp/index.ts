@@ -1,9 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
-
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
-};
+import { corsHeaders, respostaPreflight } from "../_shared/auth.ts";
 
 const ZAP_BASE = "https://api-imperial.zapcontabil.chat";
 // Versão da função: o frontend usa para detectar deploy desatualizado.
@@ -31,11 +27,22 @@ interface Attempt {
 
 const onlyDigits = (s: string) => (s || "").replace(/\D/g, "");
 
-const json = (payload: unknown) =>
-  new Response(JSON.stringify(payload), {
+/**
+ * Resposta JSON desta function.
+ *
+ * O status continua 200 mesmo em falha porque o frontend desta tela trata o
+ * campo `success` e mostra o aviso ao operador; trocar isso agora quebraria o
+ * fluxo de envio. A blindagem aqui é outra: o campo `attempts` — que carrega o
+ * corpo cru devolvido pelo ZapContábil — só sai na resposta em modo debug.
+ */
+const json = (req: Request, payload: Record<string, unknown>) => {
+  const { attempts, ...publico } = payload as { attempts?: unknown };
+  const corpo = Deno.env.get("SEND_WHATSAPP_DEBUG") === "true" ? payload : publico;
+  return new Response(JSON.stringify(corpo), {
     status: 200,
-    headers: { ...corsHeaders, "Content-Type": "application/json" },
+    headers: { ...corsHeaders(req), "Content-Type": "application/json" },
   });
+};
 
 // Traduz códigos de erro conhecidos da API do WhatsApp/ZapContábil para uma
 // mensagem que ajuda a diagnosticar o problema sem precisar ler o JSON cru.
@@ -150,15 +157,22 @@ async function enviarDocumento(
   return false;
 }
 
+/**
+ * Envia mensagem (e opcionalmente um anexo) pelo WhatsApp via ZapContábil e
+ * registra o envio em `mensagens_enviadas`.
+ *
+ * Esta function já era a mais protegida do projeto: exige JWT, restringe o
+ * bucket a "boletos", valida MIME e tamanho do anexo, bloqueia `..` no caminho
+ * e confere que a pasta raiz é a da empresa do usuário. O que mudou agora foi
+ * o CORS (era `*`) e o vazamento do array `attempts` na resposta.
+ */
 Deno.serve(async (req) => {
-  if (req.method === "OPTIONS") {
-    return new Response("ok", { headers: corsHeaders });
-  }
+  if (req.method === "OPTIONS") return respostaPreflight(req);
 
   try {
     const ZAPCONTABIL_API_TOKEN = Deno.env.get("ZAPCONTABIL_API_TOKEN");
     if (!ZAPCONTABIL_API_TOKEN) {
-      return json({ success: false, error: "ZAPCONTABIL_API_TOKEN não configurado" });
+      return json(req, { success: false, error: "ZAPCONTABIL_API_TOKEN não configurado" });
     }
     // Conexão do WhatsApp a usar. Padrão 0 (comportamento histórico); pode ser
     // sobrescrito com o ID real obtido em /api/connections, ou "none" para
@@ -167,7 +181,7 @@ Deno.serve(async (req) => {
     const connectionFrom: number | null = connEnv === "" || connEnv.toLowerCase() === "none" ? null : Number(connEnv);
 
     const authHeader = req.headers.get("Authorization");
-    if (!authHeader) return json({ success: false, error: "Não autenticado" });
+    if (!authHeader) return json(req, { success: false, error: "Não autenticado" });
 
     const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
     const supabase = createClient(supabaseUrl, Deno.env.get("SUPABASE_ANON_KEY") ?? "", {
@@ -175,7 +189,7 @@ Deno.serve(async (req) => {
     });
 
     const { data: userData, error: userErr } = await supabase.auth.getUser();
-    if (userErr || !userData.user) return json({ success: false, error: "Sessão inválida" });
+    if (userErr || !userData.user) return json(req, { success: false, error: "Sessão inválida" });
 
     const body = (await req.json()) as SendBody;
     const telefone = onlyDigits(body.telefone || "");
@@ -195,29 +209,29 @@ Deno.serve(async (req) => {
     // só URLs do Storage deste projeto.
     const media_bucket = "boletos";
     if (body.media_bucket && body.media_bucket.trim() !== media_bucket) {
-      return json({ success: false, error: "Bucket de anexo não permitido" });
+      return json(req, { success: false, error: "Bucket de anexo não permitido" });
     }
     const TIPOS_PERMITIDOS = new Set(["application/pdf", "image/png", "image/jpeg", "image/jpg", "image/webp"]);
     const media_content_type = (body.media_content_type || "application/pdf").trim().toLowerCase().split(";")[0];
     if (media_base64 && !TIPOS_PERMITIDOS.has(media_content_type)) {
-      return json({ success: false, error: `Tipo de arquivo não permitido (${media_content_type}). Envie PDF ou imagem.` });
+      return json(req, { success: false, error: `Tipo de arquivo não permitido (${media_content_type}). Envie PDF ou imagem.` });
     }
     const MAX_BASE64_CHARS = 11 * 1024 * 1024; // ~8 MB de arquivo
     if (media_base64.length > MAX_BASE64_CHARS) {
-      return json({ success: false, error: "Anexo maior que 8 MB" });
+      return json(req, { success: false, error: "Anexo maior que 8 MB" });
     }
     if (media_url) {
       let host = "";
       try { host = new URL(media_url).host; } catch { host = ""; }
       const hostProjeto = (() => { try { return new URL(supabaseUrl).host; } catch { return ""; } })();
       if (!host || host !== hostProjeto) {
-        return json({ success: false, error: "media_url deve apontar para o Storage deste projeto" });
+        return json(req, { success: false, error: "media_url deve apontar para o Storage deste projeto" });
       }
     }
 
-    if (!telefone || telefone.length < 10) return json({ success: false, error: "Telefone inválido" });
+    if (!telefone || telefone.length < 10) return json(req, { success: false, error: "Telefone inválido" });
     if (!mensagem || mensagem.length > 4000) {
-      return json({ success: false, error: "Mensagem inválida (vazia ou > 4000 caracteres)" });
+      return json(req, { success: false, error: "Mensagem inválida (vazia ou > 4000 caracteres)" });
     }
 
     // Carrega perfil para obter empresa_id e usuario_id
@@ -233,11 +247,11 @@ Deno.serve(async (req) => {
     // Caminho no Storage só pode estar na pasta da empresa do usuário ou na
     // pasta do próprio usuário (evita baixar/enviar arquivos de outra empresa).
     if (media_path) {
-      if (media_path.includes("..")) return json({ success: false, error: "Caminho de anexo inválido" });
+      if (media_path.includes("..")) return json(req, { success: false, error: "Caminho de anexo inválido" });
       const pastaRaiz = media_path.split("/")[0];
       const permitidas = [perfil?.empresa_id, userData.user.id].filter(Boolean) as string[];
       if (!permitidas.includes(pastaRaiz)) {
-        return json({ success: false, error: "Você não tem acesso a esse arquivo" });
+        return json(req, { success: false, error: "Você não tem acesso a esse arquivo" });
       }
     }
     const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
@@ -295,7 +309,7 @@ Deno.serve(async (req) => {
         console.error("Falha ao registrar histórico:", logErr);
       }
       console.error("ZapContábil error:", texto.status, texto.text);
-      return json({ success: false, version: FUNCTION_VERSION, error: erroMsg, detalhe: respJson, attempts });
+      return json(req, { success: false, version: FUNCTION_VERSION, error: erroMsg, detalhe: respJson, attempts });
     }
 
     // 2) Documento (se houver)
@@ -382,7 +396,7 @@ Deno.serve(async (req) => {
       console.error("Falha ao registrar histórico:", logErr);
     }
 
-    return json({
+    return json(req, {
       success: true,
       version: FUNCTION_VERSION,
       data: respJson,
@@ -395,6 +409,6 @@ Deno.serve(async (req) => {
   } catch (err) {
     const msg = err instanceof Error ? err.message : "Erro desconhecido";
     console.error("send-whatsapp exception:", msg);
-    return json({ success: false, error: msg });
+    return json(req, { success: false, error: msg });
   }
 });

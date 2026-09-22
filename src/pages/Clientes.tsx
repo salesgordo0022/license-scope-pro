@@ -53,11 +53,16 @@ interface Sistema {
   nome: string;
 }
 
+/** Formata um número como moeda brasileira; devolve traço quando nulo. */
 const formatCurrency = (value: number | null) => {
   if (value === null || value === undefined) return 'R$ 0,00';
   return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
 };
 
+/**
+ * CRM de clientes: cadastro, busca, filtros por segmento/status, vínculo com
+ * sistemas e grupos, exportação para Excel e atalho de contato por WhatsApp.
+ */
 export default function Clientes() {
   const [clientes, setClientes] = useState<Cliente[]>([]);
   const [segmentos, setSegmentos] = useState<Segmento[]>([]);
@@ -79,6 +84,7 @@ export default function Clientes() {
   const [whatsappMsg, setWhatsappMsg] = useState('');
   const [enviandoWhatsapp, setEnviandoWhatsapp] = useState(false);
 
+  /** Aplica a máscara 00.000.000/0000-00 conforme o usuário digita. */
   const formatCnpj = (value: string) => {
     const digits = value.replace(/\D/g, '').slice(0, 14);
     return digits
@@ -88,6 +94,7 @@ export default function Clientes() {
       .replace(/(\d{4})(\d)/, '$1-$2');
   };
 
+  /** Aplica a máscara 000.000.000-00 conforme o usuário digita. */
   const formatCpf = (value: string) => {
     const digits = value.replace(/\D/g, '').slice(0, 11);
     return digits
@@ -153,6 +160,7 @@ export default function Clientes() {
   });
 
 
+  /** Carrega os segmentos disponíveis para o seletor do formulário. */
   const fetchSegmentos = async () => {
     try {
       const { data, error } = await supabase
@@ -167,6 +175,7 @@ export default function Clientes() {
     }
   };
 
+  /** Carrega o catálogo de sistemas que podem ser vinculados ao cliente. */
   const fetchSistemas = async () => {
     try {
       const { data, error } = await supabase
@@ -181,6 +190,7 @@ export default function Clientes() {
     }
   };
 
+  /** Carrega os grupos de clientes da empresa. */
   const fetchGrupos = async () => {
     try {
       const { data, error } = await supabase
@@ -194,6 +204,7 @@ export default function Clientes() {
     }
   };
 
+  /** Carrega os clientes do banco. O RLS já limita o retorno à empresa do usuário. */
   const fetchClientes = async () => {
     try {
       let query = supabase.from('clientes').select('*').order('created_at', { ascending: false });
@@ -287,6 +298,7 @@ export default function Clientes() {
     }
   };
 
+  /** Grava o cliente (novo ou editado) junto com seus sistemas vinculados. */
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
@@ -391,6 +403,7 @@ export default function Clientes() {
     }
   };
 
+  /** Preenche o formulário com o registro escolhido e abre o diálogo de edição. */
   const handleEdit = async (cliente: Cliente) => {
     setEditingCliente(cliente);
     // Buscar sistemas atuais do cliente
@@ -425,6 +438,7 @@ export default function Clientes() {
     setDialogOpen(true);
   };
 
+  /** Exclui o registro após confirmação do usuário. */
   const handleDelete = async (id: string) => {
     if (!confirm('Tem certeza que deseja excluir este cliente?')) return;
 
@@ -439,6 +453,7 @@ export default function Clientes() {
     }
   };
 
+  /** Abre a tela de Mensagens já com o cliente selecionado para envio. */
   const handleEnviarWhatsapp = (cliente: Cliente) => {
     if (!cliente.telefone) {
       toast.error('Cliente sem telefone cadastrado');
@@ -474,6 +489,7 @@ export default function Clientes() {
     }
   };
 
+  /** Aplica busca textual e filtros de segmento/status sobre a lista carregada. */
   const filteredClientes = clientes.filter((cliente) => {
     const matchesSearch =
       cliente.nome_empresa.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -485,6 +501,7 @@ export default function Clientes() {
     return matchesSearch && matchesSegmento && matchesGrupo && matchesStatus && matchesSistema;
   });
 
+  /** Devolve o selo visual correspondente ao status do cliente. */
   const getStatusBadge = (status: string | null) => {
     const statusConfig: Record<string, string> = {
       ativo: 'status-ativo',
@@ -499,10 +516,19 @@ export default function Clientes() {
     );
   };
 
+  /** Aplica o desconto percentual sobre o valor do sistema contratado. */
   const calcularValorComDesconto = (valor: number, desconto: number) => {
     return valor - (valor * desconto / 100);
   };
 
+  /**
+   * Exporta a carteira de clientes para .xlsx com três abas: clientes,
+   * sistemas por cliente e resumo por sistema.
+   *
+   * Aqui a biblioteca xlsx só ESCREVE arquivos. As falhas conhecidas dela
+   * (prototype pollution e ReDoS) estão no caminho de LEITURA, que este projeto
+   * não usa — por isso a dependência segue sem atualização disponível.
+   */
   const exportarRelatorio = async (status: 'ativo' | 'inativo' | 'all') => {
     const lista = status === 'all' ? clientes : clientes.filter(c => (c.status || 'ativo') === status);
     if (lista.length === 0) {

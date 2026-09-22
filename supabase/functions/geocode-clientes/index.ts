@@ -1,12 +1,12 @@
 // Geocode clientes usando Places API (New) searchText via gateway Google Maps
 // Pesquisa por nome da empresa + endereço, retornando coordenadas precisas.
 
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-};
+import { autenticar, json, respostaPreflight } from '../_shared/auth.ts';
 
 const GATEWAY_URL = 'https://connector-gateway.lovable.dev/google_maps';
+
+/** Teto de itens por chamada — cada item vira até 4 buscas pagas na Places API. */
+const MAX_ITENS_POR_CHAMADA = 50;
 
 type Item = {
   id: string;
@@ -16,6 +16,11 @@ type Item = {
   estado?: string;
 };
 
+/**
+ * Resolve as coordenadas de um cliente tentando consultas cada vez mais amplas:
+ * nome + endereço completo, depois nome + cidade, depois só o endereço e, por
+ * último, só a cidade. Para na primeira que devolver uma localização.
+ */
 async function searchOne(item: Item, lovableKey: string, gmapsKey: string) {
   const tentativas: string[] = [];
   const base = [item.endereco, item.cidade, item.estado, 'Brasil'].filter(Boolean).join(', ');
@@ -55,44 +60,43 @@ async function searchOne(item: Item, lovableKey: string, gmapsKey: string) {
   return { id: item.id, lat: null, lng: null, matched: null, query: null };
 }
 
+/**
+ * Geocodifica uma lista de clientes para o mapa da tela "Rotas & GPS".
+ *
+ * Exige usuário autenticado: cada item consumido aqui vira chamada paga na
+ * Places API do Google. Sem a verificação — como estava antes — qualquer pessoa
+ * podia disparar a function em loop e gerar fatura no projeto do dono.
+ */
 Deno.serve(async (req) => {
-  if (req.method === 'OPTIONS') return new Response(null, { headers: corsHeaders });
+  if (req.method === 'OPTIONS') return respostaPreflight(req);
 
   try {
+    const { erro } = await autenticar(req);
+    if (erro) return erro;
+
     const lovableKey = Deno.env.get('LOVABLE_API_KEY');
     const gmapsKey = Deno.env.get('GOOGLE_MAPS_API_KEY');
     if (!lovableKey || !gmapsKey) {
-      return new Response(
-        JSON.stringify({ success: false, error: 'Credenciais Google Maps ausentes' }),
-        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+      return json(req, { success: false, error: 'Credenciais Google Maps ausentes' }, 503);
     }
 
     const { items } = (await req.json()) as { items: Item[] };
     if (!Array.isArray(items) || items.length === 0) {
-      return new Response(
-        JSON.stringify({ success: true, results: [] }),
-        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+      return json(req, { success: true, results: [] });
     }
 
-    // Limita a 50 por chamada para não estourar
-    const slice = items.slice(0, 50);
+    // Processa em série, com uma pausa entre itens, para respeitar o rate
+    // limit do gateway. O corte em MAX_ITENS_POR_CHAMADA limita o custo de
+    // uma única requisição.
     const results = [];
-    for (const item of slice) {
-      const r = await searchOne(item, lovableKey, gmapsKey);
-      results.push(r);
+    for (const item of items.slice(0, MAX_ITENS_POR_CHAMADA)) {
+      results.push(await searchOne(item, lovableKey, gmapsKey));
       await new Promise((res) => setTimeout(res, 50));
     }
 
-    return new Response(
-      JSON.stringify({ success: true, results }),
-      { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    );
+    return json(req, { success: true, results });
   } catch (e) {
-    return new Response(
-      JSON.stringify({ success: false, error: String(e?.message || e) }),
-      { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    );
+    console.error('[geocode-clientes] erro:', e);
+    return json(req, { success: false, error: 'Falha ao geocodificar' }, 500);
   }
 });

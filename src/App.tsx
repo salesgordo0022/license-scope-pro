@@ -19,10 +19,20 @@ import Usuarios from "./pages/Usuarios";
 import Mensagens from "./pages/Mensagens";
 import PastaBoletos from "./pages/PastaBoletos";
 import Rotas from "./pages/Rotas";
+import TabelaPrecos from "./pages/TabelaPrecos";
+import Modulos from "./pages/Modulos";
+import Seguranca from "./pages/Seguranca";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
 
+/**
+ * Raiz da aplicação: providers (React Query, tooltips, notificações e
+ * autenticação) e a tabela de rotas.
+ *
+ * Tudo que fica dentro de `DashboardLayout` exige sessão ativa; `/login` e a
+ * 404 ficam de fora.
+ */
 const App = () => (
   <QueryClientProvider client={queryClient}>
     <TooltipProvider>
@@ -47,6 +57,9 @@ const App = () => (
               <Route path="/mensagens" element={<Mensagens />} />
               <Route path="/pasta-boletos" element={<PastaBoletos />} />
               <Route path="/rotas" element={<Rotas />} />
+              <Route path="/planos" element={<TabelaPrecos />} />
+              <Route path="/modulos" element={<Modulos />} />
+              <Route path="/seguranca" element={<Seguranca />} />
             </Route>
             <Route path="*" element={<NotFound />} />
           </Routes>

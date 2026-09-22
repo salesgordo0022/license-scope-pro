@@ -45,6 +45,10 @@ type Props = {
 const fmtBRL = (n: number) =>
   new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(n || 0);
 
+/**
+ * Diálogo de detalhes de uma negociação: anotações do vendedor e o
+ * detalhamento de valores. Avisa a tela pai por `onSaved` ao gravar.
+ */
 export default function DetalhesVendaDialog({ open, onOpenChange, revendaId, clienteNome, onSaved }: Props) {
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -77,6 +81,7 @@ export default function DetalhesVendaDialog({ open, onOpenChange, revendaId, cli
     })();
   }, [open, revendaId]);
 
+  /** Acrescenta uma anotação com data à negociação. */
   const adicionarAnotacao = () => {
     const t = novaAnotacao.trim();
     if (!t) return;
@@ -87,6 +92,7 @@ export default function DetalhesVendaDialog({ open, onOpenChange, revendaId, cli
     setNovaAnotacao('');
   };
 
+  /** Remove uma anotação da lista. */
   const removerAnotacao = (id: string) => {
     setAnotacoes(prev => prev.filter(a => a.id !== id));
   };
@@ -97,6 +103,7 @@ export default function DetalhesVendaDialog({ open, onOpenChange, revendaId, cli
     - (Number(valores.desconto) || 0);
   const margem = total - (Number(valores.custo) || 0);
 
+  /** Grava anotações e valores detalhados na revenda. */
   const salvar = async () => {
     if (!revendaId) return;
     setSaving(true);

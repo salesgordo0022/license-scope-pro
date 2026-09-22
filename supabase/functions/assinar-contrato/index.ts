@@ -1,51 +1,126 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
-import { corsHeaders } from 'npm:@supabase/supabase-js@2/cors'
 import forge from 'https://esm.sh/node-forge@1.3.1'
 import { PDFDocument, rgb, StandardFonts } from 'https://esm.sh/pdf-lib@1.17.1'
+import { autenticar, clientAdmin, ehAdmin, json, respostaPreflight } from '../_shared/auth.ts'
 
+/**
+ * Gera o PDF final de um contrato e o marca como assinado.
+ *
+ * A função usa a service role (ignora RLS) para ler o contrato e gravar o PDF
+ * no bucket privado `contratos-assinados`. Por causa disso ela precisa checar
+ * autorização por conta própria — é exatamente o que faltava antes: a versão
+ * original não lia o header `Authorization`, então qualquer pessoa na internet
+ * conseguia enviar um `contratoId` qualquer e ler/assinar contratos de qualquer
+ * empresa.
+ *
+ * Regras aplicadas agora, nesta ordem:
+ *  1. exige JWT válido;
+ *  2. exige perfil admin ou super_admin;
+ *  3. exige que o contrato pertença à empresa do usuário (super_admin escapa).
+ *
+ * ATENÇÃO (pendência de produto, não corrigida aqui): o PDF gerado NÃO recebe
+ * assinatura criptográfica. O certificado .pfx é aberto apenas para extrair o
+ * Common Name do titular e imprimi-lo no rodapé. Para valer como assinatura
+ * digital ICP-Brasil o PDF precisa ser assinado no padrão PAdES/CAdES.
+ */
 serve(async (req) => {
-  if (req.method === 'OPTIONS') {
-    return new Response('ok', { headers: corsHeaders })
-  }
+  if (req.method === 'OPTIONS') return respostaPreflight(req)
 
   try {
-    const rawBody = await req.text();
-    const { contratoId, pfxBase64, password, nomeAssinante } = JSON.parse(rawBody);
-
-    if (!pfxBase64 || !password) {
-      throw new Error('Certificado e senha são obrigatórios')
+    // --- 1. Autenticação -------------------------------------------------
+    const { auth, erro } = await autenticar(req)
+    if (erro) return erro
+    if (!ehAdmin(auth)) {
+      return json(req, { success: false, error: 'Sem permissão para assinar contratos' }, 403)
     }
 
-    const supabaseAdmin = createClient(
-      Deno.env.get('SUPABASE_URL') ?? '',
-      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
-    )
+    const { contratoId, pfxBase64, password, nomeAssinante } = await req.json()
 
-    // 1. Buscar dados do contrato
+    if (!contratoId || typeof contratoId !== 'string') {
+      return json(req, { success: false, error: 'contratoId é obrigatório' }, 400)
+    }
+    if (!pfxBase64 || !password) {
+      return json(req, { success: false, error: 'Certificado e senha são obrigatórios' }, 400)
+    }
+    // O .pfx viaja em base64 no corpo da requisição; um limite evita que um
+    // upload gigante consuma memória/CPU da function.
+    if (typeof pfxBase64 !== 'string' || pfxBase64.length > 4 * 1024 * 1024) {
+      return json(req, { success: false, error: 'Certificado inválido ou grande demais' }, 400)
+    }
+
+    const supabaseAdmin = clientAdmin()
+
+    // --- 2. Carrega o contrato e confere a posse --------------------------
     const { data: contrato, error: contratoError } = await supabaseAdmin
       .from('contratos')
       .select('*, empresa:empresas(*)')
       .eq('id', contratoId)
       .single()
-    
-    // Buscar cláusulas do modelo
-    const { data: modelo } = await supabaseAdmin
-      .from('modelos_contrato')
-      .select('clausulas')
-      .eq('ativo', true)
-      .limit(1)
-      .maybeSingle()
 
-    if (contratoError || !contrato) throw new Error('Contrato não encontrado')
+    // Mensagem genérica de propósito: distinguir "não existe" de "não é seu"
+    // deixaria enumerar IDs de contrato de outras empresas.
+    if (contratoError || !contrato) {
+      return json(req, { success: false, error: 'Contrato não encontrado' }, 404)
+    }
+    if (auth.tipo !== 'super_admin' && contrato.empresa_id !== auth.empresaId) {
+      return json(req, { success: false, error: 'Contrato não encontrado' }, 404)
+    }
 
-    // 2. Buscar configurações da empresa
+    // --- 2b. Cláusulas que vão para o PDF --------------------------------
+    //
+    // Ordem de prioridade, e o motivo de cada passo:
+    //
+    //  1. `clausulas_snapshot` — se o contrato já foi assinado uma vez, o texto
+    //     está congelado ali. Regerar o PDF tem que produzir o MESMO documento.
+    //  2. `modelo_id` — o modelo que o usuário escolheu no formulário. Era o
+    //     furo principal: a função pegava "o primeiro modelo ativo", então o
+    //     PDF assinado podia sair com cláusulas diferentes das que apareceram
+    //     na tela de revisão. Documento assinado divergente do revisado.
+    //  3. Só se o contrato não tiver modelo definido, cai no modelo ativo da
+    //     empresa — e nunca no de outra empresa.
+    let clausulas: unknown = null
+
+    if (Array.isArray(contrato.clausulas_snapshot) && contrato.clausulas_snapshot.length > 0) {
+      clausulas = contrato.clausulas_snapshot
+    } else if (contrato.modelo_id) {
+      const { data: escolhido } = await supabaseAdmin
+        .from('modelos_contrato')
+        .select('clausulas, empresa_id')
+        .eq('id', contrato.modelo_id)
+        .maybeSingle()
+
+      // Confere a posse: um modelo_id apontando para outra empresa (dado
+      // antigo ou requisição adulterada) não pode vazar cláusulas alheias.
+      const doTenant =
+        !escolhido?.empresa_id || escolhido.empresa_id === contrato.empresa_id
+      if (escolhido && doTenant) clausulas = escolhido.clausulas
+    }
+
+    if (!clausulas) {
+      const filtroModelo = supabaseAdmin
+        .from('modelos_contrato')
+        .select('clausulas')
+        .eq('ativo', true)
+      const { data: padrao } = await (
+        contrato.empresa_id
+          ? filtroModelo.or(`empresa_id.eq.${contrato.empresa_id},empresa_id.is.null`)
+          : filtroModelo.is('empresa_id', null)
+      )
+        .order('empresa_id', { nullsFirst: false })
+        .limit(1)
+        .maybeSingle()
+      clausulas = padrao?.clausulas ?? null
+    }
+
+    const modelo = clausulas ? { clausulas } : null
+
+    // Configurações visuais/cadastrais usadas no cabeçalho e rodapé do PDF.
     const { data: config } = await supabaseAdmin
       .from('configuracao_contrato')
       .select('*')
       .eq('empresa_id', contrato.empresa_id || '')
       .maybeSingle()
-    
+
     const configuration = config || {}
 
     // 3. Processar Certificado com forge
@@ -65,6 +140,38 @@ serve(async (req) => {
     const fontBold = await pdfDoc.embedFont(StandardFonts.HelveticaBold)
     const fontItalic = await pdfDoc.embedFont(StandardFonts.HelveticaOblique)
     
+    // --- Logo da empresa no PDF ------------------------------------------
+    //
+    // O PDF assinado saía SEM logo nenhum: a função nunca chegou a embutir a
+    // imagem, mesmo com `configuracao_contrato.logo_url` preenchido.
+    //
+    // A URL vem do banco, então é tratada como não confiável: só http(s), e
+    // qualquer falha (host fora do ar, arquivo corrompido, formato exótico) é
+    // engolida — um logo quebrado não pode impedir a emissão do contrato.
+    let logoEmbutido: Awaited<ReturnType<typeof pdfDoc.embedPng>> | null = null
+    const logoUrl = String(configuration.logo_url || '')
+    if (/^https?:\/\//i.test(logoUrl)) {
+      try {
+        const ctrl = new AbortController()
+        const timer = setTimeout(() => ctrl.abort(), 8000)
+        const resp = await fetch(logoUrl, { signal: ctrl.signal })
+        clearTimeout(timer)
+
+        if (resp.ok) {
+          const bytes = new Uint8Array(await resp.arrayBuffer())
+          // Teto de 5 MB: a imagem vai inteira para dentro do PDF.
+          if (bytes.byteLength > 0 && bytes.byteLength <= 5 * 1024 * 1024) {
+            const tipo = (resp.headers.get('content-type') || '').toLowerCase()
+            logoEmbutido = tipo.includes('jpeg') || tipo.includes('jpg')
+              ? await pdfDoc.embedJpg(bytes)
+              : await pdfDoc.embedPng(bytes)
+          }
+        }
+      } catch (e) {
+        console.warn('[assinar-contrato] logo não pôde ser carregado:', e)
+      }
+    }
+
     let page = pdfDoc.addPage([595.28, 841.89])
     const { width, height } = page.getSize()
     // Reduzindo drasticamente as margens e ajustando o cálculo de largura útil
@@ -85,17 +192,37 @@ serve(async (req) => {
     const secondaryTextColor = rgb(0.4, 0.4, 0.5)
 
     const drawHeaderDecoration = () => {
-      // 1. Barra Lateral Esquerda - Removida para evitar qualquer corte
-      // page.drawRectangle(...)
+      // Barra lateral fina na cor da marca — o mesmo detalhe que a
+      // visualização em tela já tinha e o PDF não. Fica bem dentro da margem
+      // para não correr risco de corte na impressão.
+      page.drawRectangle({
+        x: 0,
+        y: 0,
+        width: 10,
+        height,
+        color: purpleDeep,
+      })
 
-      // 2. Elementos decorativos (círculos) - Removidos para garantir página limpa e sem cortes
-      // page.drawCircle(...)
+      // Logo, quando a empresa tem uma configurada. É desenhado à esquerda, e o
+      // título desce para não colidir. Se não houver logo, o título ocupa o
+      // topo normalmente.
+      const alturaLogo = logoEmbutido ? 34 : 0
+      if (logoEmbutido) {
+        const escala = alturaLogo / logoEmbutido.height
+        page.drawImage(logoEmbutido, {
+          x: margin,
+          y: height - margin - alturaLogo,
+          width: logoEmbutido.width * escala,
+          height: alturaLogo,
+        })
+      }
 
-      // 3. Cabeçalho - RESPEITANDO RIGIDAMENTE AS MARGENS
+      const topoTitulo = height - margin - alturaLogo - (logoEmbutido ? 26 : 30)
+
       const title = 'CONTRATO DE PRESTAÇÃO DE SERVIÇOS'
       page.drawText(title, {
         x: margin,
-        y: height - margin - 30, // Mais espaço do topo
+        y: topoTitulo,
         size: 16,
         font: fontBold,
         color: purpleDeep
@@ -104,7 +231,7 @@ serve(async (req) => {
       // Linha de acento abaixo do título
       page.drawRectangle({
         x: margin,
-        y: height - margin - 45,
+        y: topoTitulo - 15,
         width: 100,
         height: 2,
         color: purpleMedium
@@ -113,7 +240,7 @@ serve(async (req) => {
       const subHeader = (configuration.contratado_nome || 'DOCUMENTO DIGITAL').toUpperCase()
       page.drawText(subHeader, {
         x: margin,
-        y: height - margin - 65,
+        y: topoTitulo - 35,
         size: 9,
         font: font,
         color: secondaryTextColor
@@ -408,12 +535,17 @@ serve(async (req) => {
     })
     
     page.drawText(`DATA: ${sigDate}`, { x: boxX + 15, y: y - 72, size: 7, font: font, color: secondaryTextColor })
-    page.drawText('VALIDADE JURÍDICA: ICP-BRASIL / MP 2.200-2', { 
-      x: boxX + 15, 
-      y: y - 88, 
-      size: 7, 
-      font: fontBold, 
-      color: purpleLight 
+    // O texto anterior aqui era "VALIDADE JURÍDICA: ICP-BRASIL / MP 2.200-2".
+    // Isso era falso: o PDF não recebe assinatura criptográfica nenhuma — o
+    // certificado só é aberto para ler o nome do titular. Afirmar conformidade
+    // com a MP 2.200-2 num documento que não a tem é um risco jurídico real,
+    // então o rótulo passou a descrever o que de fato acontece.
+    page.drawText('ASSINATURA ELETRÔNICA SIMPLES — TITULAR IDENTIFICADO POR CERTIFICADO', {
+      x: boxX + 15,
+      y: y - 88,
+      size: 6,
+      font: fontBold,
+      color: purpleLight
     })
 
     // Lado do Contratante
@@ -446,38 +578,67 @@ serve(async (req) => {
     drawFooter(pageCount)
 
     const pdfBytes = await pdfDoc.save()
-    const fileName = `contrato_${contratoId}_final.pdf`
+    // O arquivo fica na pasta da empresa para que a policy de Storage consiga
+    // isolar por tenant (antes ia na raiz do bucket, sem como separar).
+    const fileName = `${contrato.empresa_id}/contrato_${contratoId}_final.pdf`
 
-    // 5. Upload e Finalização
+    // --- 5. Upload e finalização -----------------------------------------
     const { error: uploadError } = await supabaseAdmin.storage
       .from('contratos-assinados')
       .upload(fileName, pdfBytes, { contentType: 'application/pdf', upsert: true })
 
     if (uploadError) throw uploadError
 
+    // URL assinada de 7 dias. Antes era de 1 ano (31536000s) e ficava salva em
+    // `contratos.link_documento`: quem conseguisse ler a linha (ou um backup,
+    // ou um log) tinha acesso ao PDF por 12 meses, sem passar por autenticação.
+    const VALIDADE_LINK_SEGUNDOS = 60 * 60 * 24 * 7
     const { data: urlData } = await supabaseAdmin.storage
       .from('contratos-assinados')
-      .createSignedUrl(fileName, 31536000)
+      .createSignedUrl(fileName, VALIDADE_LINK_SEGUNDOS)
 
-    const publicUrl = urlData?.signedUrl || ''
+    const signedUrl = urlData?.signedUrl || ''
 
-    await supabaseAdmin.from('contratos').update({ 
-      assinado: true, 
+    // Persistimos o CAMINHO no bucket, não a URL temporária. O frontend gera
+    // uma URL assinada curta na hora de abrir o PDF. `link_documento` fica
+    // intocado porque é um campo livre onde o usuário cola links externos
+    // (Google Drive etc.) — sobrescrevê-lo apagava o dado dele.
+    //
+    // `clausulas_snapshot` congela o texto assinado. Sem isso, editar o modelo
+    // depois reescreveria o conteúdo de todos os contratos já assinados que
+    // apontam para ele. Só é gravado na PRIMEIRA assinatura: o trigger
+    // `contrato_assinado_imutavel` recusa qualquer alteração posterior.
+    const atualizacao: Record<string, unknown> = {
+      assinado: true,
       data_assinatura: new Date().toISOString(),
-      link_documento: publicUrl,
-      is_digital_sign: true
-    }).eq('id', contratoId)
+      documento_path: fileName,
+      is_digital_sign: true,
+    }
+    if (!contrato.assinado && clausulas) {
+      atualizacao.clausulas_snapshot = clausulas
+      atualizacao.snapshot_gerado_em = new Date().toISOString()
+    }
 
-    return new Response(JSON.stringify({ success: true, url: publicUrl }), {
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-    })
+    const { error: updateError } = await supabaseAdmin
+      .from('contratos')
+      .update(atualizacao)
+      .eq('id', contratoId)
+
+    // O trigger de imutabilidade pode recusar a gravação (ex.: tentativa de
+    // reassinar um contrato já fechado). Avisar é melhor que devolver sucesso
+    // com o banco inalterado.
+    if (updateError) {
+      console.error('[assinar-contrato] update recusado:', updateError)
+      return json(req, { success: false, error: updateError.message }, 409)
+    }
+
+    return json(req, { success: true, url: signedUrl, path: fileName })
 
   } catch (error) {
-    console.error('Erro:', error)
-    return new Response(JSON.stringify({ success: false, error: error.message }), {
-      status: 200,
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-    })
+    // Log completo fica no servidor; o cliente recebe mensagem genérica para
+    // não vazar detalhes internos (nomes de tabela, stack, erro do Storage).
+    console.error('[assinar-contrato] erro:', error)
+    return json(req, { success: false, error: 'Falha ao gerar o contrato assinado' }, 500)
   }
 })
 

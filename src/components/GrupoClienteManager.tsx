@@ -20,6 +20,11 @@ interface Grupo {
   descricao: string | null;
 }
 
+/**
+ * Gerencia os grupos usados para organizar clientes (matriz/filiais, redes).
+ * Avisa a tela pai por `onGroupsChange` sempre que a lista muda, para o
+ * seletor de grupos ser recarregado.
+ */
 export function GrupoClienteManager({ onGroupsChange }: { onGroupsChange?: () => void }) {
   const [grupos, setGrupos] = useState<Grupo[]>([]);
   const [loading, setLoading] = useState(true);
@@ -31,6 +36,7 @@ export function GrupoClienteManager({ onGroupsChange }: { onGroupsChange?: () =>
     descricao: '',
   });
 
+  /** Carrega os grupos da empresa. */
   const fetchGrupos = async () => {
     try {
       const { data, error } = await supabase
@@ -51,6 +57,7 @@ export function GrupoClienteManager({ onGroupsChange }: { onGroupsChange?: () =>
     fetchGrupos();
   }, []);
 
+  /** Salva o grupo (novo ou editado). */
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
@@ -97,6 +104,7 @@ export function GrupoClienteManager({ onGroupsChange }: { onGroupsChange?: () =>
     }
   };
 
+  /** Abre o formulário preenchido com o grupo escolhido. */
   const handleEdit = (grupo: Grupo) => {
     setEditingGrupo(grupo);
     setFormData({
@@ -106,6 +114,7 @@ export function GrupoClienteManager({ onGroupsChange }: { onGroupsChange?: () =>
     });
   };
 
+  /** Exclui o grupo após confirmação. */
   const handleDelete = async (id: string) => {
     if (!confirm('Excluir este grupo? Clientes vinculados ficarão sem grupo.')) return;
     try {

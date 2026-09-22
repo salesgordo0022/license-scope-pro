@@ -12,6 +12,9 @@ import {
   Layers,
   Monitor,
   ClipboardList,
+  ShieldCheck,
+  Tags,
+  Boxes,
   FileText,
   UserCog,
   MessageSquare,
@@ -23,6 +26,13 @@ import { cn } from '@/lib/utils';
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 
+/**
+ * Itens do menu lateral.
+ *
+ * `adminOnly` esconde o item de quem não é admin. Isso é conveniência de
+ * interface, não controle de acesso: a autorização de verdade está na própria
+ * página (`Usuarios.tsx` bloqueia com `if (!isAdmin)`) e nas policies de RLS.
+ */
 const navigation = [
   { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
   { name: 'Clientes', href: '/clientes', icon: Users },
@@ -32,11 +42,14 @@ const navigation = [
   { name: 'Segmentos', href: '/segmentos', icon: Layers },
   { name: 'Sistemas', href: '/sistemas', icon: Monitor },
   { name: 'Contratos', href: '/contratos', icon: FileText },
+  { name: 'Planos e Preços', href: '/planos', icon: Tags },
+  { name: 'Módulos', href: '/modulos', icon: Boxes },
   { name: 'Revendas', href: '/revendas', icon: ShoppingCart },
   { name: 'Rotas & GPS', href: '/rotas', icon: MapIcon },
   { name: 'Mensagens', href: '/mensagens', icon: MessageSquare },
   { name: 'Pasta de Boletos', href: '/pasta-boletos', icon: FolderOpen },
-  { name: 'Usuários', href: '/usuarios', icon: UserCog },
+  { name: 'Usuários', href: '/usuarios', icon: UserCog, adminOnly: true },
+  { name: 'Segurança', href: '/seguranca', icon: ShieldCheck },
 ];
 
 interface AppSidebarProps {
@@ -44,9 +57,14 @@ interface AppSidebarProps {
   onToggleCollapse?: () => void;
 }
 
+/**
+ * Menu lateral fixo do painel: navegação, identificação do usuário e logout.
+ * Pode ser controlado de fora (`collapsed` + `onToggleCollapse`) ou gerenciar o
+ * próprio estado de recolhido quando usado sem props.
+ */
 export function AppSidebar({ collapsed: controlledCollapsed, onToggleCollapse }: AppSidebarProps = {}) {
   const location = useLocation();
-  const { profile, signOut } = useAuth();
+  const { profile, signOut, isAdmin: ehAdmin } = useAuth();
   const [internalCollapsed, setInternalCollapsed] = useState(false);
   const collapsed = controlledCollapsed ?? internalCollapsed;
   const toggleCollapse = onToggleCollapse ?? (() => setInternalCollapsed(!internalCollapsed));
@@ -114,7 +132,9 @@ export function AppSidebar({ collapsed: controlledCollapsed, onToggleCollapse }:
 
         {/* Navigation */}
         <nav className="flex-1 space-y-1 px-2 py-4">
-          {navigation.map((item) => {
+          {navigation
+            .filter((item) => !item.adminOnly || ehAdmin)
+            .map((item) => {
             const isActive = location.pathname === item.href;
             return (
               <NavLink

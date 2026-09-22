@@ -51,6 +51,14 @@ function loadGoogleMaps(): Promise<typeof google> {
   return mapsPromise;
 }
 
+/**
+ * Rotas & GPS: plota os clientes num mapa e monta o roteiro de visitas.
+ *
+ * A geocodificação roda na Edge Function `geocode-clientes` para manter as
+ * chaves da API do Google fora do navegador. A chave usada aqui é só a
+ * "browser key" do mapa, que precisa estar restrita por domínio no Google
+ * Cloud Console — sem essa restrição, qualquer site pode usá-la.
+ */
 export default function Rotas() {
   const mapRef = useRef<HTMLDivElement>(null);
   const mapInstance = useRef<google.maps.Map | null>(null);
@@ -277,6 +285,7 @@ export default function Rotas() {
     );
   };
 
+  /** Calcula o trajeto entre os clientes selecionados, na ordem escolhida. */
   const calcularRota = async () => {
     if (!origem) {
       toast.error('Capture sua localização primeiro');
@@ -325,11 +334,13 @@ export default function Rotas() {
     }
   };
 
+  /** Limpa o trajeto traçado e a seleção atual. */
   const limparRota = () => {
     directionsRenderer.current?.setDirections({ routes: [] } as any);
     setResumoRota(null);
   };
 
+  /** Abre a rota montada no aplicativo do Google Maps, para navegação. */
   const abrirNoGoogleMaps = () => {
     if (!origem) return toast.error('Capture sua localização primeiro');
     const escolhidos = clientesFiltrados.filter((c) => selecionados.has(c.id));
@@ -345,6 +356,7 @@ export default function Rotas() {
     window.open(url, '_blank');
   };
 
+  /** Marca ou desmarca todos os clientes da lista. */
   const toggleAll = () => {
     if (selecionados.size === clientesFiltrados.length) {
       setSelecionados(new Set());

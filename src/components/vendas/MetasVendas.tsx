@@ -53,6 +53,10 @@ const TIPOS_META = [
 const formatCurrency = (value: number) =>
   new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
 
+/**
+ * Metas de vendas: definição por período e acompanhamento do quanto já foi
+ * realizado em relação ao alvo.
+ */
 export default function MetasVendas() {
   const [metas, setMetas] = useState<Meta[]>([]);
   const [clientes, setClientes] = useState<ClienteOption[]>([]);
@@ -75,6 +79,7 @@ export default function MetasVendas() {
     cliente_contato: '',
   });
 
+  /** Carrega as metas cadastradas. */
   const fetchMetas = async () => {
     try {
       const { data, error } = await supabase
@@ -90,6 +95,7 @@ export default function MetasVendas() {
     }
   };
 
+  /** Carrega os clientes usados para vincular a meta. */
   const fetchClientes = async () => {
     try {
       const { data, error } = await supabase
@@ -123,6 +129,7 @@ export default function MetasVendas() {
     });
   };
 
+  /** Ao escolher o cliente, preenche os dados dele no formulário da meta. */
   const handleClienteSelect = (clienteId: string) => {
     if (clienteId === '__none__') {
       setFormData((prev) => ({
@@ -145,6 +152,7 @@ export default function MetasVendas() {
     }));
   };
 
+  /** Salva a meta (nova ou editada). */
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
@@ -183,6 +191,7 @@ export default function MetasVendas() {
     }
   };
 
+  /** Abre o formulário preenchido com a meta escolhida. */
   const handleEdit = (meta: Meta) => {
     setEditingMeta(meta);
     setFormData({
@@ -202,6 +211,7 @@ export default function MetasVendas() {
     setDialogOpen(true);
   };
 
+  /** Exclui a meta após confirmação. */
   const handleDelete = async (id: string) => {
     if (!confirm('Excluir esta meta?')) return;
     try {
@@ -212,6 +222,7 @@ export default function MetasVendas() {
     } catch { toast.error('Erro ao excluir'); }
   };
 
+  /** Marca a meta como concluída. */
   const handleConcluir = async (id: string) => {
     try {
       const { error } = await supabase

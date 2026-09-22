@@ -4,6 +4,7 @@ import { Plus, Search, FileText, MoreHorizontal, Edit, Trash2, Eye, CheckCircle,
 import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
 import ModelosContrato from '@/components/contratos/ModelosContrato';
+import TituloClausula from '@/components/contratos/TituloClausula';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -64,7 +65,10 @@ interface Contrato {
   assinado: boolean | null;
   data_assinatura: string | null;
   observacoes: string | null;
+  /** Campo livre: link externo que o usuário cola (Google Drive, etc.). */
   link_documento: string | null;
+  /** Caminho do PDF assinado no bucket; a URL de acesso é gerada sob demanda. */
+  documento_path?: string | null;
   is_digital_sign?: boolean | null;
   created_at: string | null;
 }
@@ -105,16 +109,26 @@ const defaultConfig: ConfigContrato = {
   mostrar_marca_dagua: true,
 };
 
+/** Formata um número como moeda brasileira. */
 const formatCurrency = (value: number | null) => {
   if (value === null || value === undefined) return 'R$ 0,00';
   return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
 };
 
+/** Formata uma data ISO no padrão dd/mm/aaaa. */
 const formatDate = (date: string | null) => {
   if (!date) return '-';
   return new Date(date + 'T00:00:00').toLocaleDateString('pt-BR');
 };
 
+/**
+ * Contratos: emissão, visualização, impressão, exportação em PDF e assinatura
+ * com certificado digital.
+ *
+ * A assinatura acontece na Edge Function `assinar-contrato` (o certificado e a
+ * senha são enviados para lá). O PDF resultante fica num bucket privado, e o
+ * link de acesso é gerado sob demanda com validade curta.
+ */
 export default function Contratos() {
   const [contratos, setContratos] = useState<Contrato[]>([]);
   const [clientes, setClientes] = useState<Cliente[]>([]);
@@ -164,6 +178,7 @@ export default function Contratos() {
     plano_recursos: [] as string[],
   });
 
+  /** Carrega contratos, clientes e configurações, tudo limitado pelo RLS. */
   const fetchData = async () => {
     try {
       const [contratosRes, clientesRes, sistemasRes, configRes, modelosRes, planosRes] = await Promise.all([
@@ -243,6 +258,7 @@ export default function Contratos() {
     fetchData(); 
   }, []);
 
+  /** Sugere o próximo número sequencial de contrato a partir dos já emitidos. */
   const getProximoNumeroContrato = () => {
     if (contratos.length === 0) return "001/" + new Date().getFullYear();
     
@@ -263,6 +279,7 @@ export default function Contratos() {
     }
   }, [dialogOpen, editingContrato, contratos]);
 
+  /** Salva os dados da contratada (nome, CNPJ, logo) usados no cabeçalho do PDF. */
   const handleSaveConfig = async () => {
     setSavingConfig(true);
     try {
@@ -304,6 +321,7 @@ export default function Contratos() {
     });
   };
 
+  /** Ao escolher o cliente, copia os dados cadastrais dele para o contrato. */
   const handleClienteChange = async (clienteId: string) => {
     setFormData(prev => ({ ...prev, cliente_id: clienteId }));
 
@@ -356,12 +374,14 @@ export default function Contratos() {
     }
   };
 
+  /** Calcula a data de término somando a vigência em meses à data de início. */
   const calcularDataFim = (dataInicio: string, meses: number) => {
     const date = new Date(dataInicio + 'T00:00:00');
     date.setMonth(date.getMonth() + meses);
     return date.toISOString().split('T')[0];
   };
 
+  /** Salva o contrato (novo ou editado). */
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!formData.cliente_id) { toast.error('Selecione um cliente'); return; }
@@ -394,6 +414,7 @@ export default function Contratos() {
     }
   };
 
+  /** Abre o formulário preenchido com o contrato escolhido. */
   const handleEdit = (contrato: Contrato) => {
     setEditingContrato(contrato);
     setFormData({
@@ -423,6 +444,7 @@ export default function Contratos() {
     setDialogOpen(true);
   };
 
+  /** Exclui o contrato após confirmação. */
   const handleDelete = async (id: string) => {
     if (!confirm('Tem certeza que deseja excluir este contrato?')) return;
     try {
@@ -432,6 +454,7 @@ export default function Contratos() {
     } catch { toast.error('Erro ao excluir contrato'); }
   };
 
+  /** Marca o contrato como assinado manualmente (fora do fluxo de certificado). */
   const handleAssinar = async (id: string) => {
     try {
       const { error } = await supabase.from('contratos')
@@ -442,11 +465,19 @@ export default function Contratos() {
     } catch { toast.error('Erro ao assinar contrato'); }
   };
 
+  /** Abre a visualização do contrato em tela cheia. */
   const handleView = (contrato: Contrato) => {
     setViewingContrato(contrato);
     setViewDialogOpen(true);
   };
 
+  /**
+   * Assina o contrato com certificado digital A1 (.pfx).
+   *
+   * O arquivo vai em base64 para a Edge Function, que é quem tem a service role
+   * para gravar no bucket. A senha do certificado trafega no corpo da requisição
+   * (HTTPS) e não é armazenada em lugar nenhum.
+   */
   const handleDigitalSign = async () => {
     if (!viewingContrato) return;
     if (!certificateFile) {
@@ -470,12 +501,9 @@ export default function Contratos() {
         reader.readAsDataURL(certificateFile);
       });
 
-      console.log('Iniciando chamada à Edge Function com payload:', {
-        contratoId: viewingContrato.id,
-        pfxSize: pfxBase64.length,
-        nomeAssinante: viewingContrato.contratante_nome
-      });
-
+      // O log anterior imprimia o payload da assinatura no console do
+      // navegador. Mesmo sem a senha, expunha dados do contrato em um lugar
+      // que fica visível em suporte remoto e em gravação de tela.
       const { data, error } = await supabase.functions.invoke('assinar-contrato', {
         body: {
           contratoId: viewingContrato.id,
@@ -502,8 +530,10 @@ export default function Contratos() {
     }
   };
 
+  /** Resolve o nome do cliente a partir do id, para exibição na tabela. */
   const getClienteName = (clienteId: string) => clientes.find(c => c.id === clienteId)?.nome_empresa || 'Cliente não encontrado';
 
+  /** Aplica busca e filtro de status sobre a lista carregada. */
   const filteredContratos = contratos.filter((c) => {
     const clienteName = getClienteName(c.cliente_id);
     const matchesSearch = clienteName.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -512,18 +542,35 @@ export default function Contratos() {
     return matchesSearch && matchesStatus;
   });
 
+  /** Devolve o selo visual do contrato (assinado tem precedência sobre o status). */
   const getStatusBadge = (status: string, assinado: boolean | null) => {
     if (assinado) return <Badge variant="outline">✓ Assinado</Badge>;
     const cfg: Record<string, string> = { ativo: 'status-ativo', inativo: 'status-inativo', cancelado: 'status-vencido' };
     return <span className={`status-badge ${cfg[status] || ''}`}>{status}</span>;
   };
 
+  /** Dispara a impressão da visualização do contrato. */
   const handlePrint = () => { window.print(); };
 
+  /**
+   * Baixa o contrato em PDF.
+   *
+   * Quando já existe um PDF assinado no Storage, gera uma URL assinada na hora
+   * (válida por 5 minutos) a partir do caminho salvo em `documento_path`.
+   * Antes o banco guardava uma URL pronta com 1 ano de validade e o código
+   * apenas a reabria — qualquer cópia daquele link dava acesso ao documento
+   * por 12 meses. Nos demais casos, renderiza a visualização atual em PDF.
+   */
   const handleExportPDF = async () => {
-    // Se assinado digitalmente, baixa o PDF original
-    if (viewingContrato?.assinado && viewingContrato.link_documento && viewingContrato.is_digital_sign) {
-      window.open(viewingContrato.link_documento, '_blank');
+    if (viewingContrato?.assinado && viewingContrato.documento_path && viewingContrato.is_digital_sign) {
+      const { data, error } = await supabase.storage
+        .from('contratos-assinados')
+        .createSignedUrl(viewingContrato.documento_path, 300);
+      if (error || !data?.signedUrl) {
+        toast.error('Não foi possível abrir o contrato assinado.');
+        return;
+      }
+      window.open(data.signedUrl, '_blank', 'noopener,noreferrer');
       return;
     }
     if (!viewingContrato) return;
@@ -685,7 +732,20 @@ export default function Contratos() {
     const dataFim = formatDate(contrato.data_fim);
     const nomeContratante = contrato.contratante_nome || cliente?.nome_empresa || '……………..';
     const nomeContratado = config.contratado_nome || 'ImperialTech';
-    const logoUrl = config.logo_url || "/__l5e/assets-v1/2bd820be-8ac9-46e0-b258-dbf77ce4946f/impertech-logo.png";
+    // Logo do cabeçalho. O padrão é `/logo.png`, servido pela pasta `public/`
+    // do próprio projeto — antes o fallback apontava para um caminho interno do
+    // CDN do Lovable (`/__l5e/assets-v1/...`), que só existe no preview deles e
+    // dava 404 em qualquer outro lugar, deixando o contrato sem logo.
+    const LOGO_PADRAO = "/logo.png";
+    const logoUrl = config.logo_url || LOGO_PADRAO;
+
+    /** Se o logo configurado não carregar, cai no padrão em vez de deixar o
+     *  ícone de imagem quebrada no meio do documento. */
+    const aoFalharLogo = (e: React.SyntheticEvent<HTMLImageElement>) => {
+      const img = e.currentTarget;
+      if (img.src.endsWith(LOGO_PADRAO)) { img.style.visibility = "hidden"; return; }
+      img.src = LOGO_PADRAO;
+    };
 
     const planoNome = (contrato as any).plano_nome as string | null;
     const planoRecursos: string[] = ((contrato as any).plano_recursos || []) as string[];
@@ -756,7 +816,7 @@ export default function Contratos() {
         {/* Marca d'água central */}
         {config.mostrar_marca_dagua && (
           <div className="absolute inset-0 flex items-center justify-center opacity-[0.03] pointer-events-none" style={{ zIndex: 0 }}>
-            <img src={logoUrl} alt="" className="w-[400px]" crossOrigin="anonymous" />
+            <img src={logoUrl} alt="" className="w-[400px]" crossOrigin="anonymous" onError={aoFalharLogo} />
           </div>
         )}
 
@@ -769,7 +829,8 @@ export default function Contratos() {
                 src={logoUrl}
                 alt="Logo"
                 crossOrigin="anonymous"
-                style={{ height: '50px', objectFit: 'contain', marginBottom: '15px' }}
+                onError={aoFalharLogo}
+                style={{ height: '56px', objectFit: 'contain', objectPosition: 'left', marginBottom: '14px' }}
               />
               <div className="w-20 h-1 bg-[#331470] rounded-full" />
             </div>
@@ -871,10 +932,7 @@ export default function Contratos() {
 
           {/* CLÁUSULA PRIMEIRA */}
           <section className="relative z-10 mb-6">
-            <h2 className="font-bold uppercase text-sm mb-4 text-[#331470] flex items-center gap-2">
-              <span className="w-6 h-6 bg-[#331470] text-white flex items-center justify-center rounded text-[10px]">01</span>
-              Do Objeto do Contrato
-            </h2>
+            <TituloClausula numero="01" titulo="Do Objeto do Contrato" />
 
             <p className="text-justify indent-10 mb-2">
               <strong>1.1.</strong> O presente contrato tem como objeto, a prestação, pelo CONTRATADO, de serviços de suporte técnico do Sistema <strong>{contrato.sistema || '……………...'}</strong>.
@@ -886,7 +944,7 @@ export default function Contratos() {
 
           {/* CLÁUSULA SEGUNDA */}
           <section className="relative z-10">
-            <h2 className="font-bold uppercase text-base mb-3 text-black border-b border-gray-100 pb-1">Cláusula Segunda — Prazo de Vigência</h2>
+            <TituloClausula numero="02" titulo="Prazo de Vigência" />
             <p className="text-justify indent-10">
               <strong>2.1.</strong> O período de vigência deste contrato é de <strong>{dataInicio}</strong> à <strong>{dataFim}</strong> e poderá ser renovado por iguais e sucessivos períodos, mediante termo aditivo.
             </p>
@@ -894,7 +952,7 @@ export default function Contratos() {
 
           {/* CLÁUSULA TERCEIRA */}
           <section style={{ pageBreakInside: 'avoid' }} className="relative z-10">
-            <h2 className="font-bold uppercase text-base mb-3 text-black border-b border-gray-100 pb-1">Cláusula Terceira — Da Execução dos Serviços</h2>
+            <TituloClausula numero="03" titulo="Da Execução dos Serviços" />
             <p className="text-justify indent-8 mb-2">
               <strong>3.1.</strong> Os serviços serão prestados por profissional designado pelo CONTRATADO no horário de <strong>{config.horario_atendimento}</strong>, de segunda a sábado, salvo feriados
               {config.contratado_email && <>, e-mails: <strong>{config.contratado_email}</strong></>}
@@ -911,7 +969,7 @@ export default function Contratos() {
 
           {/* CLÁUSULA QUARTA */}
           <section style={{ pageBreakInside: 'avoid' }} className="relative z-10">
-            <h2 className="font-bold uppercase text-base mb-3 text-black border-b border-gray-100 pb-1">Cláusula Quarta — Preço e Forma de Pagamento (Modelo SaaS Mensal)</h2>
+            <TituloClausula numero="04" titulo="Preço e Forma de Pagamento (Modelo SaaS Mensal)" />
             <p className="text-justify indent-8 mb-2">
               <strong>4.1.</strong> O valor da implantação do sistema é de <strong>{formatCurrency(Number(contrato.valor_software))}</strong>, e a mensalidade do serviço SaaS é de <strong>{formatCurrency(Number(contrato.valor_mensalidade))}</strong>, com vencimento todo dia <strong>10</strong> de cada mês, a contar da data de assinatura deste instrumento.
             </p>
@@ -919,7 +977,7 @@ export default function Contratos() {
               <strong>4.2.</strong> O contrato será renovado automaticamente a cada mês, no dia 10, salvo manifestação contrária de uma das partes com antecedência mínima de <strong>{config.prazo_aviso_rescisao}</strong> dias.
             </p>
             <p className="text-justify indent-8 mb-2">
-              <strong>4.3.</strong> Em caso de cancelamento por parte do CONTRATANTE antes do término della vigência, será cobrada multa rescisória equivalente a <strong>3 (três) vezes o valor da mensalidade vigente</strong>, ou seja, <strong>{formatCurrency(Number(contrato.valor_mensalidade) * 3)}</strong>.
+              <strong>4.3.</strong> Em caso de cancelamento por parte do CONTRATANTE antes do término da vigência, será cobrada multa rescisória equivalente a <strong>3 (três) vezes o valor da mensalidade vigente</strong>, ou seja, <strong>{formatCurrency(Number(contrato.valor_mensalidade) * 3)}</strong>.
             </p>
             <p className="text-justify indent-8 mb-2">
               <strong>4.4.</strong> No caso de inadimplência dos valores devidos ou pagos em atraso, poderão incidir juros e multa, encargos financeiros, despesas acessórias da operação, além de autorizar a CONTRATADA de pleno direito, a suspender automaticamente o bloqueio do sistema, mais o atendimento do suporte técnico, até o adimplemento da obrigação em atraso.
@@ -937,7 +995,7 @@ export default function Contratos() {
 
           {/* CLÁUSULA QUINTA */}
           <section className="relative z-10">
-            <h2 className="font-bold uppercase text-base mb-3 text-black border-b border-gray-100 pb-1">Cláusula Quinta — Da Alteração Contratual</h2>
+            <TituloClausula numero="05" titulo="Da Alteração Contratual" />
             <p className="text-justify indent-8">
               <strong>5.1.</strong> Quaisquer alterações das obrigações contratuais somente serão válidas mediante celebração de Termos Aditivos, firmados pelos representantes legais das Partes.
             </p>
@@ -945,7 +1003,7 @@ export default function Contratos() {
 
           {/* CLÁUSULA SEXTA */}
           <section className="relative z-10">
-            <h2 className="font-bold uppercase text-base mb-3 text-black border-b border-gray-100 pb-1">Cláusula Sexta — Obrigações do Contratado</h2>
+            <TituloClausula numero="06" titulo="Obrigações do Contratado" />
             <p className="text-justify indent-10 mb-2">
               <strong>6.1.</strong> Em cumprimento ao objeto do presente instrumento, são obrigações exclusivas do CONTRATADO:
             </p>
@@ -961,7 +1019,7 @@ export default function Contratos() {
 
           {/* CLÁUSULA SÉTIMA */}
           <section className="relative z-10">
-            <h2 className="font-bold uppercase text-base mb-3 text-black border-b border-gray-100 pb-1">Cláusula Sétima — Obrigações do Contratante</h2>
+            <TituloClausula numero="07" titulo="Obrigações do Contratante" />
             <p className="text-justify indent-10 mb-2">
               <strong>7.1.</strong> São obrigações do CONTRATANTE:
             </p>
@@ -978,7 +1036,7 @@ export default function Contratos() {
 
           {/* CLÁUSULA OITAVA */}
           <section className="relative z-10">
-            <h2 className="font-bold uppercase text-base mb-3 text-black border-b border-gray-100 pb-1">Cláusula Oitava — Aspectos Trabalhistas</h2>
+            <TituloClausula numero="08" titulo="Aspectos Trabalhistas" />
             <p className="text-justify indent-10">
               <strong>8.1.</strong> O CONTRATADO é a única responsável pelo contrato de trabalho da pessoa designada por ela para a prestação dos serviços, responsabilizando-se pela gerência das atividades de seu empregado e/ou preposto, bem como responder por atos, omissões e/ou infrações por eles cometidos. Não podendo ser arguida solidariedade do CONTRATANTE, nem mesmo responsabilidade subsidiária nas relações trabalhistas relacionadas aos serviços prestados pelo CONTRATADO, a qual declara, ainda, não existir nenhum vínculo empregatício entre o CONTRATANTE e as pessoas designadas pelo CONTRATADO para a prestação dos serviços.
             </p>
@@ -986,7 +1044,7 @@ export default function Contratos() {
 
           {/* CLÁUSULA NONA */}
           <section style={{ pageBreakInside: 'avoid' }} className="relative z-10">
-            <h2 className="font-bold uppercase text-base mb-3 text-black border-b border-gray-100 pb-1">Cláusula Nona — Rescisão e Multa</h2>
+            <TituloClausula numero="09" titulo="Rescisão e Multa" />
             <p className="text-justify indent-10 mb-2">
               <strong>9.1.</strong> O presente contrato poderá ser extinto nas seguintes hipóteses:
             </p>
@@ -1000,7 +1058,7 @@ export default function Contratos() {
           </section>
 
           <section className="relative z-10">
-            <h2 className="font-bold uppercase text-base mb-3 text-black border-b border-gray-100 pb-1">Cláusula Décima — Do Foro</h2>
+            <TituloClausula numero="10" titulo="Do Foro" />
             <p className="text-justify indent-10">
               <strong>10.1.</strong> As partes elegem o Foro da Comarca {config.foro_comarca ? <> de <strong>{config.foro_comarca}</strong></> : <> de …………………..</>} para dirimir qualquer questão decorrente deste contrato, com exclusão de qualquer outro, por mais privilegiado que seja.
             </p>

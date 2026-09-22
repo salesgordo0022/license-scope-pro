@@ -83,11 +83,16 @@ const meses = [
   { value: 12, label: 'Dezembro' },
 ];
 
+/** Formata um número como moeda brasileira. */
 const formatCurrency = (value: number | null) => {
   if (value === null || value === undefined) return 'R$ 0,00';
   return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
 };
 
+/**
+ * Contas a receber: lançamento de cobranças por cliente, baixa de pagamento,
+ * exclusão em lote e geração automática das mensalidades do mês.
+ */
 export default function Pagamentos() {
   const { isAdmin } = useAuth();
   const [pagamentos, setPagamentos] = useState<Pagamento[]>([]);
@@ -125,6 +130,7 @@ export default function Pagamentos() {
     referencia_ano: currentYear,
   });
 
+  /** Carrega pagamentos e clientes. O RLS restringe tudo à empresa do usuário. */
   const fetchData = async () => {
     try {
       const [pagamentosRes, clientesRes] = await Promise.all([
@@ -168,6 +174,7 @@ export default function Pagamentos() {
     });
   };
 
+  /** Ao trocar o cliente, preenche o valor sugerido a partir do contrato dele. */
   const handleClienteChange = (clienteId: string) => {
     const cliente = clientes.find(c => c.id === clienteId);
     if (cliente) {
@@ -186,6 +193,7 @@ export default function Pagamentos() {
     }
   };
 
+  /** Ajusta os campos do formulário conforme o tipo de cobrança escolhido. */
   const handleTipoChange = (tipo: string) => {
     const cliente = clientes.find(c => c.id === formData.cliente_id);
     let valor = formData.valor;
@@ -197,10 +205,12 @@ export default function Pagamentos() {
     setFormData({ ...formData, tipo, valor });
   };
 
+  /** Soma o valor base e aplica desconto/acréscimo informados no formulário. */
   const calcularValorFinal = () => {
     return formData.valor - (formData.valor * formData.desconto / 100);
   };
 
+  /** Salva o lançamento (novo ou editado). */
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
@@ -272,6 +282,7 @@ export default function Pagamentos() {
     }
   };
 
+  /** Abre o formulário preenchido com o lançamento escolhido. */
   const handleEdit = (pagamento: Pagamento) => {
     setEditingPagamento(pagamento);
     setFormData({
@@ -290,6 +301,7 @@ export default function Pagamentos() {
     setDialogOpen(true);
   };
 
+  /** Dá baixa no lançamento, registrando a data do pagamento. */
   const handleMarcarPago = async (pagamento: Pagamento) => {
     try {
       const { error } = await supabase
@@ -309,6 +321,7 @@ export default function Pagamentos() {
     }
   };
 
+  /** Exclui um lançamento após confirmação. */
   const handleDelete = async (id: string) => {
     if (!confirm('Tem certeza que deseja excluir este pagamento?')) return;
 
@@ -323,6 +336,7 @@ export default function Pagamentos() {
     }
   };
 
+  /** Exclui todos os lançamentos marcados na tabela, após confirmação. */
   const handleDeleteSelected = async () => {
     if (selectedPagamentos.length === 0) return;
     if (!confirm(`Tem certeza que deseja excluir os ${selectedPagamentos.length} pagamentos selecionados?`)) return;
@@ -347,6 +361,7 @@ export default function Pagamentos() {
     }
   };
 
+  /** Marca ou desmarca todos os lançamentos visíveis no filtro atual. */
   const toggleSelectAll = () => {
     if (selectedPagamentos.length === filteredPagamentos.length) {
       setSelectedPagamentos([]);
@@ -355,12 +370,17 @@ export default function Pagamentos() {
     }
   };
 
+  /** Alterna a seleção de um lançamento individual. */
   const toggleSelectPagamento = (id: string) => {
     setSelectedPagamentos(prev => 
       prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]
     );
   };
 
+  /**
+   * Gera as mensalidades do mês para todos os clientes ativos de uma vez,
+   * pulando quem já tiver lançamento no período para não duplicar cobrança.
+   */
   const handleBatchGenerate = async (mes: number, ano: number, diaVencimento: number) => {
     try {
       setLoading(true);
@@ -436,6 +456,7 @@ export default function Pagamentos() {
     }
   };
 
+  /** Aplica busca e filtros de status/período sobre a lista carregada. */
   const filteredPagamentos = pagamentos.filter((pagamento) => {
     const matchesSearch = !searchTerm || pagamento.clientes?.nome_empresa?.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesStatus = filterStatus === 'all' || pagamento.status === filterStatus;
@@ -445,6 +466,7 @@ export default function Pagamentos() {
     return matchesSearch && matchesStatus && matchesTipo && matchesMes && matchesAno;
   });
 
+  /** Devolve o selo visual do status (pago, pendente, vencido). */
   const getStatusBadge = (status: string) => {
     const config: Record<string, { label: string; icon: React.ReactNode; className: string }> = {
       pago: { label: 'Pago', icon: <CheckCircle className="h-3 w-3" />, className: 'bg-success/10 text-success border-success/20' },
