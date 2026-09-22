@@ -1150,6 +1150,56 @@ export default function Contratos() {
 
                   <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-2">
+                      <Label>Modelo de Contrato</Label>
+                      <Select
+                        value={formData.modelo_id || 'padrao'}
+                        onValueChange={(v) => setFormData({ ...formData, modelo_id: v === 'padrao' ? '' : v })}
+                      >
+                        <SelectTrigger><SelectValue placeholder="Modelo padrão do sistema" /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="padrao">Modelo padrão do sistema</SelectItem>
+                          {modelos.map((m) => (
+                            <SelectItem key={m.id} value={m.id}>{m.nome}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Plano</Label>
+                      <Select
+                        value={formData.plano_id || 'nenhum'}
+                        onValueChange={(v) => {
+                          if (v === 'nenhum') {
+                            setFormData({ ...formData, plano_id: '', plano_nome: '', plano_recursos: [] });
+                            return;
+                          }
+                          const plano = planos.find((p) => p.id === v);
+                          if (!plano) return;
+                          setFormData({
+                            ...formData,
+                            plano_id: plano.id,
+                            plano_nome: plano.nome,
+                            plano_recursos: plano.recursos || [],
+                            valor_mensalidade: plano.valor_mensalidade,
+                            valor_software: plano.valor_implantacao,
+                          });
+                        }}
+                      >
+                        <SelectTrigger><SelectValue placeholder="Sem plano" /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="nenhum">Sem plano</SelectItem>
+                          {planos.map((p) => (
+                            <SelectItem key={p.id} value={p.id}>
+                              {p.nome} — {formatCurrency(p.valor_mensalidade)}/mês
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
                       <Label>Nº do Contrato</Label>
                       <Input value={formData.numero_contrato} onChange={(e) => setFormData({ ...formData, numero_contrato: e.target.value })} placeholder="Ex: 001/2025" />
                     </div>
