@@ -807,6 +807,22 @@ export default function Contratos() {
         </p>
 
         <div className="space-y-6" style={{ pageBreakInside: 'auto' }}>
+          {planoNome && (
+            <section className="relative z-10 mb-6 border border-[#33147030] rounded-lg p-4 bg-[#9470db0d]">
+              <h2 className="font-bold uppercase text-sm mb-2 text-[#331470]">Plano Contratado</h2>
+              <p className="text-justify">
+                <strong>{planoNome}</strong> — Mensalidade de <strong>{formatCurrency(contrato.valor_mensalidade)}</strong>
+                {Number(contrato.valor_software) > 0 && <> e implantação de <strong>{formatCurrency(contrato.valor_software)}</strong></>}.
+              </p>
+              {planoRecursos.length > 0 && (
+                <ul className="mt-2 list-disc pl-8">
+                  {planoRecursos.map((r, i) => (<li key={i}>{r}</li>))}
+                </ul>
+              )}
+            </section>
+          )}
+          {modeloClausulas ? modeloClausulas : (<>
+
           {/* CLÁUSULA PRIMEIRA */}
           <section className="relative z-10 mb-6">
             <h2 className="font-bold uppercase text-sm mb-4 text-[#331470] flex items-center gap-2">
