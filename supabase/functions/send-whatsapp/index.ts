@@ -123,7 +123,11 @@ async function enviarDocumento(
   if (file) {
     for (const conn of conexoes) {
       const form = new FormData();
-      form.append("media", new Blob([file.bytes], { type: file.contentType }), file.filename);
+      form.append(
+        "media",
+        new Blob([file.bytes.slice().buffer as ArrayBuffer], { type: file.contentType }),
+        file.filename,
+      );
       if (conn !== null) form.append("connectionFrom", String(conn));
       try {
         const resp = await fetch(endpoint, { method: "POST", headers: zapHeaders(token), body: form });
