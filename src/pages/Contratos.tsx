@@ -400,7 +400,11 @@ export default function Contratos() {
       };
 
       if (editingContrato) {
-        const { error } = await supabase.from('contratos').update({ ...payload, updated_at: new Date().toISOString() }).eq('id', editingContrato.id);
+        // Contrato assinado: só campos não contratuais podem mudar.
+        const dados = editingContrato.assinado
+          ? { observacoes: formData.observacoes, link_documento: (formData as any).link_documento }
+          : payload;
+        const { error } = await supabase.from('contratos').update({ ...dados, updated_at: new Date().toISOString() } as any).eq('id', editingContrato.id);
         if (error) throw error;
         toast.success('Contrato atualizado!');
       } else {
@@ -456,10 +460,15 @@ export default function Contratos() {
 
   /** Marca o contrato como assinado manualmente (fora do fluxo de certificado). */
   const handleAssinar = async (id: string) => {
+    if (!confirm('Marcar este contrato como assinado?\n\nEsta ação é IRREVERSÍVEL: depois de assinado não será mais possível alterar valores, plano, modelo, dados do cliente nem desfazer a assinatura.')) return;
     try {
-      const { error } = await supabase.from('contratos')
-        .update({ assinado: true, data_assinatura: new Date().toISOString(), is_digital_sign: false })
-        .eq('id', id);
+      const contrato = contratos.find((c) => c.id === id) as any;
+      const modelo = modelos.find((m) => m.id === contrato?.modelo_id);
+      const atualizacao: Record<string, unknown> = { assinado: true, data_assinatura: new Date().toISOString(), is_digital_sign: false };
+      if (modelo && modelo.clausulas.length > 0 && !(Array.isArray(contrato?.clausulas_snapshot) && contrato.clausulas_snapshot.length > 0)) {
+        atualizacao.clausulas_snapshot = modelo.clausulas;
+      }
+      const { error } = await supabase.from('contratos').update(atualizacao as any).eq('id', id);
       if (error) throw error;
       toast.success('Contrato assinado!'); fetchData();
     } catch { toast.error('Erro ao assinar contrato'); }
@@ -749,7 +758,12 @@ export default function Contratos() {
 
     const planoNome = (contrato as any).plano_nome as string | null;
     const planoRecursos: string[] = ((contrato as any).plano_recursos || []) as string[];
-    const modelo = modelos.find((m) => m.id === (contrato as any).modelo_id);
+    // Contrato assinado: usa o texto congelado na assinatura, nunca o modelo atual.
+    const snapshot = (contrato as any).clausulas_snapshot;
+    const modeloAtual = modelos.find((m) => m.id === (contrato as any).modelo_id);
+    const modelo = Array.isArray(snapshot) && snapshot.length > 0
+      ? { id: 'snapshot', nome: modeloAtual?.nome || '', clausulas: snapshot as { id: string; titulo: string; conteudo: string }[] }
+      : modeloAtual;
 
     const variaveis: Record<string, string> = {
       sistema: contrato.sistema || '……………...',
