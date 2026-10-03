@@ -1,12 +1,13 @@
 import { Outlet, Navigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { AppSidebar } from '@/components/layout/AppSidebar';
+import { TopBar } from '@/components/layout/TopBar';
 import TetrisLoading from '@/components/ui/tetris-loader';
-import { useState } from 'react';
+import { Suspense, useEffect, useState } from 'react';
 import { DesafioMfa } from '@/components/auth/DesafioMfa';
 
 /**
- * Moldura das telas autenticadas: sidebar + área de conteúdo.
+ * Moldura das telas autenticadas: sidebar + barra superior + área de conteúdo.
  *
  * Também é o guarda de rota — sem sessão, redireciona para /login. Isso é
  * proteção de navegação, não de dados: quem chamasse a API direto esbarraria
@@ -14,7 +15,17 @@ import { DesafioMfa } from '@/components/auth/DesafioMfa';
  */
 export function DashboardLayout() {
   const { user, loading, mfa } = useAuth();
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  // Em telas estreitas (celular/tablet) o menu já começa recolhido para não
+  // cobrir metade do conteúdo.
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(() => window.innerWidth < 1024);
+  // Acompanha a largura: ao encolher a janela (ou girar o tablet) abaixo de
+  // 1024px o menu recolhe; ao voltar para tela larga, abre de novo.
+  useEffect(() => {
+    const mq = window.matchMedia('(min-width: 1024px)');
+    const aoMudar = (e: MediaQueryListEvent) => setSidebarCollapsed(!e.matches);
+    mq.addEventListener('change', aoMudar);
+    return () => mq.removeEventListener('change', aoMudar);
+  }, []);
 
   if (loading) {
     return (
@@ -39,12 +50,24 @@ export function DashboardLayout() {
   return (
     <div className="min-h-screen flex bg-background">
       <AppSidebar collapsed={sidebarCollapsed} onToggleCollapse={() => setSidebarCollapsed(!sidebarCollapsed)} />
-      <main
-        className="flex-1 px-4 py-6 sm:px-6 sm:py-8 lg:px-8 overflow-auto transition-all duration-300"
-        style={{ marginLeft: sidebarCollapsed ? '4rem' : '16rem' }}
+      <div
+        className="flex min-w-0 flex-1 flex-col transition-all duration-300"
+        style={{ marginLeft: sidebarCollapsed ? '4.5rem' : '16rem' }}
       >
-        <Outlet />
-      </main>
+        <TopBar />
+        <main className="flex-1 overflow-auto px-4 py-6 sm:px-6 sm:py-8 lg:px-8">
+          {/* Enquanto a tela é baixada, menu e barra superior continuam na tela. */}
+          <Suspense
+            fallback={
+              <div className="flex h-[60vh] items-center justify-center">
+                <TetrisLoading size="sm" speed="fast" loadingText="Carregando..." />
+              </div>
+            }
+          >
+            <Outlet />
+          </Suspense>
+        </main>
+      </div>
     </div>
   );
 }

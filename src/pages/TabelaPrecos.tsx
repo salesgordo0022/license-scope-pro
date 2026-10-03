@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Plus, Edit, Trash2, MoreHorizontal, Check, ChevronDown, ChevronRight, Package, X, Eye, Settings, Copy } from 'lucide-react';
+import { Plus, Edit, Trash2, MoreHorizontal, Check, ChevronDown, ChevronRight, Package, X, Eye, Settings, Copy } from '@/components/icons';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';

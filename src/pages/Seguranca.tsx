@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { ShieldCheck, ShieldAlert, Loader2, Trash2, KeyRound } from 'lucide-react';
+import { ShieldCheck, ShieldAlert, Loader2, Trash2, KeyRound } from '@/components/icons';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { avaliarSenha, SENHA_TAMANHO_MINIMO } from '@/lib/authPolicy';

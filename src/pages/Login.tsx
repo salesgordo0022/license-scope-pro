@@ -1,18 +1,48 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, Navigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { Key, Mail, Lock, Loader2, ArrowRight, Eye, EyeOff } from 'lucide-react';
+import { Mail, Lock, Loader2, ArrowRight, Eye, EyeOff, LogIn, Wallet, KeyRound, Users, Headphones, ShieldHalf } from '@/components/icons';
 import { useAuth, PUBLIC_SIGNUP_ENABLED } from '@/contexts/AuthContext';
 import { estadoBloqueio } from '@/lib/authPolicy';
-import { DottedSurface } from '@/components/ui/dotted-surface';
+import { ImperTechLogo } from '@/components/brand/ImperTechLogo';
+import { AlternarTema } from '@/components/layout/AlternarTema';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { toast } from 'sonner';
 import TetrisLoading from '@/components/ui/tetris-loader';
-import { TextLoop } from '@/components/ui/text-loop';
+
+/** WhatsApp do suporte (só dígitos, com DDI). Configurável por variável de ambiente. */
+const SUPORTE_WHATSAPP = (import.meta.env.VITE_SUPORTE_WHATSAPP as string | undefined)?.replace(/\D/g, '');
+
+const DESTAQUES = [
+  { icone: Wallet, texto: ['Financeiro', 'em dia'] },
+  { icone: KeyRound, texto: ['Licenças sob', 'controle'] },
+  { icone: Users, texto: ['Clientes num', 'só lugar'] },
+  { icone: Headphones, texto: ['Suporte', 'ImperTech'] },
+];
+
+const classeInput =
+  'h-14 rounded-xl border-input bg-muted/40 pl-12 text-base placeholder:text-muted-foreground/70 focus-visible:ring-2 focus-visible:ring-primary/30 focus-visible:ring-offset-0';
+
+const botaoPrimario =
+  'h-14 w-full rounded-xl bg-gradient-to-r from-[#1550E0] to-[#2F8BF5] text-lg font-semibold shadow-[0_12px_24px_-10px_rgba(21,80,224,0.7)] transition hover:brightness-110';
+
+/** Campo com rótulo e ícone à esquerda, no padrão visual da tela de login. */
+function CampoLogin({ id, rotulo, icone: Icone, children }: { id: string; rotulo: string; icone: typeof Mail; children: React.ReactNode }) {
+  return (
+    <div className="space-y-2">
+      <Label htmlFor={id} className="flex items-center gap-2 text-[15px] font-semibold text-foreground">
+        <Icone className="h-4 w-4" /> {rotulo}
+      </Label>
+      <div className="relative">
+        <Icone className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-muted-foreground" />
+        {children}
+      </div>
+    </div>
+  );
+}
 
 /**
  * Tela de autenticação.
@@ -27,16 +57,16 @@ export default function Login() {
   const [loading, setLoading] = useState(false);
   // Estado do freio de tentativas, recalculado a cada segundo enquanto travado.
   const [bloqueio, setBloqueio] = useState(estadoBloqueio);
-  
+
   // Login form
   const [loginEmail, setLoginEmail] = useState('');
   const [loginPassword, setLoginPassword] = useState('');
-  
+
   // Register form
   const [registerName, setRegisterName] = useState('');
   const [registerEmail, setRegisterEmail] = useState('');
   const [registerPassword, setRegisterPassword] = useState('');
-  
+
   // Show password toggles
   const [showLoginPassword, setShowLoginPassword] = useState(false);
   const [showRegisterPassword, setShowRegisterPassword] = useState(false);
@@ -102,9 +132,9 @@ export default function Login() {
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
-    
+
     const { error } = await signUp(registerEmail, registerPassword, registerName);
-    
+
     if (error) {
       toast.error('Erro ao criar conta', {
         description: error.message,
@@ -115,202 +145,236 @@ export default function Login() {
       });
       navigate('/dashboard');
     }
-    
+
     setLoading(false);
   };
 
+  /** Abre o WhatsApp do suporte, se configurado; senão orienta a procurar o admin. */
+  const falarComSuporte = () => {
+    if (SUPORTE_WHATSAPP) {
+      window.open(`https://wa.me/${SUPORTE_WHATSAPP}`, '_blank', 'noopener');
+    } else {
+      toast.info('Fale com o suporte', {
+        description: 'Procure o administrador da sua empresa para recuperar ou criar o seu acesso.',
+      });
+    }
+  };
+
   return (
-    <div className="min-h-screen flex">
-      {/* Left side - Branding */}
-      <div className="hidden lg:flex lg:w-1/2 bg-primary relative overflow-hidden">
-        <div className="absolute inset-0 bg-gradient-to-br from-primary via-primary to-primary/80" />
-        <DottedSurface dotColor={[255, 255, 255]} className="z-[1] opacity-40" />
-        <motion.div 
+    <div className="flex min-h-screen bg-background">
+      {/* Lado esquerdo - marca */}
+      <div className="relative hidden overflow-hidden bg-gradient-to-br from-[#0A1A42] via-[#0D2266] to-[#123BB0] lg:flex lg:w-1/2">
+        {/* Planos diagonais decorativos */}
+        <div className="pointer-events-none absolute -right-40 -top-24 h-[420px] w-[420px] rotate-45 rounded-[48px] bg-gradient-to-br from-[#1D4ED8]/50 to-transparent" />
+        <div className="pointer-events-none absolute -right-24 top-1/3 h-[300px] w-[300px] rotate-45 rounded-[40px] border border-white/10 bg-[#0A1A42]/30" />
+        <div className="pointer-events-none absolute -bottom-40 right-0 h-[460px] w-[460px] rotate-45 rounded-[56px] bg-gradient-to-tl from-[#2F7BF5]/60 to-transparent" />
+        <div className="pointer-events-none absolute -bottom-32 -left-24 h-[300px] w-[520px] -rotate-[28deg] bg-gradient-to-r from-[#1E40AF]/50 to-transparent" />
+
+        <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.6 }}
-          className="relative z-10 flex flex-col justify-center px-12"
+          className="relative z-10 flex w-full flex-col px-14 py-14 xl:px-16"
         >
-          <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-white/20 backdrop-blur-sm mb-6">
-            <Key className="h-6 w-6 text-primary-foreground" />
-          </div>
-          <h1 className="text-4xl font-bold text-primary-foreground mb-4">
-            Gerencie suas revendas com qualidade!
-          </h1>
-          <div className="text-lg text-primary-foreground/80 mb-2">
-            <TextLoop interval={3}>
-              <span>Controle contratos e licenças facilmente</span>
-              <span>Acompanhe pagamentos em tempo real</span>
-              <span>Gerencie implantações com eficiência</span>
-              <span>Tudo em um só lugar</span>
-            </TextLoop>
+          <ImperTechLogo tom="escuro" tamanho="h-16 w-16" textoClassName="text-5xl" />
+
+          <div className="my-auto max-w-xl pt-10">
+            <span className="mb-8 block h-1 w-16 rounded-full bg-[#2F8BF5]" />
+            <h1 className="text-5xl font-extrabold leading-[1.08] tracking-tight text-white xl:text-[64px]">
+              Sua revenda
+              <br />
+              <span className="text-[#2F8BF5]">de sistemas,</span>
+              <br />
+              organizada.
+            </h1>
+            <p className="mt-6 max-w-md text-lg leading-relaxed text-blue-100/80 xl:text-xl">
+              Clientes, licenças, contratos e cobranças em um só painel, com aviso antes de cada vencimento.
+            </p>
+
+            <div className="mt-14 grid max-w-lg grid-cols-4 gap-4">
+              {DESTAQUES.map((d) => (
+                <div key={d.texto[0]} className="flex flex-col items-center text-center">
+                  <span className="flex h-16 w-16 items-center justify-center rounded-2xl border border-white/15 bg-white/5 shadow-[inset_0_1px_0_rgba(255,255,255,0.08)] backdrop-blur-sm">
+                    <d.icone className="h-7 w-7 text-[#5BB8F9]" />
+                  </span>
+                  <span className="mt-3 text-sm leading-tight text-blue-50/90">
+                    {d.texto[0]}
+                    <br />
+                    {d.texto[1]}
+                  </span>
+                </div>
+              ))}
+            </div>
           </div>
         </motion.div>
       </div>
 
-      {/* Right side - Form */}
-      <div className="flex-1 flex items-center justify-center p-8 bg-background">
+      {/* Lado direito - formulário */}
+      <div className="relative flex flex-1 items-center justify-center overflow-hidden p-6 sm:p-10">
+        <AlternarTema className="absolute right-4 top-4 z-10" />
+        <div className="pointer-events-none absolute -right-24 -top-24 h-72 w-72 rotate-45 rounded-[40px] bg-gradient-to-bl from-primary/10 to-transparent" />
         <motion.div
           initial={{ opacity: 0, x: 20 }}
           animate={{ opacity: 1, x: 0 }}
           transition={{ duration: 0.5 }}
-          className="w-full max-w-md"
+          className="relative w-full max-w-[600px]"
         >
-          <div className="lg:hidden flex items-center gap-2 mb-8">
-            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary">
-              <Key className="h-5 w-5 text-primary-foreground" />
-            </div>
-            <span className="text-xl font-bold">CRM SaaS</span>
+          <div className="mb-8 flex justify-center lg:hidden">
+            <ImperTechLogo tamanho="h-12 w-12" textoClassName="text-4xl" />
           </div>
 
-          <Tabs defaultValue="login" className="w-full">
-            {/* A aba de cadastro só aparece quando VITE_ENABLE_PUBLIC_SIGNUP="true".
-                Em produção os acessos são criados por um admin na tela de Usuários. */}
-            {PUBLIC_SIGNUP_ENABLED && (
-              <TabsList className="grid w-full grid-cols-2 mb-6">
-                <TabsTrigger value="login">Entrar</TabsTrigger>
-                <TabsTrigger value="register">Criar conta</TabsTrigger>
-              </TabsList>
-            )}
+          <div className="rounded-3xl border border-border/60 bg-card/95 p-8 shadow-[0_24px_60px_-20px_rgba(15,27,61,0.18)] sm:p-11">
+            <Tabs defaultValue="login" className="w-full">
+              {/* A aba de cadastro só aparece quando VITE_ENABLE_PUBLIC_SIGNUP="true".
+                  Em produção os acessos são criados por um admin na tela de Usuários. */}
+              {PUBLIC_SIGNUP_ENABLED && (
+                <TabsList className="mb-8 grid w-full grid-cols-2">
+                  <TabsTrigger value="login">Entrar</TabsTrigger>
+                  <TabsTrigger value="register">Criar conta</TabsTrigger>
+                </TabsList>
+              )}
 
-            <TabsContent value="login">
-              <Card className="border-border/50 shadow-lg">
-                <CardHeader className="space-y-1">
-                  <CardTitle className="text-2xl">Bem-vindo de volta</CardTitle>
-                  <CardDescription>
-                    Entre com suas credenciais para acessar o sistema
-                  </CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <form onSubmit={handleLogin} className="space-y-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="login-email">Email</Label>
-                      <div className="relative">
-                        <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                        <Input
-                          id="login-email"
-                          type="email"
-                          placeholder="seu@email.com"
-                          value={loginEmail}
-                          onChange={(e) => setLoginEmail(e.target.value)}
-                          className="pl-10"
-                          required
-                        />
-                      </div>
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="login-password">Senha</Label>
-                      <div className="relative">
-                        <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                        <Input
-                          id="login-password"
-                          type={showLoginPassword ? "text" : "password"}
-                          placeholder="••••••••"
-                          value={loginPassword}
-                          onChange={(e) => setLoginPassword(e.target.value)}
-                          className="pl-10 pr-10"
-                          required
-                        />
-                        <button
-                          type="button"
-                          onClick={() => setShowLoginPassword(!showLoginPassword)}
-                          className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
-                        >
-                          {showLoginPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                        </button>
-                      </div>
-                    </div>
-                    <Button type="submit" className="w-full" disabled={loading || bloqueio.bloqueado}>
-                      {loading ? (
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                      ) : (
-                        <>
-                          Entrar
-                          <ArrowRight className="ml-2 h-4 w-4" />
-                        </>
-                      )}
-                    </Button>
-                  </form>
-                </CardContent>
-              </Card>
-            </TabsContent>
+              <TabsContent value="login" className="mt-0">
+                <span className="mb-7 block h-1 w-16 rounded-full bg-primary" />
+                <h2 className="text-3xl font-extrabold tracking-tight text-foreground sm:text-[38px]">Bem-vindo de volta!</h2>
+                <p className="mt-2 text-lg text-muted-foreground">Acesse o painel da sua revenda ImperTech.</p>
 
-            {PUBLIC_SIGNUP_ENABLED && (
-            <TabsContent value="register">
-              <Card className="border-border/50 shadow-lg">
-                <CardHeader className="space-y-1">
-                  <CardTitle className="text-2xl">Criar conta</CardTitle>
-                  <CardDescription>
-                    Preencha os dados abaixo para criar sua conta
-                  </CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <form onSubmit={handleRegister} className="space-y-4">
+                <form onSubmit={handleLogin} className="mt-9 space-y-6">
+                  <CampoLogin id="login-email" rotulo="Email" icone={Mail}>
+                    <Input
+                      id="login-email"
+                      type="email"
+                      autoComplete="email"
+                      placeholder="seu@email.com"
+                      value={loginEmail}
+                      onChange={(e) => setLoginEmail(e.target.value)}
+                      className={classeInput}
+                      required
+                    />
+                  </CampoLogin>
+                  <CampoLogin id="login-password" rotulo="Senha" icone={Lock}>
+                    <Input
+                      id="login-password"
+                      type={showLoginPassword ? 'text' : 'password'}
+                      autoComplete="current-password"
+                      placeholder="Digite sua senha"
+                      value={loginPassword}
+                      onChange={(e) => setLoginPassword(e.target.value)}
+                      className={`${classeInput} pr-12`}
+                      required
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowLoginPassword(!showLoginPassword)}
+                      title={showLoginPassword ? 'Ocultar senha' : 'Mostrar senha'}
+                      className="absolute right-4 top-1/2 -translate-y-1/2 text-muted-foreground transition-colors hover:text-foreground"
+                    >
+                      {showLoginPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
+                    </button>
+                  </CampoLogin>
+
+                  {bloqueio.bloqueado && (
+                    <p className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-600">
+                      Muitas tentativas. Tente de novo em {bloqueio.segundosRestantes}s.
+                    </p>
+                  )}
+
+                  <Button type="submit" className={botaoPrimario} disabled={loading || bloqueio.bloqueado}>
+                    {loading ? (
+                      <Loader2 className="h-5 w-5 animate-spin" />
+                    ) : (
+                      <>
+                        <LogIn className="mr-1 h-5 w-5" />
+                        Entrar
+                        <ArrowRight className="ml-2 h-5 w-5" />
+                      </>
+                    )}
+                  </Button>
+                </form>
+
+                <div className="mt-10 flex items-center gap-4 text-muted-foreground">
+                  <span className="h-px flex-1 bg-border" />
+                  <span className="text-[15px]">Precisa de ajuda?</span>
+                  <span className="h-px flex-1 bg-border" />
+                </div>
+                <button
+                  type="button"
+                  onClick={falarComSuporte}
+                  className="mx-auto mt-4 flex items-center gap-2 text-[17px] font-semibold text-primary hover:underline"
+                >
+                  <Headphones className="h-6 w-6" /> Fale com o suporte
+                </button>
+              </TabsContent>
+
+              {PUBLIC_SIGNUP_ENABLED && (
+                <TabsContent value="register" className="mt-0">
+                  <span className="mb-7 block h-1 w-16 rounded-full bg-primary" />
+                  <h2 className="text-3xl font-extrabold tracking-tight text-foreground">Criar conta</h2>
+                  <p className="mt-2 text-lg text-muted-foreground">Preencha os dados abaixo para criar sua conta.</p>
+                  <form onSubmit={handleRegister} className="mt-8 space-y-5">
                     <div className="space-y-2">
-                      <Label htmlFor="register-name">Nome</Label>
+                      <Label htmlFor="register-name" className="text-[15px] font-semibold text-foreground">
+                        Nome
+                      </Label>
                       <Input
                         id="register-name"
                         type="text"
                         placeholder="Seu nome"
                         value={registerName}
                         onChange={(e) => setRegisterName(e.target.value)}
+                        className={`${classeInput} pl-4`}
                         required
                       />
                     </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="register-email">Email</Label>
-                      <div className="relative">
-                        <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                        <Input
-                          id="register-email"
-                          type="email"
-                          placeholder="seu@email.com"
-                          value={registerEmail}
-                          onChange={(e) => setRegisterEmail(e.target.value)}
-                          className="pl-10"
-                          required
-                        />
-                      </div>
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="register-password">Senha</Label>
-                      <div className="relative">
-                        <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                        <Input
-                          id="register-password"
-                          type={showRegisterPassword ? "text" : "password"}
-                          placeholder="••••••••"
-                          value={registerPassword}
-                          onChange={(e) => setRegisterPassword(e.target.value)}
-                          className="pl-10 pr-10"
-                          minLength={6}
-                          required
-                        />
-                        <button
-                          type="button"
-                          onClick={() => setShowRegisterPassword(!showRegisterPassword)}
-                          className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
-                        >
-                          {showRegisterPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                        </button>
-                      </div>
-                    </div>
-                    <Button type="submit" className="w-full" disabled={loading}>
+                    <CampoLogin id="register-email" rotulo="Email" icone={Mail}>
+                      <Input
+                        id="register-email"
+                        type="email"
+                        placeholder="seu@email.com"
+                        value={registerEmail}
+                        onChange={(e) => setRegisterEmail(e.target.value)}
+                        className={classeInput}
+                        required
+                      />
+                    </CampoLogin>
+                    <CampoLogin id="register-password" rotulo="Senha" icone={Lock}>
+                      <Input
+                        id="register-password"
+                        type={showRegisterPassword ? 'text' : 'password'}
+                        placeholder="Mínimo de 6 caracteres"
+                        value={registerPassword}
+                        onChange={(e) => setRegisterPassword(e.target.value)}
+                        className={`${classeInput} pr-12`}
+                        minLength={6}
+                        required
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowRegisterPassword(!showRegisterPassword)}
+                        className="absolute right-4 top-1/2 -translate-y-1/2 text-muted-foreground transition-colors hover:text-foreground"
+                      >
+                        {showRegisterPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
+                      </button>
+                    </CampoLogin>
+                    <Button type="submit" className={botaoPrimario} disabled={loading}>
                       {loading ? (
-                        <Loader2 className="h-4 w-4 animate-spin" />
+                        <Loader2 className="h-5 w-5 animate-spin" />
                       ) : (
                         <>
                           Criar conta
-                          <ArrowRight className="ml-2 h-4 w-4" />
+                          <ArrowRight className="ml-2 h-5 w-5" />
                         </>
                       )}
                     </Button>
                   </form>
-                </CardContent>
-              </Card>
-            </TabsContent>
-            )}
-          </Tabs>
+                </TabsContent>
+              )}
+            </Tabs>
+          </div>
+
+          <p className="mt-8 flex items-center justify-center gap-2 text-sm text-muted-foreground">
+            <ShieldHalf className="h-5 w-5" /> Conexão segura · seus dados protegidos
+          </p>
         </motion.div>
       </div>
     </div>

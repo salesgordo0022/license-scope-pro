@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { Plus, Search, Edit, Trash2, Monitor } from 'lucide-react';
+import { Plus, Search, Edit, Trash2, Monitor } from '@/components/icons';
 import TetrisLoading from '@/components/ui/tetris-loader';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';

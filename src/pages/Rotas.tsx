@@ -1,6 +1,6 @@
 /// <reference types="google.maps" />
 import { useEffect, useMemo, useRef, useState, useCallback } from 'react';
-import { MapPin, Loader2, Navigation, Search, X, Route as RouteIcon, Locate } from 'lucide-react';
+import { MapPin, Loader2, Navigation, Search, X, Route as RouteIcon, Locate } from '@/components/icons';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';

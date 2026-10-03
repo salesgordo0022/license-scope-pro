@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { Plus, MoreHorizontal, Edit, Trash2, Layers } from 'lucide-react';
+import { Plus, MoreHorizontal, Edit, Trash2, Layers } from '@/components/icons';
 import TetrisLoading from '@/components/ui/tetris-loader';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -146,7 +146,7 @@ export default function Segmentos() {
       animate={{ opacity: 1, y: 0 }}
       className="space-y-6"
     >
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Segmentos</h1>
           <p className="text-muted-foreground">

@@ -14,7 +14,7 @@ import {
   Link2,
   FileSearch,
   Trash2,
-} from "lucide-react";
+} from '@/components/icons';
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";

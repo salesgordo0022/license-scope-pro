@@ -1,9 +1,12 @@
 import { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
-import { Plus, Search, FileText, MoreHorizontal, Edit, Trash2, Eye, CheckCircle, Printer, Link, ExternalLink, Settings, Building2, Save, Download, BookCopy, ShieldCheck, Upload, Key } from 'lucide-react';
+import { Plus, Search, FileText, MoreHorizontal, Edit, Trash2, Eye, CheckCircle, Printer, Link, ExternalLink, Settings, Building2, Save, Download, BookCopy, ShieldCheck, Upload, Key } from '@/components/icons';
 import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
 import ModelosContrato from '@/components/contratos/ModelosContrato';
+import { gerarContratoDocx, modeloDoSistema, type ModeloContrato } from '@/lib/contratoDocx';
+import { baixarArquivo } from '@/lib/implantacaoPadrao';
+import { useAbrirNovo } from '@/hooks/use-abrir-novo';
 import TituloClausula from '@/components/contratos/TituloClausula';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -54,6 +57,7 @@ interface Contrato {
   quantidade_licencas: number | null;
   valor_km_deslocamento: number | null;
   sistema: string | null;
+  plano_nome?: string | null;
   status: string;
   contratante_nome: string | null;
   contratante_endereco: string | null;
@@ -151,6 +155,7 @@ export default function Contratos() {
   const [isSigning, setIsSigning] = useState(false);
   const [signatures, setSignatures] = useState<any[]>([]);
   const [modelos, setModelos] = useState<{ id: string; nome: string; clausulas: { id: string; titulo: string; conteudo: string }[] }[]>([]);
+  const [gerandoWordId, setGerandoWordId] = useState<string | null>(null);
   const [planos, setPlanos] = useState<{ id: string; nome: string; valor_mensalidade: number; valor_implantacao: number; recursos: string[] | null }[]>([]);
 
   const [formData, setFormData] = useState({
@@ -373,6 +378,69 @@ export default function Contratos() {
       }));
     }
   };
+
+  /**
+   * Gera o contrato no modelo Word da ImperTech (Ponto Tell ou Sistemas),
+   * preenchido com os dados do contrato e, onde faltar, do cadastro do cliente.
+   * `forcar` escolhe o modelo; sem ele, vem do sistema do contrato.
+   */
+  const gerarContratoWord = async (contrato: Contrato, forcar?: ModeloContrato) => {
+    setGerandoWordId(contrato.id);
+    try {
+      const [cliRes, licRes] = await Promise.all([
+        supabase
+          .from('clientes')
+          .select('*')
+          .eq('id', contrato.cliente_id)
+          .maybeSingle(), // '*' para incluir o cep quando a coluna existir
+        supabase.from('licencas').select('tipo, quantidade, dia_vencimento').eq('cliente_id', contrato.cliente_id).eq('status', 'ativo'),
+      ]);
+      const cli = cliRes.data;
+      const licencas = licRes.data || [];
+      const sistema = (contrato.sistema || licencas.map((l) => l.tipo.trim()).join(', ') || '').trim() || null;
+      const modelo = forcar || modeloDoSistema(sistema);
+      const licDoSistema = licencas.find((l) => modeloDoSistema(l.tipo) === modelo) || licencas[0];
+      const vidas = modelo === 'pontotel' ? licencas.find((l) => modeloDoSistema(l.tipo) === 'pontotel')?.quantidade : null;
+      const plano = modelo === 'pontotel'
+        ? // Com plano escolhido no contrato vale o nome do plano; sem plano, sistema + vidas da licença.
+          contrato.plano_nome || [sistema || 'PONTOTEL', vidas ? `${vidas} vida${vidas === 1 ? '' : 's'}` : null].filter(Boolean).join(' — ')
+        : contrato.plano_nome;
+
+      const blob = await gerarContratoDocx(modelo, {
+        numero: contrato.numero_contrato,
+        contratanteNome: contrato.contratante_nome || cli?.nome_empresa || '',
+        contratanteDocumento: contrato.contratante_cnpj || cli?.cnpj || null,
+        endereco: contrato.contratante_endereco || cli?.endereco || null,
+        cidade: contrato.contratante_cidade || cli?.cidade || null,
+        estado: contrato.contratante_estado || cli?.estado || null,
+        cep: (cli as { cep?: string | null } | null)?.cep || null,
+        representanteNome: contrato.contratante_nome_dono || cli?.nome_dono || null,
+        representanteCpf: contrato.contratante_cpf_dono || cli?.cpf_dono || null,
+        sistema,
+        plano,
+        valorImplantacao: Number(contrato.valor_software ?? cli?.valor_implantacao) || null,
+        valorMensalidade: Number(contrato.valor_mensalidade ?? cli?.valor_mensalidade) || null,
+        diaVencimento: licDoSistema?.dia_vencimento || 10,
+        valorKm: Number(contrato.valor_km_deslocamento) || null,
+        dataInicio: contrato.data_inicio,
+        dataFim: contrato.data_fim || (contrato.data_inicio ? calcularDataFim(contrato.data_inicio, contrato.vigencia_meses || 12) : null),
+      });
+      const nome = (contrato.contratante_nome || cli?.nome_empresa || 'cliente').replace(/[\\/:*?"<>|]/g, '').trim();
+      const arquivo = `Contrato ${modelo === 'pontotel' ? 'Ponto Tell' : 'Sistemas'} - ${nome}${contrato.numero_contrato ? ' - ' + contrato.numero_contrato.replace(/\//g, '-') : ''}.docx`;
+      baixarArquivo(blob, arquivo);
+      toast.success('Contrato gerado', { description: arquivo });
+    } catch (error) {
+      toast.error('Erro ao gerar o contrato', { description: error instanceof Error ? error.message : String(error) });
+    } finally {
+      setGerandoWordId(null);
+    }
+  };
+
+  useAbrirNovo(() => {
+    setEditingContrato(null);
+    resetForm();
+    setDialogOpen(true);
+  }, !loading);
 
   /** Calcula a data de término somando a vigência em meses à data de início. */
   const calcularDataFim = (dataInicio: string, meses: number) => {
@@ -1174,7 +1242,7 @@ export default function Contratos() {
           <p className="page-description">Gerencie contratos de prestação de serviços</p>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <Tabs value={activeTab} onValueChange={setActiveTab}>
             <TabsList>
               <TabsTrigger value="contratos">
@@ -1530,9 +1598,25 @@ export default function Contratos() {
                                 <DropdownMenuTrigger asChild>
                                   <Button variant="ghost" size="icon" className="h-8 w-8 hover:bg-muted"><MoreHorizontal className="h-4 w-4" /></Button>
                                 </DropdownMenuTrigger>
-                                <DropdownMenuContent align="end" className="w-48">
+                                <DropdownMenuContent align="end" className="w-64">
                                   <DropdownMenuItem onClick={() => handleView(contrato)} className="cursor-pointer">
                                     <Eye className="mr-2 h-4 w-4" /> Visualizar
+                                  </DropdownMenuItem>
+                                  <DropdownMenuItem
+                                    onClick={() => gerarContratoWord(contrato)}
+                                    disabled={gerandoWordId === contrato.id}
+                                    className="cursor-pointer text-primary focus:text-primary"
+                                  >
+                                    <FileText className="mr-2 h-4 w-4" />
+                                    {gerandoWordId === contrato.id ? 'Gerando...' : `Gerar contrato Word (${modeloDoSistema(contrato.sistema) === 'pontotel' ? 'Ponto Tell' : 'Sistemas'})`}
+                                  </DropdownMenuItem>
+                                  <DropdownMenuItem
+                                    onClick={() => gerarContratoWord(contrato, modeloDoSistema(contrato.sistema) === 'pontotel' ? 'sistemas' : 'pontotel')}
+                                    disabled={gerandoWordId === contrato.id}
+                                    className="cursor-pointer text-xs text-muted-foreground"
+                                  >
+                                    <FileText className="mr-2 h-3.5 w-3.5" />
+                                    Usar modelo {modeloDoSistema(contrato.sistema) === 'pontotel' ? 'Sistemas' : 'Ponto Tell'}
                                   </DropdownMenuItem>
                                   {!contrato.assinado && (
                                     <DropdownMenuItem onClick={() => handleAssinar(contrato.id)} className="cursor-pointer text-success focus:text-success focus:bg-success/5">
@@ -1715,6 +1799,9 @@ export default function Contratos() {
               </div>
 
               <div className="flex justify-end mb-4 gap-2 print:hidden">
+                <Button size="sm" onClick={() => gerarContratoWord(viewingContrato)} disabled={gerandoWordId === viewingContrato.id}>
+                  <FileText className="mr-2 h-4 w-4" /> {gerandoWordId === viewingContrato.id ? 'Gerando...' : 'Contrato Word (.docx)'}
+                </Button>
                 <Button variant="outline" size="sm" onClick={handleExportPDF}>
                   <Download className="mr-2 h-4 w-4" /> Exportar PDF
                 </Button>

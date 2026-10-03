@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Plus, GripVertical, Calendar, DollarSign, Edit, Trash2, Settings2, ChevronDown, X, FileText, Tag } from 'lucide-react';
+import { Plus, GripVertical, Calendar, DollarSign, Edit, Trash2, Settings2, ChevronDown, X, FileText, Tag } from '@/components/icons';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';

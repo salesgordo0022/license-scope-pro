@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { motion } from "framer-motion";
-import { MessageSquare, Send, FileText, Receipt, History, Search, Paperclip, Users, User } from "lucide-react";
+import { MessageSquare, Send, FileText, Receipt, History, Search, Paperclip, Users, User } from '@/components/icons';
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";

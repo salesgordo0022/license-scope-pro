@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Plus, Target, Trophy, TrendingUp, Edit, Trash2, CheckCircle2, Zap, Calendar, BarChart3 } from 'lucide-react';
+import { Plus, Target, Trophy, TrendingUp, Edit, Trash2, CheckCircle2, Zap, Calendar, BarChart3 } from '@/components/icons';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';

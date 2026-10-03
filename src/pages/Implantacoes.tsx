@@ -1,6 +1,28 @@
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { Plus, Search, CheckCircle, Clock, AlertCircle, Calendar, Edit, Trash2, Send, History, List, GitBranch } from 'lucide-react';
+import { Plus, Search, CheckCircle, Clock, AlertCircle, Calendar, Edit, Trash2, Send, History, List, GitBranch, FileText, Loader2, Settings2 } from '@/components/icons';
+import {
+  ETAPAS_PADRAO,
+  checklistDeEtapas,
+  lerItem,
+  agruparPorEtapa,
+  definicaoEtapa,
+  acaoEtapaConcluida,
+  acaoEtapaReaberta,
+  gerarDocumentoImplantacao,
+  baixarArquivo,
+  type EtapaModelo,
+} from '@/lib/implantacaoPadrao';
+import { SeletorEtapas, FormEtapa, GerenciadorEtapas } from '@/components/implantacao/SeletorEtapas';
+import { selecaoInicial, etapasEscolhidas, type SelecaoEtapa } from '@/lib/selecaoEtapas';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import TetrisLoading from '@/components/ui/tetris-loader';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -16,6 +38,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
+import { useAbrirNovo } from '@/hooks/use-abrir-novo';
 import { useAuth } from '@/contexts/AuthContext';
 import { format, isAfter, parseISO } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -104,10 +127,17 @@ export default function Implantacoes() {
   const [novoComentario, setNovoComentario] = useState('');
   const [novoChecklistItem, setNovoChecklistItem] = useState('');
   const [viewMode, setViewMode] = useState<'lista' | 'processo'>('lista');
+  const [gerandoDocId, setGerandoDocId] = useState<string | null>(null);
+  // Etapas personalizadas salvas (tabela etapas_implantacao) e a escolha da criação.
+  const [etapasSalvas, setEtapasSalvas] = useState<EtapaModelo[]>([]);
+  const [tabelaEtapasOk, setTabelaEtapasOk] = useState(true);
+  const [selecaoEtapas, setSelecaoEtapas] = useState<SelecaoEtapa[]>(() => selecaoInicial([]));
+  const [gerenciarEtapasAberto, setGerenciarEtapasAberto] = useState(false);
+  const [criandoEtapaNaImplantacao, setCriandoEtapaNaImplantacao] = useState(false);
   
   const [formData, setFormData] = useState({
     cliente_id: '',
-    titulo: '',
+    titulo: 'Implantação do sistema',
     descricao: '',
     status: 'nao_iniciado',
     prioridade: 'media',
@@ -118,6 +148,7 @@ export default function Implantacoes() {
 
   useEffect(() => {
     fetchData();
+    fetchEtapasSalvas();
   }, []);
 
   /** Carrega as implantações e os clientes usados no seletor. */
@@ -149,6 +180,62 @@ export default function Implantacoes() {
       setLoading(false);
     }
   };
+
+  /** Carrega as etapas personalizadas. Se a tabela ainda não existe no banco
+   *  (migration não aplicada), segue só com as padrão. */
+  const fetchEtapasSalvas = async () => {
+    const { data, error } = await supabase
+      .from('etapas_implantacao')
+      .select('id, nome, itens, resultado, ordem')
+      .eq('ativo', true)
+      .order('ordem')
+      .order('created_at');
+    if (error) {
+      setTabelaEtapasOk(false);
+      return [];
+    }
+    setTabelaEtapasOk(true);
+    const lista: EtapaModelo[] = (data || []).map((e) => ({ id: e.id, nome: e.nome, titulo: e.nome, itens: e.itens || [], resultado: e.resultado }));
+    setEtapasSalvas(lista);
+    return lista;
+  };
+
+  /** Cria ou atualiza uma etapa personalizada. Devolve a etapa salva (com id). */
+  const salvarEtapaModelo = async (etapa: EtapaModelo): Promise<EtapaModelo | null> => {
+    const dados = { nome: etapa.nome.trim(), itens: etapa.itens, resultado: etapa.resultado || null, updated_at: new Date().toISOString() };
+    const resp = etapa.id
+      ? await supabase.from('etapas_implantacao').update(dados).eq('id', etapa.id).select('id').single()
+      : await supabase.from('etapas_implantacao').insert({ ...dados, ordem: etapasSalvas.length }).select('id').single();
+    if (resp.error) {
+      toast({ title: 'Não foi possível salvar a etapa', description: resp.error.message, variant: 'destructive' });
+      return null;
+    }
+    toast({ title: etapa.id ? 'Etapa atualizada' : 'Etapa salva', description: etapa.nome });
+    await fetchEtapasSalvas();
+    return { ...etapa, id: resp.data.id };
+  };
+
+  const excluirEtapaModelo = async (etapa: EtapaModelo) => {
+    if (!etapa.id || !confirm(`Excluir a etapa "${etapa.nome}"? Implantações já criadas não mudam.`)) return;
+    const { error } = await supabase.from('etapas_implantacao').delete().eq('id', etapa.id);
+    if (error) {
+      toast({ title: 'Erro', description: error.message, variant: 'destructive' });
+      return;
+    }
+    toast({ title: 'Etapa excluída', description: etapa.nome });
+    fetchEtapasSalvas();
+  };
+
+  /** Abre o formulário de nova implantação com as etapas padrão marcadas. */
+  const abrirNovaImplantacao = (aberto: boolean) => {
+    if (aberto) {
+      resetForm();
+      setSelecaoEtapas(selecaoInicial(etapasSalvas));
+    }
+    setIsDialogOpen(aberto);
+  };
+
+  useAbrirNovo(() => abrirNovaImplantacao(true), !loading);
 
   /** Carrega checklist, comentários e histórico de uma implantação específica. */
   const fetchImplantacaoDetails = async (id: string) => {
@@ -182,21 +269,33 @@ export default function Implantacoes() {
   /** Cria uma nova implantação a partir do formulário. */
   const handleCreate = async () => {
     try {
-      const { error } = await supabase.from('implantacoes').insert({
-        cliente_id: formData.cliente_id,
-        titulo: formData.titulo,
-        descricao: formData.descricao || null,
-        status: formData.status,
-        prioridade: formData.prioridade,
-        responsavel_id: formData.responsavel_id || null,
-        data_meta: formData.data_meta || null,
-        data_prazo: formData.data_prazo || null,
-        progresso: 0,
-      });
+      const { data: nova, error } = await supabase
+        .from('implantacoes')
+        .insert({
+          cliente_id: formData.cliente_id,
+          titulo: formData.titulo,
+          descricao: formData.descricao || null,
+          status: formData.status,
+          prioridade: formData.prioridade,
+          responsavel_id: formData.responsavel_id || null,
+          data_meta: formData.data_meta || null,
+          data_prazo: formData.data_prazo || null,
+          progresso: 0,
+        })
+        .select('id')
+        .single();
 
       if (error) throw error;
 
-      toast({ title: 'Sucesso', description: 'Implantação criada!' });
+      // O checklist nasce com as etapas (e itens) escolhidos no formulário.
+      const etapas = etapasEscolhidas(selecaoEtapas);
+      const linhas = checklistDeEtapas(nova.id, etapas);
+      const { error: errChecklist } = linhas.length ? await supabase.from('implantacao_checklist').insert(linhas) : { error: null };
+      if (errChecklist) {
+        toast({ title: 'Atenção', description: 'Implantação criada, mas o checklist não foi gerado.', variant: 'destructive' });
+      } else {
+        toast({ title: 'Implantação criada', description: `${etapas.length} etapa(s) · ${linhas.length} passo(s)` });
+      }
       setIsDialogOpen(false);
       resetForm();
       fetchData();
@@ -262,8 +361,8 @@ export default function Implantacoes() {
     try {
       const { error } = await supabase.from('implantacao_checklist').insert({
         implantacao_id: selectedImplantacao.id,
-        descricao: novoChecklistItem,
-        ordem: checklist.length,
+        descricao: novoChecklistItem.replace(' · ', ' - '),
+        ordem: 100000 + checklist.length, // avulsos ficam depois das etapas
       });
 
       if (error) throw error;
@@ -287,6 +386,27 @@ export default function Implantacoes() {
         .eq('id', item.id);
 
       if (error) throw error;
+
+      // Se a etapa fechou (ou reabriu) com este clique, registra no histórico:
+      // é dali que sai a data do "Checklist de Conclusão" do documento.
+      const { etapa } = lerItem(item.descricao);
+      if (etapa) {
+        const daEtapa = (lista: ChecklistItem[]) => lista.filter((i) => lerItem(i.descricao).etapa === etapa);
+        const depois = checklist.map((i) => (i.id === item.id ? { ...i, concluido: !item.concluido } : i));
+        const completaAntes = daEtapa(checklist).every((i) => i.concluido);
+        const completaDepois = daEtapa(depois).every((i) => i.concluido);
+        if (completaAntes !== completaDepois) {
+          await supabase.from('implantacao_historico').insert({
+            implantacao_id: selectedImplantacao.id,
+            usuario_id: profile?.id,
+            acao: completaDepois ? acaoEtapaConcluida(etapa) : acaoEtapaReaberta(etapa),
+          });
+          toast({
+            title: completaDepois ? `Etapa ${etapa} concluída` : `Etapa ${etapa} reaberta`,
+            description: completaDepois ? 'Data registrada no checklist de conclusão.' : undefined,
+          });
+        }
+      }
 
       fetchImplantacaoDetails(selectedImplantacao.id);
       updateProgress(selectedImplantacao.id);
@@ -320,12 +440,122 @@ export default function Implantacoes() {
       const concluidos = data.filter((item) => item.concluido).length;
       const progresso = Math.round((concluidos / data.length) * 100);
 
+      // Status acompanha o checklist: 100% conclui; qualquer avanço tira de "não iniciado".
+      const atual = implantacoes.find((i) => i.id === implantacaoId);
+      let status = atual?.status;
+      if (progresso === 100) status = 'concluido';
+      else if (status === 'concluido') status = 'em_andamento';
+      else if (progresso > 0 && status === 'nao_iniciado') status = 'em_andamento';
+
       await supabase
         .from('implantacoes')
-        .update({ progresso })
+        .update({ progresso, ...(status ? { status } : {}) })
         .eq('id', implantacaoId);
+      if (status && selectedImplantacao?.id === implantacaoId) setFormData((f) => ({ ...f, status: status! }));
 
       fetchData();
+    }
+  };
+
+  /** Acrescenta uma etapa (padrão, salva ou nova) à implantação aberta, no fim. */
+  const adicionarEtapaNaImplantacao = async (etapa: EtapaModelo) => {
+    if (!selectedImplantacao) return;
+    const maiorOrdem = checklist.filter((i) => lerItem(i.descricao).etapa).reduce((m, i) => Math.max(m, i.ordem ?? 0), -1);
+    const inicio = (Math.floor(maiorOrdem / 100) + 1) * 100;
+    const { error } = await supabase.from('implantacao_checklist').insert(checklistDeEtapas(selectedImplantacao.id, [etapa], inicio));
+    if (error) {
+      toast({ title: 'Erro', description: error.message, variant: 'destructive' });
+      return;
+    }
+    await supabase.from('implantacao_historico').insert({
+      implantacao_id: selectedImplantacao.id,
+      usuario_id: profile?.id,
+      acao: `Adicionou a etapa ${etapa.nome}`,
+    });
+    toast({ title: 'Etapa adicionada', description: etapa.nome });
+    setCriandoEtapaNaImplantacao(false);
+    fetchImplantacaoDetails(selectedImplantacao.id);
+    updateProgress(selectedImplantacao.id);
+  };
+
+  /** Tira uma etapa inteira da implantação (apaga os itens dela). */
+  const removerEtapaDaImplantacao = async (etapa: string, ids: string[]) => {
+    if (!selectedImplantacao || !confirm(`Remover a etapa "${etapa}" desta implantação?`)) return;
+    const { error } = await supabase.from('implantacao_checklist').delete().in('id', ids);
+    if (error) {
+      toast({ title: 'Erro', description: error.message, variant: 'destructive' });
+      return;
+    }
+    await supabase.from('implantacao_historico').insert({
+      implantacao_id: selectedImplantacao.id,
+      usuario_id: profile?.id,
+      acao: `Removeu a etapa ${etapa}`,
+    });
+    fetchImplantacaoDetails(selectedImplantacao.id);
+    updateProgress(selectedImplantacao.id);
+  };
+
+  /**
+   * Gera o Orçamento + Plano de Implantação (.docx) já preenchido com o
+   * cadastro do cliente, os sistemas contratados, o consultor e as datas de
+   * conclusão de cada etapa.
+   */
+  const gerarDocumento = async (implantacao: Implantacao) => {
+    setGerandoDocId(implantacao.id);
+    try {
+      const [cliRes, licRes, chkRes, histRes] = await Promise.all([
+        supabase
+          .from('clientes')
+          .select('nome_empresa, cnpj, cpf_dono, nome_dono, valor_implantacao, valor_mensalidade, desconto_percentual')
+          .eq('id', implantacao.cliente_id)
+          .single(),
+        supabase.from('licencas').select('tipo').eq('cliente_id', implantacao.cliente_id).eq('status', 'ativo'),
+        supabase.from('implantacao_checklist').select('descricao, concluido, ordem').eq('implantacao_id', implantacao.id),
+        supabase
+          .from('implantacao_historico')
+          .select('acao, created_at')
+          .eq('implantacao_id', implantacao.id)
+          .like('acao', 'Etapa concluída:%')
+          .order('created_at', { ascending: false }),
+      ]);
+      if (cliRes.error) throw cliRes.error;
+      const cliente = cliRes.data;
+
+      // Etapas desta implantação, na ordem do checklist; título e resultado
+      // esperado vêm da definição (padrão ou salva), se houver.
+      const etapas = agruparPorEtapa(chkRes.data || []).grupos.map(({ etapa, itens }) => {
+        const def = definicaoEtapa(etapa, etapasSalvas);
+        const concluida = itens.every((i) => i.concluido);
+        const registro = (histRes.data || []).find((h) => h.acao === acaoEtapaConcluida(etapa));
+        return {
+          nome: etapa,
+          titulo: def?.titulo || etapa,
+          itens: itens.map((i) => lerItem(i.descricao).texto),
+          resultado: def?.resultado || null,
+          concluida,
+          data: concluida && registro ? registro.created_at.slice(0, 10) : null,
+        };
+      });
+
+      const desconto = Number(cliente.desconto_percentual) || 0;
+      const blob = await gerarDocumentoImplantacao({
+        nomeCliente: cliente.nome_empresa,
+        cnpj: cliente.cnpj || cliente.cpf_dono,
+        // A implantação sai com o desconto do cadastro, como no pagamento gerado.
+        valorImplantacao: (Number(cliente.valor_implantacao) || 0) * (1 - desconto / 100),
+        valorMensalidade: Number(cliente.valor_mensalidade) || 0,
+        sistemas: Array.from(new Set((licRes.data || []).map((l) => l.tipo.trim()))),
+        consultor: implantacao.responsavel?.nome || implantacao.responsavel?.email || null,
+        responsavelCliente: cliente.nome_dono,
+        etapas,
+      });
+      const nomeArquivo = `Orcamento e Plano de Implantacao - ${cliente.nome_empresa.replace(/[\\/:*?"<>|]/g, '').trim()}.docx`;
+      baixarArquivo(blob, nomeArquivo);
+      toast({ title: 'Documento gerado', description: nomeArquivo });
+    } catch (error) {
+      toast({ title: 'Erro ao gerar documento', description: error instanceof Error ? error.message : String(error), variant: 'destructive' });
+    } finally {
+      setGerandoDocId(null);
     }
   };
 
@@ -369,7 +599,7 @@ export default function Implantacoes() {
   const resetForm = () => {
     setFormData({
       cliente_id: '',
-      titulo: '',
+      titulo: 'Implantação do sistema',
       descricao: '',
       status: 'nao_iniciado',
       prioridade: 'media',
@@ -429,14 +659,19 @@ export default function Implantacoes() {
           <h1 className="text-3xl font-bold text-foreground">Implantações</h1>
           <p className="text-muted-foreground">Gerencie o processo de implantação dos clientes</p>
         </div>
-        <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+        <div className="flex gap-2">
+        <Button variant="outline" className="gap-2" onClick={() => setGerenciarEtapasAberto(true)}>
+          <Settings2 className="h-4 w-4" />
+          Etapas
+        </Button>
+        <Dialog open={isDialogOpen} onOpenChange={abrirNovaImplantacao}>
           <DialogTrigger asChild>
             <Button className="gap-2">
               <Plus className="h-4 w-4" />
               Nova Implantação
             </Button>
           </DialogTrigger>
-          <DialogContent className="max-w-lg">
+          <DialogContent className="max-h-[90vh] max-w-2xl overflow-y-auto">
             <DialogHeader>
               <DialogTitle>Nova Implantação</DialogTitle>
             </DialogHeader>
@@ -514,19 +749,43 @@ export default function Implantacoes() {
                   value={formData.descricao}
                   onChange={(e) => setFormData({ ...formData, descricao: e.target.value })}
                   placeholder="Descreva a implantação..."
-                  rows={3}
+                  rows={2}
                 />
               </div>
+              <SeletorEtapas
+                valor={selecaoEtapas}
+                onChange={setSelecaoEtapas}
+                podeSalvarModelo={tabelaEtapasOk}
+                onNovaEtapa={(etapa) => salvarEtapaModelo(etapa)}
+              />
             </div>
             <DialogFooter>
               <Button variant="outline" onClick={() => setIsDialogOpen(false)}>Cancelar</Button>
-              <Button onClick={handleCreate} disabled={!formData.cliente_id || !formData.titulo}>
+              <Button onClick={handleCreate} disabled={!formData.cliente_id || !formData.titulo || etapasEscolhidas(selecaoEtapas).length === 0}>
                 Criar Implantação
               </Button>
             </DialogFooter>
           </DialogContent>
         </Dialog>
+        </div>
       </div>
+
+      {/* Etapas padrão e personalizadas */}
+      <Dialog open={gerenciarEtapasAberto} onOpenChange={setGerenciarEtapasAberto}>
+        <DialogContent className="max-h-[90vh] max-w-2xl overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Etapas de implantação</DialogTitle>
+          </DialogHeader>
+          <GerenciadorEtapas
+            personalizadas={etapasSalvas}
+            disponivel={tabelaEtapasOk}
+            onSalvar={async (etapa) => {
+              await salvarEtapaModelo(etapa);
+            }}
+            onExcluir={excluirEtapaModelo}
+          />
+        </DialogContent>
+      </Dialog>
 
       {/* Stats Cards */}
       <div className="grid gap-4 md:grid-cols-5">
@@ -624,7 +883,7 @@ export default function Implantacoes() {
                     <th className="min-w-[120px]">Progresso</th>
                     <th className="min-w-[100px]">Meta</th>
                     <th className="min-w-[100px]">Prazo</th>
-                    <th className="w-[80px]">Ações</th>
+                    <th className="w-[120px]">Ações</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -662,7 +921,17 @@ export default function Implantacoes() {
                       </td>
                       <td>
                         <div className="flex items-center gap-1">
-                          <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => openEditDialog(item)}>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8"
+                            title="Gerar Orçamento e Plano de Implantação (.docx)"
+                            disabled={gerandoDocId === item.id}
+                            onClick={() => gerarDocumento(item)}
+                          >
+                            {gerandoDocId === item.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileText className="h-4 w-4 text-primary" />}
+                          </Button>
+                          <Button variant="ghost" size="icon" className="h-8 w-8" title="Abrir" onClick={() => openEditDialog(item)}>
                             <Edit className="h-4 w-4" />
                           </Button>
                           <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleDelete(item.id)}>
@@ -803,42 +1072,147 @@ export default function Implantacoes() {
                 />
               </div>
 
-              {/* Checklist */}
+              {/* Checklist por etapa */}
               <div>
-                <Label className="text-muted-foreground mb-2 flex items-center gap-2">
-                  <CheckCircle className="h-4 w-4" />
-                  Checklist - Passos da Atividade
-                </Label>
-                <div className="flex gap-2 mb-3">
+                <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+                  <Label className="flex items-center gap-2 text-muted-foreground">
+                    <CheckCircle className="h-4 w-4" />
+                    Checklist de Implantação
+                  </Label>
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button variant="outline" size="sm" className="gap-2">
+                        <Plus className="h-4 w-4" />
+                        Adicionar etapa
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end" className="w-64">
+                      {(() => {
+                        const presentes = new Set(agruparPorEtapa(checklist).grupos.map((g) => g.etapa.toLowerCase()));
+                        const disponiveis = [...ETAPAS_PADRAO, ...etapasSalvas].filter((e) => !presentes.has(e.nome.toLowerCase()));
+                        return (
+                          <>
+                            <DropdownMenuLabel className="text-xs text-muted-foreground">Etapas cadastradas</DropdownMenuLabel>
+                            {disponiveis.length === 0 && <p className="px-2 py-1.5 text-xs text-muted-foreground">Todas já estão nesta implantação.</p>}
+                            {disponiveis.map((e) => (
+                              <DropdownMenuItem key={e.id || e.nome} onClick={() => adicionarEtapaNaImplantacao(e)}>
+                                {e.nome}
+                                <span className="ml-auto text-[10px] text-muted-foreground">{e.padrao ? 'Padrão' : 'Personalizada'}</span>
+                              </DropdownMenuItem>
+                            ))}
+                            <DropdownMenuSeparator />
+                            <DropdownMenuItem onClick={() => setCriandoEtapaNaImplantacao(true)}>
+                              <Plus className="mr-2 h-4 w-4" />
+                              Criar nova etapa...
+                            </DropdownMenuItem>
+                          </>
+                        );
+                      })()}
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </div>
+
+                {criandoEtapaNaImplantacao && (
+                  <div className="mb-3">
+                    <FormEtapa
+                      nomesExistentes={[...ETAPAS_PADRAO, ...etapasSalvas].map((e) => e.nome).concat(agruparPorEtapa(checklist).grupos.map((g) => g.etapa))}
+                      podeSalvarModelo={tabelaEtapasOk}
+                      onCancelar={() => setCriandoEtapaNaImplantacao(false)}
+                      onSalvar={async (etapa, salvarModelo) => {
+                        if (salvarModelo) await salvarEtapaModelo(etapa);
+                        await adicionarEtapaNaImplantacao(etapa);
+                      }}
+                    />
+                  </div>
+                )}
+
+                <div className="space-y-3">
+                  {checklist.length === 0 && !criandoEtapaNaImplantacao && (
+                    <p className="rounded-xl border border-dashed py-6 text-center text-sm text-muted-foreground">
+                      Nenhuma etapa. Use "Adicionar etapa" para montar o checklist.
+                    </p>
+                  )}
+                  {agruparPorEtapa(checklist).grupos.map(({ etapa, itens }, idx) => {
+                    const def = definicaoEtapa(etapa, etapasSalvas);
+                    const feitos = itens.filter((i) => i.concluido).length;
+                    const completa = feitos === itens.length;
+                    const dataConclusao = historico.find((h) => h.acao === acaoEtapaConcluida(etapa))?.created_at;
+                    return (
+                      <div key={etapa} className={`rounded-xl border p-3 ${completa ? 'border-emerald-200 bg-emerald-50/50' : 'border-border'}`}>
+                        <div className="mb-2 flex items-center gap-3">
+                          <span
+                            className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-bold ${completa ? 'bg-emerald-600 text-white' : 'bg-primary/10 text-primary'}`}
+                          >
+                            {completa ? <CheckCircle className="h-4 w-4" /> : idx + 1}
+                          </span>
+                          <div className="min-w-0 flex-1">
+                            <p className="text-sm font-semibold">
+                              {idx + 1}ª etapa — {def?.titulo || etapa}
+                            </p>
+                            <p className="text-[11px] text-muted-foreground">
+                              {completa
+                                ? `Concluída${dataConclusao ? ' em ' + format(parseISO(dataConclusao), 'dd/MM/yyyy') : ''}`
+                                : def?.resultado
+                                  ? `Resultado esperado: ${def.resultado}`
+                                  : 'Etapa personalizada'}
+                            </p>
+                          </div>
+                          <span className="text-xs font-medium text-muted-foreground">
+                            {feitos}/{itens.length}
+                          </span>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-7 w-7"
+                            title="Remover etapa desta implantação"
+                            onClick={() => removerEtapaDaImplantacao(etapa, itens.map((i) => i.id))}
+                          >
+                            <Trash2 className="h-3.5 w-3.5 text-muted-foreground" />
+                          </Button>
+                        </div>
+                        <div className="space-y-1">
+                          {itens.map((item) => (
+                            <label key={item.id} className="flex cursor-pointer items-center gap-3 rounded-lg px-2 py-1.5 hover:bg-muted/40">
+                              <Checkbox checked={item.concluido} onCheckedChange={() => handleToggleChecklistItem(item)} />
+                              <span className={`flex-1 text-sm ${item.concluido ? 'text-muted-foreground line-through' : ''}`}>{lerItem(item.descricao).texto}</span>
+                            </label>
+                          ))}
+                        </div>
+                      </div>
+                    );
+                  })}
+
+                  {/* Passos avulsos */}
+                  {checklist.some((i) => !lerItem(i.descricao).etapa) && (
+                    <div className="rounded-xl border border-dashed p-3">
+                      <p className="mb-2 text-sm font-semibold">Passos adicionais</p>
+                      <div className="space-y-1">
+                        {checklist
+                          .filter((i) => !lerItem(i.descricao).etapa)
+                          .map((item) => (
+                            <div key={item.id} className="flex items-center gap-3 rounded-lg px-2 py-1 hover:bg-muted/40">
+                              <Checkbox checked={item.concluido} onCheckedChange={() => handleToggleChecklistItem(item)} />
+                              <span className={`flex-1 text-sm ${item.concluido ? 'text-muted-foreground line-through' : ''}`}>{item.descricao}</span>
+                              <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => handleDeleteChecklistItem(item.id)}>
+                                <Trash2 className="h-3 w-3" />
+                              </Button>
+                            </div>
+                          ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                <div className="mt-3 flex gap-2">
                   <Input
                     value={novoChecklistItem}
                     onChange={(e) => setNovoChecklistItem(e.target.value)}
-                    placeholder="Adicionar novo passo..."
+                    placeholder="Adicionar passo adicional..."
                     onKeyDown={(e) => e.key === 'Enter' && handleAddChecklistItem()}
                   />
                   <Button variant="outline" size="icon" onClick={handleAddChecklistItem}>
                     <Plus className="h-4 w-4" />
                   </Button>
-                </div>
-                <div className="space-y-2">
-                  {checklist.length === 0 ? (
-                    <p className="text-sm text-muted-foreground text-center py-4">Nenhum passo adicionado</p>
-                  ) : (
-                    checklist.map((item) => (
-                      <div key={item.id} className="flex items-center gap-3 p-2 rounded-lg bg-muted/30">
-                        <Checkbox
-                          checked={item.concluido}
-                          onCheckedChange={() => handleToggleChecklistItem(item)}
-                        />
-                        <span className={`flex-1 ${item.concluido ? 'line-through text-muted-foreground' : ''}`}>
-                          {item.descricao}
-                        </span>
-                        <Button variant="ghost" size="icon" onClick={() => handleDeleteChecklistItem(item.id)}>
-                          <Trash2 className="h-3 w-3" />
-                        </Button>
-                      </div>
-                    ))
-                  )}
                 </div>
               </div>
 
@@ -908,9 +1282,20 @@ export default function Implantacoes() {
               </div>
             </div>
           </ScrollArea>
-          <DialogFooter className="mt-4">
+          <DialogFooter className="mt-4 gap-2 sm:justify-between">
+            <Button
+              variant="outline"
+              className="gap-2"
+              disabled={!selectedImplantacao || gerandoDocId === selectedImplantacao?.id}
+              onClick={() => selectedImplantacao && gerarDocumento(selectedImplantacao)}
+            >
+              {gerandoDocId === selectedImplantacao?.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileText className="h-4 w-4" />}
+              Gerar documento (.docx)
+            </Button>
+            <div className="flex gap-2">
             <Button variant="outline" onClick={() => setIsEditDialogOpen(false)}>Cancelar</Button>
             <Button onClick={handleUpdate}>Salvar Alterações</Button>
+            </div>
           </DialogFooter>
         </DialogContent>
       </Dialog>

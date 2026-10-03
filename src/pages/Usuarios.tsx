@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
-import { Plus, Search, UserCog, MoreHorizontal, Edit, Trash2, Shield } from 'lucide-react';
+import { Plus, Search, UserCog, MoreHorizontal, Edit, Trash2, Shield } from '@/components/icons';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';

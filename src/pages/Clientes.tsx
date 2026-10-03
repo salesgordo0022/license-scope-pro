@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { Plus, Search, Filter, MoreHorizontal, Mail, Phone, Edit, Trash2, DollarSign, FileText, Loader2, MessageCircle, Users, Download, Tag, Monitor } from 'lucide-react';
+import { Plus, Search, Filter, MoreHorizontal, Mail, Edit, Trash2, DollarSign, FileText, Loader2, MessageCircle, Users, Download, Tag, Monitor, Pencil, Check, X, Building2 } from '@/components/icons';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -63,7 +64,11 @@ const formatCurrency = (value: number | null) => {
  * CRM de clientes: cadastro, busca, filtros por segmento/status, vínculo com
  * sistemas e grupos, exportação para Excel e atalho de contato por WhatsApp.
  */
+/** Pontotel é controlado por vidas (quantidade de funcionários no ponto). */
+const ehPontotel = (nomeSistema: string | null | undefined) => (nomeSistema || '').toUpperCase().includes('PONTOTEL');
+
 export default function Clientes() {
+  const [searchParams, setSearchParams] = useSearchParams();
   const [clientes, setClientes] = useState<Cliente[]>([]);
   const [segmentos, setSegmentos] = useState<Segmento[]>([]);
   const [sistemas, setSistemas] = useState<Sistema[]>([]);
@@ -75,10 +80,19 @@ export default function Clientes() {
   const [filterStatus, setFilterStatus] = useState<string>('ativo');
   const [filterSistema, setFilterSistema] = useState<string>('all');
   const [sistemasPorCliente, setSistemasPorCliente] = useState<Record<string, string[]>>({});
+  const [vidasPorCliente, setVidasPorCliente] = useState<Record<string, number>>({});
   const [exportando, setExportando] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingCliente, setEditingCliente] = useState<Cliente | null>(null);
   const [buscandoCnpj, setBuscandoCnpj] = useState(false);
+  // Edição rápida do nome direto na tabela (clique no nome).
+  const [editandoNomeId, setEditandoNomeId] = useState<string | null>(null);
+  const [nomeTemp, setNomeTemp] = useState('');
+  const [salvandoNome, setSalvandoNome] = useState(false);
+  // A coluna cep entra por migration; enquanto não existir no banco, o campo
+  // aparece mas não é enviado (senão o insert/update falharia).
+  const [cepNoBanco, setCepNoBanco] = useState(true);
+  const [buscandoCep, setBuscandoCep] = useState(false);
   const [whatsappOpen, setWhatsappOpen] = useState(false);
   const [whatsappCliente, setWhatsappCliente] = useState<Cliente | null>(null);
   const [whatsappMsg, setWhatsappMsg] = useState('');
@@ -92,6 +106,34 @@ export default function Clientes() {
       .replace(/^(\d{2})\.(\d{3})(\d)/, '$1.$2.$3')
       .replace(/\.(\d{3})(\d)/, '.$1/$2')
       .replace(/(\d{4})(\d)/, '$1-$2');
+  };
+
+  /** Aplica a máscara 00000-000 conforme o usuário digita. */
+  const formatCep = (value: string) => value.replace(/\D/g, '').slice(0, 8).replace(/^(\d{5})(\d)/, '$1-$2');
+
+  /** Completa cidade, UF e endereço pelo CEP (ViaCEP), sem sobrescrever o que já foi digitado. */
+  const buscarCep = async (cepRaw: string) => {
+    const digits = cepRaw.replace(/\D/g, '');
+    if (digits.length !== 8) return;
+    setBuscandoCep(true);
+    try {
+      const resp = await fetch(`https://viacep.com.br/ws/${digits}/json/`);
+      const data = await resp.json();
+      if (!resp.ok || data.erro) {
+        toast.error('CEP não encontrado');
+        return;
+      }
+      setFormData((prev) => ({
+        ...prev,
+        cidade: prev.cidade || data.localidade || '',
+        estado: prev.estado || data.uf || '',
+        endereco: prev.endereco || [data.logradouro, data.bairro].filter(Boolean).join(', '),
+      }));
+    } catch {
+      toast.error('Não foi possível consultar o CEP');
+    } finally {
+      setBuscandoCep(false);
+    }
   };
 
   /** Aplica a máscara 000.000.000-00 conforme o usuário digita. */
@@ -127,6 +169,7 @@ export default function Clientes() {
         endereco: [data.logradouro, data.numero, data.complemento, data.bairro].filter(Boolean).join(', '),
         cidade: data.municipio || '',
         estado: data.uf || '',
+        cep: data.cep ? formatCep(String(data.cep)) : prev.cep,
       }));
       toast.success('Dados do CNPJ carregados!');
     } catch {
@@ -154,9 +197,11 @@ export default function Clientes() {
     endereco: '',
     cidade: '',
     estado: '',
+    cep: '',
     data_entrada: '',
     regime_tributario: '',
     sistemasSelecionados: [] as string[], // nomes dos sistemas
+    vidasPontotel: 1, // vai para licencas.quantidade da licença Pontotel
   });
 
 
@@ -219,17 +264,20 @@ export default function Clientes() {
       if (ids.length > 0) {
         const { data: lics } = await supabase
           .from('licencas')
-          .select('cliente_id, tipo')
+          .select('cliente_id, tipo, quantidade')
           .eq('status', 'ativo' as StatusType)
           .in('cliente_id', ids);
         const map: Record<string, string[]> = {};
+        const vidas: Record<string, number> = {};
         (lics || []).forEach((l: any) => {
+          if (ehPontotel(l.tipo)) vidas[l.cliente_id] = (vidas[l.cliente_id] || 0) + (l.quantidade || 0);
           if (!map[l.cliente_id]) map[l.cliente_id] = [];
           if (l.tipo && !map[l.cliente_id].includes(l.tipo)) {
             map[l.cliente_id].push(l.tipo);
           }
         });
         setSistemasPorCliente(map);
+        setVidasPorCliente(vidas);
       }
     } catch (error) {
       console.error('Error fetching clientes:', error);
@@ -240,11 +288,43 @@ export default function Clientes() {
   };
 
   useEffect(() => {
+    supabase
+      .from('clientes')
+      .select('cep')
+      .limit(1)
+      .then(({ error }) => setCepNoBanco(!error));
     fetchClientes();
     fetchSegmentos();
     fetchSistemas();
     fetchGrupos();
   }, []);
+
+  // Atalhos vindos de outras telas (busca da barra superior e ações do
+  // dashboard): ?busca=termo, ?novo=1 e ?editar=<id>. Depois de aplicados, os
+  // parâmetros saem da URL para não reabrirem o diálogo num refresh.
+  useEffect(() => {
+    const busca = searchParams.get('busca');
+    const novo = searchParams.get('novo');
+    const editar = searchParams.get('editar');
+    if (busca === null && novo === null && editar === null) return;
+
+    if (busca !== null) {
+      setSearchTerm(busca);
+      setFilterStatus('all');
+    }
+    if (novo !== null) {
+      setEditingCliente(null);
+      resetForm();
+      setDialogOpen(true);
+    }
+    if (editar !== null) {
+      if (loading) return; // espera a lista carregar para achar o cliente
+      const alvo = clientes.find((cl) => cl.id === editar);
+      if (alvo) handleEdit(alvo);
+      else toast.error('Cliente não encontrado');
+    }
+    setSearchParams({}, { replace: true });
+  }, [searchParams, loading]);
 
   const resetForm = () => {
     setFormData({
@@ -264,18 +344,23 @@ export default function Clientes() {
       endereco: '',
       cidade: '',
       estado: '',
+      cep: '',
       data_entrada: '',
       regime_tributario: '',
       sistemasSelecionados: [],
+      vidasPontotel: 1,
     });
 
   };
 
-  const sincronizarSistemas = async (clienteId: string, empresaId: string | null, sistemasNomes: string[]) => {
+  /** Cria/remove as licenças conforme os sistemas marcados. As vidas digitadas
+   *  no cadastro vão para a quantidade da licença Pontotel, que é a mesma que
+   *  aparece (e pode ser editada) na aba Licenças. */
+  const sincronizarSistemas = async (clienteId: string, empresaId: string | null, sistemasNomes: string[], vidasPontotel: number) => {
     // Remove licenças que não estão mais selecionadas
     const { data: existentes } = await supabase
       .from('licencas')
-      .select('id, tipo')
+      .select('id, tipo, quantidade')
       .eq('cliente_id', clienteId);
 
     const aRemover = (existentes || []).filter((l: any) => !sistemasNomes.includes(l.tipo));
@@ -291,10 +376,19 @@ export default function Clientes() {
           cliente_id: clienteId,
           empresa_id: empresaId,
           tipo: nome,
+          quantidade: ehPontotel(nome) ? vidasPontotel : 1,
           modelo_cobranca: 'saas',
           status: 'ativo' as StatusType,
         }))
       );
+    }
+
+    // Pontotel que já existia: atualiza as vidas se mudaram.
+    const pontotelExistentes = (existentes || []).filter(
+      (l: any) => ehPontotel(l.tipo) && sistemasNomes.includes(l.tipo) && l.quantidade !== vidasPontotel
+    );
+    if (pontotelExistentes.length > 0) {
+      await supabase.from('licencas').update({ quantidade: vidasPontotel }).in('id', pontotelExistentes.map((l: any) => l.id));
     }
   };
 
@@ -303,7 +397,12 @@ export default function Clientes() {
     e.preventDefault();
     
     try {
-      const { sistemasSelecionados, ...clienteDataRaw } = formData;
+      const { sistemasSelecionados, vidasPontotel, cep, ...clienteDataSemCep } = formData;
+      const clienteDataRaw = cepNoBanco ? { ...clienteDataSemCep, cep: cep || null } : clienteDataSemCep;
+      if (sistemasSelecionados.some(ehPontotel) && (!vidasPontotel || vidasPontotel < 1)) {
+        toast.error('Informe a quantidade de vidas do Pontotel');
+        return;
+      }
       const clienteData = {
         ...clienteDataRaw,
         grupo_id: clienteDataRaw.grupo_id === 'none' || clienteDataRaw.grupo_id === '' ? null : clienteDataRaw.grupo_id
@@ -316,7 +415,7 @@ export default function Clientes() {
           .eq('id', editingCliente.id);
 
         if (error) throw error;
-        await sincronizarSistemas(editingCliente.id, editingCliente.empresa_id, sistemasSelecionados);
+        await sincronizarSistemas(editingCliente.id, editingCliente.empresa_id, sistemasSelecionados, vidasPontotel);
         toast.success('Cliente atualizado com sucesso!');
       } else {
         // Tentar pegar empresa_id do usuário, mas não é obrigatório
@@ -389,7 +488,7 @@ export default function Clientes() {
 
         // Sincronizar sistemas selecionados (cria licenças)
         if (sistemasSelecionados.length > 0) {
-          await sincronizarSistemas(novoCliente.id, empresaId, sistemasSelecionados);
+          await sincronizarSistemas(novoCliente.id, empresaId, sistemasSelecionados, vidasPontotel);
         }
       }
 
@@ -409,9 +508,10 @@ export default function Clientes() {
     // Buscar sistemas atuais do cliente
     const { data: lics } = await supabase
       .from('licencas')
-      .select('tipo')
+      .select('tipo, quantidade')
       .eq('cliente_id', cliente.id);
     const sistemasAtuais = Array.from(new Set((lics || []).map((l: any) => l.tipo).filter(Boolean)));
+    const licPontotel = (lics || []).find((l: any) => ehPontotel(l.tipo));
 
     setFormData({
       nome_empresa: cliente.nome_empresa,
@@ -430,9 +530,11 @@ export default function Clientes() {
       endereco: (cliente as any).endereco || '',
       cidade: (cliente as any).cidade || '',
       estado: (cliente as any).estado || '',
+      cep: (cliente as any).cep || '',
       data_entrada: (cliente as any).data_entrada || '',
       regime_tributario: (cliente as any).regime_tributario || '',
       sistemasSelecionados: sistemasAtuais,
+      vidasPontotel: licPontotel?.quantidade || 1,
 
     });
     setDialogOpen(true);
@@ -489,11 +591,51 @@ export default function Clientes() {
     }
   };
 
+  const iniciarEdicaoNome = (cliente: Cliente) => {
+    setEditandoNomeId(cliente.id);
+    setNomeTemp(cliente.nome_empresa);
+  };
+
+  const cancelarEdicaoNome = () => {
+    setEditandoNomeId(null);
+    setNomeTemp('');
+  };
+
+  /** Grava o novo nome do cliente editado na própria linha da tabela. */
+  const salvarNome = async (cliente: Cliente) => {
+    const novo = nomeTemp.trim().replace(/s+/g, ' ');
+    if (salvandoNome) return;
+    if (!novo) {
+      toast.error('O nome do cliente não pode ficar vazio');
+      return;
+    }
+    if (novo === cliente.nome_empresa) {
+      cancelarEdicaoNome();
+      return;
+    }
+    setSalvandoNome(true);
+    const { error } = await supabase.from('clientes').update({ nome_empresa: novo }).eq('id', cliente.id);
+    setSalvandoNome(false);
+    if (error) {
+      toast.error('Erro ao renomear cliente', { description: error.message });
+      return;
+    }
+    setClientes((lista) => lista.map((cl) => (cl.id === cliente.id ? { ...cl, nome_empresa: novo } : cl)));
+    cancelarEdicaoNome();
+    toast.success('Nome atualizado');
+  };
+
   /** Aplica busca textual e filtros de segmento/status sobre a lista carregada. */
   const filteredClientes = clientes.filter((cliente) => {
+    const termo = searchTerm.toLowerCase().trim();
+    const termoDigitos = termo.replace(/D/g, '');
     const matchesSearch =
-      cliente.nome_empresa.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      cliente.email?.toLowerCase().includes(searchTerm.toLowerCase());
+      !termo ||
+      cliente.nome_empresa.toLowerCase().includes(termo) ||
+      cliente.email?.toLowerCase().includes(termo) ||
+      cliente.segmento?.toLowerCase().includes(termo) ||
+      (sistemasPorCliente[cliente.id] || []).some((s) => s.toLowerCase().includes(termo)) ||
+      (termoDigitos.length >= 3 && (cliente as any).cnpj?.replace(/D/g, '').includes(termoDigitos));
     const matchesSegmento = filterSegmento === 'all' || cliente.segmento === filterSegmento;
     const matchesGrupo = filterGrupo === 'all' || (cliente as any).grupo_id === filterGrupo;
     const matchesStatus = filterStatus === 'all' || cliente.status === filterStatus;
@@ -579,6 +721,7 @@ export default function Clientes() {
           'Telefone': c.telefone ?? '',
           'Endereço': c.endereco ?? '',
           'Cidade': c.cidade ?? '',
+          'CEP': (c as any).cep ?? '',
           'Estado': c.estado ?? '',
           'Data Entrada': fmtData(c.data_entrada),
           'Status': c.status || 'ativo',
@@ -693,7 +836,7 @@ export default function Clientes() {
           <p className="page-description">Gerencie seus clientes e informações de contato</p>
         </div>
 
-        <div className="flex gap-2 items-center">
+        <div className="flex flex-wrap gap-2 items-center">
           <GrupoClienteManager onGroupsChange={fetchGrupos} />
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
@@ -876,6 +1019,25 @@ export default function Clientes() {
                     })}
                   </div>
                 )}
+                {formData.sistemasSelecionados.some(ehPontotel) && (
+                  <div className="mt-3 flex flex-wrap items-center gap-3 rounded-lg border border-blue-200 bg-blue-50/60 p-3">
+                    <Users className="h-5 w-5 text-blue-600" />
+                    <div className="flex-1">
+                      <Label htmlFor="vidas_pontotel" className="text-sm font-semibold text-blue-900">
+                        Quantidade de vidas (Pontotel) *
+                      </Label>
+                      <p className="text-xs text-blue-900/70">Funcionários no ponto. Vai para a aba Licenças.</p>
+                    </div>
+                    <Input
+                      id="vidas_pontotel"
+                      type="number"
+                      min={1}
+                      value={formData.vidasPontotel}
+                      onChange={(e) => setFormData((prev) => ({ ...prev, vidasPontotel: parseInt(e.target.value) || 0 }))}
+                      className="w-24 bg-white"
+                    />
+                  </div>
+                )}
               </div>
 
               {/* Dados do Contratante */}
@@ -937,24 +1099,45 @@ export default function Clientes() {
                       placeholder="Rua, número, bairro"
                     />
                   </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="cidade">Cidade</Label>
-                    <Input
-                      id="cidade"
-                      value={formData.cidade}
-                      onChange={(e) => setFormData({ ...formData, cidade: e.target.value })}
-                      placeholder="Ex: São Paulo"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="estado">Estado</Label>
-                    <Input
-                      id="estado"
-                      value={formData.estado}
-                      onChange={(e) => setFormData({ ...formData, estado: e.target.value })}
-                      placeholder="Ex: MA"
-                      maxLength={2}
-                    />
+                  <div className="col-span-2 grid grid-cols-[140px_1fr_80px] gap-3">
+                    <div className="space-y-2">
+                      <Label htmlFor="cep">CEP</Label>
+                      <div className="relative">
+                        <Input
+                          id="cep"
+                          value={formData.cep}
+                          onChange={(e) => setFormData({ ...formData, cep: formatCep(e.target.value) })}
+                          onBlur={(e) => buscarCep(e.target.value)}
+                          placeholder="00000-000"
+                          maxLength={9}
+                        />
+                        {buscandoCep && <Loader2 className="absolute right-2 top-1/2 h-4 w-4 -translate-y-1/2 animate-spin text-muted-foreground" />}
+                      </div>
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="cidade">Cidade</Label>
+                      <Input
+                        id="cidade"
+                        value={formData.cidade}
+                        onChange={(e) => setFormData({ ...formData, cidade: e.target.value })}
+                        placeholder="Ex: Grajaú"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="estado">UF</Label>
+                      <Input
+                        id="estado"
+                        value={formData.estado}
+                        onChange={(e) => setFormData({ ...formData, estado: e.target.value.toUpperCase() })}
+                        placeholder="MA"
+                        maxLength={2}
+                      />
+                    </div>
+                    {!cepNoBanco && (
+                      <p className="col-span-3 text-[11px] text-amber-700">
+                        O CEP ainda não é gravado: falta aplicar a atualização do banco (coluna clientes.cep).
+                      </p>
+                    )}
                   </div>
                 </div>
               </div>
@@ -1164,10 +1347,11 @@ export default function Clientes() {
               <table className="data-table">
                 <thead>
                   <tr>
-                    <th>Empresa</th>
+                    {/* Coluna fixa: ao rolar a tabela para o lado o nome continua visível. */}
+                    <th className="sticky left-0 z-20 bg-card shadow-[6px_0_8px_-6px_rgba(15,27,61,0.18)]">Empresa</th>
                     <th>Grupo</th>
                     <th>Segmento</th>
-                    <th>Contato</th>
+                    <th>CNPJ / E-mail</th>
                     <th>Data Entrada</th>
                     <th>Mensalidade</th>
                     <th>Implantação</th>
@@ -1191,18 +1375,62 @@ export default function Clientes() {
                   ) : (
                     filteredClientes.map((cliente) => (
                       <tr key={cliente.id} className="group transition-colors">
-                        <td>
+                        <td className="sticky left-0 z-10 min-w-[150px] max-w-[170px] bg-card sm:min-w-[260px] sm:max-w-[340px] shadow-[6px_0_8px_-6px_rgba(15,27,61,0.18)] group-hover:bg-muted">
                           <div className="flex items-center gap-3">
                             <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary group-hover:bg-primary/20 transition-colors">
                               <Users className="h-5 w-5" />
                             </div>
-                            <div>
-                              <div className="font-semibold text-foreground">{cliente.nome_empresa}</div>
+                            <div className="min-w-0 flex-1">
+                              {editandoNomeId === cliente.id ? (
+                                <div className="flex items-center gap-1">
+                                  <Input
+                                    autoFocus
+                                    value={nomeTemp}
+                                    disabled={salvandoNome}
+                                    onChange={(e) => setNomeTemp(e.target.value)}
+                                    onKeyDown={(e) => {
+                                      if (e.key === 'Enter') salvarNome(cliente);
+                                      if (e.key === 'Escape') cancelarEdicaoNome();
+                                    }}
+                                    className="h-8 text-sm font-semibold"
+                                    aria-label="Nome do cliente"
+                                  />
+                                  <button
+                                    type="button"
+                                    onClick={() => salvarNome(cliente)}
+                                    disabled={salvandoNome}
+                                    title="Salvar (Enter)"
+                                    className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-primary text-white hover:bg-primary/90 disabled:opacity-50"
+                                  >
+                                    {salvandoNome ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={cancelarEdicaoNome}
+                                    disabled={salvandoNome}
+                                    title="Cancelar (Esc)"
+                                    className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-border text-muted-foreground hover:bg-muted"
+                                  >
+                                    <X className="h-4 w-4" />
+                                  </button>
+                                </div>
+                              ) : (
+                                <button
+                                  type="button"
+                                  onClick={() => iniciarEdicaoNome(cliente)}
+                                  title="Clique para editar o nome"
+                                  className="group/nome flex max-w-full items-center gap-1.5 text-left font-semibold text-foreground hover:text-primary"
+                                >
+                                  <span className="truncate">{cliente.nome_empresa}</span>
+                                  <Pencil className="h-3.5 w-3.5 shrink-0 opacity-0 transition group-hover/nome:opacity-100" />
+                                </button>
+                              )}
                               {sistemasPorCliente[cliente.id]?.length > 0 && (
                                 <div className="flex flex-wrap gap-1 mt-1">
                                   {sistemasPorCliente[cliente.id].map((sis) => (
                                     <Badge key={sis} variant="secondary" className="text-[10px] h-4 px-1.5 uppercase font-bold tracking-wider">
-                                      {sis}
+                                      {sis.trim()}
+                                      {ehPontotel(sis) && vidasPorCliente[cliente.id] ? ` · ${vidasPorCliente[cliente.id]} vida${vidasPorCliente[cliente.id] === 1 ? '' : 's'}` : ''}
                                     </Badge>
                                   ))}
                                 </div>
@@ -1247,29 +1475,38 @@ export default function Clientes() {
                         </td>
                         <td>
                           <div className="flex flex-col gap-1.5 py-1">
+                            {(() => {
+                              // CNPJ no lugar do telefone (o WhatsApp continua no menu ⋯).
+                              const digitos = (cliente.cnpj || '').replace(/D/g, '');
+                              if (!digitos) {
+                                return <span className="text-xs italic text-muted-foreground">Sem CNPJ</span>;
+                              }
+                              const documento = digitos.length === 11 ? formatCpf(digitos) : formatCnpj(digitos);
+                              return (
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    navigator.clipboard?.writeText(documento).then(
+                                      () => toast.success('CNPJ copiado', { description: documento }),
+                                      () => toast.error('Não foi possível copiar')
+                                    );
+                                  }}
+                                  title="Clique para copiar"
+                                  className="group/item flex items-center gap-2 text-sm text-muted-foreground hover:text-primary"
+                                >
+                                  <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary/5 transition-colors group-hover/item:bg-primary/10">
+                                    <Building2 className="h-3 w-3 text-primary" />
+                                  </span>
+                                  <span className="whitespace-nowrap font-medium tabular-nums text-foreground/80">{documento}</span>
+                                </button>
+                              );
+                            })()}
                             {cliente.email && (
                               <div className="group/item flex items-center gap-2 text-sm text-muted-foreground hover:text-primary transition-colors cursor-default">
                                 <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary/5 group-hover/item:bg-primary/10 transition-colors">
                                   <Mail className="h-3 w-3" />
                                 </div>
                                 <span className="truncate max-w-[150px]">{cliente.email}</span>
-                              </div>
-                            )}
-                            {cliente.telefone && (
-                              <div className="group/item flex items-center gap-2 text-sm text-muted-foreground">
-                                <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-success/5 group-hover/item:bg-success/10 transition-colors">
-                                  <Phone className="h-3 w-3 text-success" />
-                                </div>
-                                <span className="font-medium text-foreground/80">{cliente.telefone}</span>
-                                <Button 
-                                  variant="ghost" 
-                                  size="icon" 
-                                  className="h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity text-success hover:bg-success/10"
-                                  onClick={() => handleEnviarWhatsapp(cliente)}
-                                  title="Enviar WhatsApp"
-                                >
-                                  <MessageCircle className="h-3.5 w-3.5" />
-                                </Button>
                               </div>
                             )}
                           </div>

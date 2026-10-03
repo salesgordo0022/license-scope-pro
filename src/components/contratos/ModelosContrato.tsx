@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Plus, Edit, Trash2, GripVertical, ChevronUp, ChevronDown, Copy, FileText, MoreHorizontal, Save, X } from 'lucide-react';
+import { Plus, Edit, Trash2, GripVertical, ChevronUp, ChevronDown, Copy, FileText, MoreHorizontal, Save, X } from '@/components/icons';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';

@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { motion } from 'framer-motion';
-import { Search, MapPin, Building2, Phone, Mail, Calendar, Loader2, AlertCircle, ChevronLeft, ChevronRight, Download } from 'lucide-react';
+import { Search, MapPin, Building2, Phone, Mail, Calendar, Loader2, AlertCircle, ChevronLeft, ChevronRight, Download } from '@/components/icons';
 import * as XLSX from 'xlsx';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';

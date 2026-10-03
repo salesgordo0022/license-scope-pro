@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Plus, Trash2, StickyNote, Calculator, Save } from 'lucide-react';
+import { Plus, Trash2, StickyNote, Calculator, Save } from '@/components/icons';
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription,
 } from '@/components/ui/dialog';

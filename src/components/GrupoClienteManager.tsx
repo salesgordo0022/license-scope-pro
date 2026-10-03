@@ -10,7 +10,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from '@/components/ui/dialog';
-import { Plus, Trash2, Edit } from 'lucide-react';
+import { Plus, Trash2, Edit } from '@/components/icons';
 import { toast } from 'sonner';
 
 interface Grupo {

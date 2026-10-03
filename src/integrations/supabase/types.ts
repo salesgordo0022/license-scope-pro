@@ -52,6 +52,7 @@ export type Database = {
       }
       clientes: {
         Row: {
+          cep: string | null
           cidade: string | null
           cnpj: string | null
           cpf_dono: string | null
@@ -75,6 +76,7 @@ export type Database = {
           valor_mensalidade: number | null
         }
         Insert: {
+          cep?: string | null
           cidade?: string | null
           cnpj?: string | null
           cpf_dono?: string | null
@@ -98,6 +100,7 @@ export type Database = {
           valor_mensalidade?: number | null
         }
         Update: {
+          cep?: string | null
           cidade?: string | null
           cnpj?: string | null
           cpf_dono?: string | null
@@ -408,6 +411,50 @@ export type Database = {
             columns: ["plano_id"]
             isOneToOne: false
             referencedRelation: "planos"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      etapas_implantacao: {
+        Row: {
+          ativo: boolean
+          created_at: string
+          empresa_id: string | null
+          id: string
+          itens: string[]
+          nome: string
+          ordem: number
+          resultado: string | null
+          updated_at: string
+        }
+        Insert: {
+          ativo?: boolean
+          created_at?: string
+          empresa_id?: string | null
+          id?: string
+          itens?: string[]
+          nome: string
+          ordem?: number
+          resultado?: string | null
+          updated_at?: string
+        }
+        Update: {
+          ativo?: boolean
+          created_at?: string
+          empresa_id?: string | null
+          id?: string
+          itens?: string[]
+          nome?: string
+          ordem?: number
+          resultado?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "etapas_implantacao_empresa_id_fkey"
+            columns: ["empresa_id"]
+            isOneToOne: false
+            referencedRelation: "empresas"
             referencedColumns: ["id"]
           },
         ]

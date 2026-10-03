@@ -11,3 +11,13 @@ import { twMerge } from "tailwind-merge";
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
+
+/**
+ * Data no formato AAAA-MM-DD pelo fuso local. `toISOString()` usa UTC, e no
+ * Brasil (UTC-3) depois das 21h ele já devolve o dia seguinte — o que fazia
+ * filtros de "vence até hoje" pegarem um dia a mais.
+ */
+export function dataLocalIso(d: Date = new Date()) {
+  const p = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+}

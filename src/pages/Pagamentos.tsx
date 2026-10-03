@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
-import { Plus, Search, DollarSign, Calendar, MoreHorizontal, Edit, Trash2, CheckCircle, Clock, AlertTriangle } from 'lucide-react';
+import { Plus, Search, DollarSign, Calendar, MoreHorizontal, Edit, Trash2, CheckCircle, Clock, AlertTriangle } from '@/components/icons';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -502,7 +502,7 @@ export default function Pagamentos() {
         </div>
 
         {isAdmin && (
-          <div className="flex gap-2 items-center">
+          <div className="flex flex-wrap gap-2 items-center">
             {selectedPagamentos.length > 0 && (
               <Button variant="destructive" onClick={handleDeleteSelected}>
                 <Trash2 className="mr-2 h-4 w-4" />
