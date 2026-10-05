@@ -640,6 +640,118 @@ export type Database = {
           },
         ]
       }
+      forum_comentarios: {
+        Row: {
+          autor_id: string | null
+          created_at: string
+          empresa_id: string
+          id: string
+          post_id: string
+          texto: string
+        }
+        Insert: {
+          autor_id?: string | null
+          created_at?: string
+          empresa_id?: string
+          id?: string
+          post_id: string
+          texto: string
+        }
+        Update: {
+          autor_id?: string | null
+          created_at?: string
+          empresa_id?: string
+          id?: string
+          post_id?: string
+          texto?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "forum_comentarios_autor_id_fkey"
+            columns: ["autor_id"]
+            isOneToOne: false
+            referencedRelation: "usuario_perfil"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "forum_comentarios_empresa_id_fkey"
+            columns: ["empresa_id"]
+            isOneToOne: false
+            referencedRelation: "empresas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "forum_comentarios_post_id_fkey"
+            columns: ["post_id"]
+            isOneToOne: false
+            referencedRelation: "forum_posts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      forum_posts: {
+        Row: {
+          anexos: Json
+          autor_id: string | null
+          canvas: Json
+          categoria: string
+          conteudo_html: string
+          created_at: string
+          empresa_id: string
+          fixado: boolean
+          id: string
+          status: string
+          tags: string[]
+          titulo: string
+          updated_at: string
+        }
+        Insert: {
+          anexos?: Json
+          autor_id?: string | null
+          canvas?: Json
+          categoria?: string
+          conteudo_html?: string
+          created_at?: string
+          empresa_id?: string
+          fixado?: boolean
+          id?: string
+          status?: string
+          tags?: string[]
+          titulo: string
+          updated_at?: string
+        }
+        Update: {
+          anexos?: Json
+          autor_id?: string | null
+          canvas?: Json
+          categoria?: string
+          conteudo_html?: string
+          created_at?: string
+          empresa_id?: string
+          fixado?: boolean
+          id?: string
+          status?: string
+          tags?: string[]
+          titulo?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "forum_posts_autor_id_fkey"
+            columns: ["autor_id"]
+            isOneToOne: false
+            referencedRelation: "usuario_perfil"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "forum_posts_empresa_id_fkey"
+            columns: ["empresa_id"]
+            isOneToOne: false
+            referencedRelation: "empresas"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       grupos_clientes: {
         Row: {
           cor: string | null
