@@ -114,3 +114,9 @@ BEGIN
   ALTER PUBLICATION supabase_realtime ADD TABLE public.chamado_mensagens;
 EXCEPTION WHEN duplicate_object THEN NULL;
 END $$;
+
+-- Permissões explícitas (o RLS acima continua decidindo o que cada um vê).
+GRANT SELECT, UPDATE, DELETE ON public.chamados TO authenticated;
+GRANT SELECT, INSERT ON public.chamado_mensagens TO authenticated;
+GRANT SELECT, INSERT, UPDATE ON public.chamados_config TO authenticated;
+GRANT ALL ON public.chamados, public.chamado_mensagens, public.chamados_config TO service_role;

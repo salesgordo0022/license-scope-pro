@@ -114,3 +114,8 @@ DROP POLICY IF EXISTS "Empresa apaga arquivos do fórum" ON storage.objects;
 CREATE POLICY "Empresa apaga arquivos do fórum" ON storage.objects
   FOR DELETE TO authenticated
   USING (bucket_id = 'forum' AND (public.is_super_admin() OR (storage.foldername(name))[1] = public.get_user_empresa_id()::text));
+
+-- Permissões explícitas (o RLS acima continua decidindo o que cada um vê).
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.forum_posts TO authenticated;
+GRANT SELECT, INSERT, DELETE ON public.forum_comentarios TO authenticated;
+GRANT ALL ON public.forum_posts, public.forum_comentarios TO service_role;
