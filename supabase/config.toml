@@ -1,1 +1,8 @@
 project_id = "nxpblhykcakrdcnnzyyg"
+# Chamadas vindas do Slack e do ZapContábil (sem usuário logado). A segurança é
+# a assinatura do Slack e o token na URL do webhook, verificados nas próprias functions.
+[functions.slack-eventos]
+verify_jwt = false
+
+[functions.zapcontabil-webhook]
+verify_jwt = false

@@ -13,6 +13,7 @@ import TetrisLoading from "@/components/ui/tetris-loader";
 // abre mais rápido e telas pesadas (mapa, PDF, planilhas) não pesam nas outras.
 const Login = lazy(() => import("./pages/Login"));
 const Dashboard = lazy(() => import("./pages/Dashboard"));
+const Chamados = lazy(() => import("./pages/Chamados"));
 const Clientes = lazy(() => import("./pages/Clientes"));
 const Licencas = lazy(() => import("./pages/Licencas"));
 const Revendas = lazy(() => import("./pages/Revendas"));
@@ -60,6 +61,7 @@ const App = () => (
             <Route path="/" element={<Navigate to="/login" replace />} />
             <Route element={<DashboardLayout />}>
               <Route path="/dashboard" element={<Dashboard />} />
+              <Route path="/chamados" element={<Chamados />} />
               <Route path="/clientes" element={<Clientes />} />
               <Route path="/licencas" element={<Licencas />} />
               <Route path="/pagamentos" element={<Pagamentos />} />

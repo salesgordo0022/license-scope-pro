@@ -2,6 +2,7 @@ import { NavLink, useLocation } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import {
   LayoutGrid,
+  Inbox,
   Users,
   KeyRound,
   ShoppingCart,
@@ -21,7 +22,8 @@ import {
 } from '@/components/icons';
 import { useAuth } from '@/contexts/AuthContext';
 import { cn } from '@/lib/utils';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { ImperTechLogo } from '@/components/brand/ImperTechLogo';
 
@@ -34,6 +36,7 @@ import { ImperTechLogo } from '@/components/brand/ImperTechLogo';
  */
 const navigation = [
   { name: 'Dashboard', href: '/dashboard', icon: LayoutGrid },
+  { name: 'Chamados', href: '/chamados', icon: Inbox },
   { name: 'Clientes', href: '/clientes', icon: Users },
   { name: 'Licenças', href: '/licencas', icon: KeyRound },
   { name: 'Pagamentos', href: '/pagamentos', icon: DollarSign },
@@ -67,6 +70,28 @@ export function AppSidebar({ collapsed: controlledCollapsed, onToggleCollapse }:
   const [internalCollapsed, setInternalCollapsed] = useState(false);
   const collapsed = controlledCollapsed ?? internalCollapsed;
   const toggleCollapse = onToggleCollapse ?? (() => setInternalCollapsed(!internalCollapsed));
+
+  // Mensagens não lidas dos chamados em aberto (selo no item "Chamados").
+  const [naoLidas, setNaoLidas] = useState(0);
+  useEffect(() => {
+    const contar = () =>
+      supabase
+        .from('chamados')
+        .select('nao_lidas')
+        .neq('status', 'resolvido')
+        .gt('nao_lidas', 0)
+        .then(({ data, error }) => {
+          if (!error) setNaoLidas((data || []).reduce((s, c) => s + (c.nao_lidas || 0), 0));
+        });
+    contar();
+    const canal = supabase
+      .channel('chamados-menu')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'chamados' }, contar)
+      .subscribe();
+    return () => {
+      supabase.removeChannel(canal);
+    };
+  }, []);
 
   return (
     <motion.aside
@@ -123,8 +148,18 @@ export function AppSidebar({ collapsed: controlledCollapsed, onToggleCollapse }:
                   isActive && 'sidebar-item-active'
                 )}
               >
-                <item.icon className="h-5 w-5 flex-shrink-0" />
+                <span className="relative">
+                  <item.icon className="h-5 w-5 flex-shrink-0" />
+                  {item.href === '/chamados' && naoLidas > 0 && collapsed && (
+                    <span className="absolute -right-1.5 -top-1.5 h-2.5 w-2.5 rounded-full bg-red-500 ring-2 ring-[#0B1A3D]" />
+                  )}
+                </span>
                 {!collapsed && <span className="truncate">{item.name}</span>}
+                {!collapsed && item.href === '/chamados' && naoLidas > 0 && (
+                  <span className="ml-auto rounded-full bg-red-500 px-1.5 py-0.5 text-[10px] font-bold leading-none text-white">
+                    {naoLidas > 99 ? '99+' : naoLidas}
+                  </span>
+                )}
               </NavLink>
             );
           })}
