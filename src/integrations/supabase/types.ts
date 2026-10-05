@@ -14,6 +14,187 @@ export type Database = {
   }
   public: {
     Tables: {
+      chamado_mensagens: {
+        Row: {
+          anexos: Json
+          autor_nome: string | null
+          bruto: Json | null
+          chamado_id: string
+          created_at: string
+          direcao: string
+          empresa_id: string
+          enviado_por: string | null
+          externo_id: string | null
+          id: string
+          texto: string
+        }
+        Insert: {
+          anexos?: Json
+          autor_nome?: string | null
+          bruto?: Json | null
+          chamado_id: string
+          created_at?: string
+          direcao: string
+          empresa_id: string
+          enviado_por?: string | null
+          externo_id?: string | null
+          id?: string
+          texto?: string
+        }
+        Update: {
+          anexos?: Json
+          autor_nome?: string | null
+          bruto?: Json | null
+          chamado_id?: string
+          created_at?: string
+          direcao?: string
+          empresa_id?: string
+          enviado_por?: string | null
+          externo_id?: string | null
+          id?: string
+          texto?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "chamado_mensagens_chamado_id_fkey"
+            columns: ["chamado_id"]
+            isOneToOne: false
+            referencedRelation: "chamados"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "chamado_mensagens_empresa_id_fkey"
+            columns: ["empresa_id"]
+            isOneToOne: false
+            referencedRelation: "empresas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "chamado_mensagens_enviado_por_fkey"
+            columns: ["enviado_por"]
+            isOneToOne: false
+            referencedRelation: "usuario_perfil"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      chamados: {
+        Row: {
+          assunto: string | null
+          canal_nome: string | null
+          cliente_id: string | null
+          contato_id: string | null
+          contato_nome: string | null
+          conversa_id: string
+          created_at: string
+          empresa_id: string
+          id: string
+          nao_lidas: number
+          origem: string
+          prioridade: string
+          responsavel_id: string | null
+          status: string
+          ultima_mensagem_em: string
+          updated_at: string
+        }
+        Insert: {
+          assunto?: string | null
+          canal_nome?: string | null
+          cliente_id?: string | null
+          contato_id?: string | null
+          contato_nome?: string | null
+          conversa_id: string
+          created_at?: string
+          empresa_id: string
+          id?: string
+          nao_lidas?: number
+          origem: string
+          prioridade?: string
+          responsavel_id?: string | null
+          status?: string
+          ultima_mensagem_em?: string
+          updated_at?: string
+        }
+        Update: {
+          assunto?: string | null
+          canal_nome?: string | null
+          cliente_id?: string | null
+          contato_id?: string | null
+          contato_nome?: string | null
+          conversa_id?: string
+          created_at?: string
+          empresa_id?: string
+          id?: string
+          nao_lidas?: number
+          origem?: string
+          prioridade?: string
+          responsavel_id?: string | null
+          status?: string
+          ultima_mensagem_em?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "chamados_cliente_id_fkey"
+            columns: ["cliente_id"]
+            isOneToOne: false
+            referencedRelation: "clientes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "chamados_empresa_id_fkey"
+            columns: ["empresa_id"]
+            isOneToOne: false
+            referencedRelation: "empresas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "chamados_responsavel_id_fkey"
+            columns: ["responsavel_id"]
+            isOneToOne: false
+            referencedRelation: "usuario_perfil"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      chamados_config: {
+        Row: {
+          empresa_id: string
+          slack_canais: string[]
+          slack_team_id: string | null
+          slack_user_id: string | null
+          updated_at: string
+          zap_filtro: string | null
+          zap_webhook_token: string
+        }
+        Insert: {
+          empresa_id?: string
+          slack_canais?: string[]
+          slack_team_id?: string | null
+          slack_user_id?: string | null
+          updated_at?: string
+          zap_filtro?: string | null
+          zap_webhook_token?: string
+        }
+        Update: {
+          empresa_id?: string
+          slack_canais?: string[]
+          slack_team_id?: string | null
+          slack_user_id?: string | null
+          updated_at?: string
+          zap_filtro?: string | null
+          zap_webhook_token?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "chamados_config_empresa_id_fkey"
+            columns: ["empresa_id"]
+            isOneToOne: true
+            referencedRelation: "empresas"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       cliente_modulos: {
         Row: {
           cliente_id: string
