@@ -54,7 +54,29 @@ export type Database = {
           id?: string
           texto?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "chamado_mensagens_chamado_id_fkey"
+            columns: ["chamado_id"]
+            isOneToOne: false
+            referencedRelation: "chamados"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "chamado_mensagens_empresa_id_fkey"
+            columns: ["empresa_id"]
+            isOneToOne: false
+            referencedRelation: "empresas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "chamado_mensagens_enviado_por_fkey"
+            columns: ["enviado_por"]
+            isOneToOne: false
+            referencedRelation: "usuario_perfil"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       chamados: {
         Row: {
@@ -111,7 +133,29 @@ export type Database = {
           ultima_mensagem_em?: string
           updated_at?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "chamados_cliente_id_fkey"
+            columns: ["cliente_id"]
+            isOneToOne: false
+            referencedRelation: "clientes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "chamados_empresa_id_fkey"
+            columns: ["empresa_id"]
+            isOneToOne: false
+            referencedRelation: "empresas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "chamados_responsavel_id_fkey"
+            columns: ["responsavel_id"]
+            isOneToOne: false
+            referencedRelation: "usuario_perfil"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       chamados_config: {
         Row: {
@@ -141,7 +185,15 @@ export type Database = {
           zap_filtro?: string | null
           zap_webhook_token?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "chamados_config_empresa_id_fkey"
+            columns: ["empresa_id"]
+            isOneToOne: true
+            referencedRelation: "empresas"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       cliente_modulos: {
         Row: {
@@ -587,81 +639,6 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
-      }
-      forum_comentarios: {
-        Row: {
-          autor_id: string | null
-          created_at: string
-          empresa_id: string
-          id: string
-          post_id: string
-          texto: string
-        }
-        Insert: {
-          autor_id?: string | null
-          created_at?: string
-          empresa_id?: string
-          id?: string
-          post_id: string
-          texto: string
-        }
-        Update: {
-          autor_id?: string | null
-          created_at?: string
-          empresa_id?: string
-          id?: string
-          post_id?: string
-          texto?: string
-        }
-        Relationships: []
-      }
-      forum_posts: {
-        Row: {
-          anexos: Json
-          autor_id: string | null
-          canvas: Json
-          categoria: string
-          conteudo_html: string
-          created_at: string
-          empresa_id: string
-          fixado: boolean
-          id: string
-          status: string
-          tags: string[]
-          titulo: string
-          updated_at: string
-        }
-        Insert: {
-          anexos?: Json
-          autor_id?: string | null
-          canvas?: Json
-          categoria?: string
-          conteudo_html?: string
-          created_at?: string
-          empresa_id?: string
-          fixado?: boolean
-          id?: string
-          status?: string
-          tags?: string[]
-          titulo: string
-          updated_at?: string
-        }
-        Update: {
-          anexos?: Json
-          autor_id?: string | null
-          canvas?: Json
-          categoria?: string
-          conteudo_html?: string
-          created_at?: string
-          empresa_id?: string
-          fixado?: boolean
-          id?: string
-          status?: string
-          tags?: string[]
-          titulo?: string
-          updated_at?: string
-        }
-        Relationships: []
       }
       grupos_clientes: {
         Row: {
