@@ -284,3 +284,30 @@ html {
 *:focus-visible {
   @apply outline-none ring-2 ring-ring ring-offset-2 ring-offset-background;
 }
+
+/* Texto do editor do Fórum (TipTap). */
+.forum-texto { line-height: 1.65; color: hsl(var(--foreground)); }
+.forum-texto > * + * { margin-top: 0.75em; }
+.forum-texto h2 { font-size: 1.4rem; font-weight: 700; margin-top: 1.2em; }
+.forum-texto h3 { font-size: 1.15rem; font-weight: 600; margin-top: 1em; }
+.forum-texto ul { list-style: disc; padding-left: 1.5rem; }
+.forum-texto ol { list-style: decimal; padding-left: 1.5rem; }
+.forum-texto blockquote { border-left: 3px solid hsl(var(--primary)); padding-left: 1rem; color: hsl(var(--muted-foreground)); font-style: italic; }
+.forum-texto code { background: hsl(var(--muted)); border-radius: 4px; padding: 0.1em 0.35em; font-size: 0.9em; }
+.forum-texto pre { background: #0B1A3D; color: #E2E8F0; border-radius: 10px; padding: 0.9rem 1rem; overflow-x: auto; font-size: 0.85rem; }
+.forum-texto pre code { background: transparent; padding: 0; color: inherit; }
+.forum-texto a { color: hsl(var(--primary)); text-decoration: underline; }
+.forum-texto mark { background: rgb(253 224 71 / 0.6); border-radius: 3px; padding: 0 2px; }
+.dark .forum-texto mark { background: rgb(234 179 8 / 0.35); color: inherit; }
+.forum-texto img { display: block; max-width: 100%; height: auto; margin: 0.75rem 0; }
+.forum-texto img.ProseMirror-selectednode { outline: 3px solid hsl(var(--primary)); }
+.forum-texto ul[data-type="taskList"] { list-style: none; padding-left: 0.25rem; }
+.forum-texto ul[data-type="taskList"] li { display: flex; gap: 0.5rem; align-items: flex-start; }
+.forum-texto ul[data-type="taskList"] li > label { margin-top: 0.3em; }
+.forum-texto ul[data-type="taskList"] li[data-checked="true"] > div { text-decoration: line-through; color: hsl(var(--muted-foreground)); }
+.forum-texto p.is-editor-empty:first-child::before { content: attr(data-placeholder); color: hsl(var(--muted-foreground)); float: left; height: 0; pointer-events: none; }
+
+/* Quadro (React Flow) com as cores do tema. */
+.forum-quadro .react-flow { --xy-background-color: hsl(var(--background)); }
+.forum-quadro .react-flow__edge-textbg { fill: hsl(var(--card)); }
+.forum-quadro .react-flow__edge-text { fill: hsl(var(--foreground)); font-size: 12px; }

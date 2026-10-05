@@ -3,6 +3,7 @@ import { motion } from 'framer-motion';
 import {
   LayoutGrid,
   Inbox,
+  Forum as ForumIcone,
   Users,
   KeyRound,
   ShoppingCart,
@@ -37,6 +38,7 @@ import { ImperTechLogo } from '@/components/brand/ImperTechLogo';
 const navigation = [
   { name: 'Dashboard', href: '/dashboard', icon: LayoutGrid },
   { name: 'Chamados', href: '/chamados', icon: Inbox },
+  { name: 'Fórum', href: '/forum', icon: ForumIcone },
   { name: 'Clientes', href: '/clientes', icon: Users },
   { name: 'Licenças', href: '/licencas', icon: KeyRound },
   { name: 'Pagamentos', href: '/pagamentos', icon: DollarSign },
