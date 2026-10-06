@@ -12,11 +12,12 @@
  * usuário que clicou — sem ele o retorno do Slack é recusado. A URL de volta
  * só pode ser de uma origem da allowlist (ALLOWED_ORIGINS), sem open redirect.
  *
- * Secrets: SLACK_CLIENT_ID, SLACK_CLIENT_SECRET.
+ * Secrets (ou tabela integracao_segredos): SLACK_CLIENT_ID, SLACK_CLIENT_SECRET.
  */
 import { autenticar, json, origensPermitidas, respostaPreflight } from "../_shared/auth.ts";
 import { clienteServico } from "../_shared/chamados.ts";
 import { ESCOPOS_USUARIO, slackPost } from "../_shared/slack.ts";
+import { segredo } from "../_shared/segredos.ts";
 
 const REDIRECT_URI = `${(Deno.env.get("SUPABASE_URL") ?? "").replace(/\/$/, "")}/functions/v1/slack-oauth`;
 
@@ -48,8 +49,8 @@ async function retornoDoSlack(url: URL): Promise<Response> {
   if (url.searchParams.get("error") || !code) return redirecionar(registro.volta_url, "cancelado");
 
   const form = new URLSearchParams({
-    client_id: Deno.env.get("SLACK_CLIENT_ID") ?? "",
-    client_secret: Deno.env.get("SLACK_CLIENT_SECRET") ?? "",
+    client_id: (await segredo("SLACK_CLIENT_ID")) ?? "",
+    client_secret: (await segredo("SLACK_CLIENT_SECRET")) ?? "",
     code,
     redirect_uri: REDIRECT_URI,
   });
@@ -104,8 +105,8 @@ Deno.serve(async (req) => {
   const db = clienteServico();
 
   if (acao === "iniciar") {
-    const clientId = Deno.env.get("SLACK_CLIENT_ID");
-    if (!clientId || !Deno.env.get("SLACK_CLIENT_SECRET")) return json(req, { error: "App do Slack não configurado (SLACK_CLIENT_ID/SECRET)" }, 500);
+    const clientId = await segredo("SLACK_CLIENT_ID");
+    if (!clientId || !(await segredo("SLACK_CLIENT_SECRET"))) return json(req, { error: "App do Slack não configurado (SLACK_CLIENT_ID/SECRET)" }, 500);
     const voltaOk = voltaPermitida(volta ?? "");
     if (!voltaOk) return json(req, { error: "Endereço de volta não permitido (ALLOWED_ORIGINS)" }, 400);
 
