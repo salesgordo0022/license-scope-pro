@@ -20,7 +20,7 @@ const ALLOWED_HEADERS =
  * vírgula). Sem o secret configurado, só `localhost` é liberado — assim um
  * deploy esquecido falha fechado em vez de aceitar qualquer site.
  */
-function origensPermitidas(): string[] {
+export function origensPermitidas(): string[] {
   const bruto = Deno.env.get("ALLOWED_ORIGINS") ?? "";
   const lista = bruto
     .split(",")

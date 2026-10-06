@@ -87,11 +87,14 @@ export type Database = {
           contato_nome: string | null
           conversa_id: string
           created_at: string
+          dono_id: string | null
           empresa_id: string
           id: string
           nao_lidas: number
           origem: string
           prioridade: string
+          primeira_resposta_em: string | null
+          resolvido_em: string | null
           responsavel_id: string | null
           status: string
           ultima_mensagem_em: string
@@ -105,11 +108,14 @@ export type Database = {
           contato_nome?: string | null
           conversa_id: string
           created_at?: string
+          dono_id?: string | null
           empresa_id: string
           id?: string
           nao_lidas?: number
           origem: string
           prioridade?: string
+          primeira_resposta_em?: string | null
+          resolvido_em?: string | null
           responsavel_id?: string | null
           status?: string
           ultima_mensagem_em?: string
@@ -123,11 +129,14 @@ export type Database = {
           contato_nome?: string | null
           conversa_id?: string
           created_at?: string
+          dono_id?: string | null
           empresa_id?: string
           id?: string
           nao_lidas?: number
           origem?: string
           prioridade?: string
+          primeira_resposta_em?: string | null
+          resolvido_em?: string | null
           responsavel_id?: string | null
           status?: string
           ultima_mensagem_em?: string
@@ -139,6 +148,13 @@ export type Database = {
             columns: ["cliente_id"]
             isOneToOne: false
             referencedRelation: "clientes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "chamados_dono_id_fkey"
+            columns: ["dono_id"]
+            isOneToOne: false
+            referencedRelation: "usuario_perfil"
             referencedColumns: ["id"]
           },
           {
@@ -160,6 +176,7 @@ export type Database = {
       chamados_config: {
         Row: {
           empresa_id: string
+          reabrir_horas: number
           slack_canais: string[]
           slack_team_id: string | null
           slack_user_id: string | null
@@ -169,6 +186,7 @@ export type Database = {
         }
         Insert: {
           empresa_id?: string
+          reabrir_horas?: number
           slack_canais?: string[]
           slack_team_id?: string | null
           slack_user_id?: string | null
@@ -178,6 +196,7 @@ export type Database = {
         }
         Update: {
           empresa_id?: string
+          reabrir_horas?: number
           slack_canais?: string[]
           slack_team_id?: string | null
           slack_user_id?: string | null
@@ -1494,6 +1513,60 @@ export type Database = {
           nome?: string
         }
         Relationships: []
+      }
+      slack_conexoes: {
+        Row: {
+          canais: string[]
+          created_at: string
+          empresa_id: string
+          id: string
+          perfil_id: string
+          slack_nome: string | null
+          slack_team_id: string
+          slack_team_nome: string | null
+          slack_user_id: string
+          updated_at: string
+        }
+        Insert: {
+          canais?: string[]
+          created_at?: string
+          empresa_id: string
+          id?: string
+          perfil_id: string
+          slack_nome?: string | null
+          slack_team_id: string
+          slack_team_nome?: string | null
+          slack_user_id: string
+          updated_at?: string
+        }
+        Update: {
+          canais?: string[]
+          created_at?: string
+          empresa_id?: string
+          id?: string
+          perfil_id?: string
+          slack_nome?: string | null
+          slack_team_id?: string
+          slack_team_nome?: string | null
+          slack_user_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "slack_conexoes_empresa_id_fkey"
+            columns: ["empresa_id"]
+            isOneToOne: false
+            referencedRelation: "empresas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "slack_conexoes_perfil_id_fkey"
+            columns: ["perfil_id"]
+            isOneToOne: true
+            referencedRelation: "usuario_perfil"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       tabela_precos: {
         Row: {

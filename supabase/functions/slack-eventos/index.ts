@@ -1,56 +1,37 @@
 /**
- * Recebe os eventos do Slack (Events API) e transforma em Chamados.
+ * Recebe os eventos do Slack (Events API) e transforma em Chamados — um
+ * chamado por usuário conectado (slack_conexoes), com ele como dono.
  *
- * Viram chamado:
- *  - mensagem direta (DM) para o usuário configurado;
- *  - menção @usuário em qualquer canal;
- *  - qualquer mensagem dos canais escolhidos na configuração;
- *  - respostas numa thread que já virou chamado.
- * Mensagens do próprio usuário numa conversa que já é chamado entram como
- * "saída", para a conversa ficar completa mesmo quando ele responde pelo Slack.
+ * Para cada usuário conectado que enxerga a mensagem, vira chamado dele:
+ *  - mensagem direta (DM ou grupo direto) para ele;
+ *  - menção @ele em qualquer canal;
+ *  - qualquer mensagem dos canais que ELE escolheu;
+ *  - respostas numa conversa que já é chamado dele.
+ * Mensagem escrita pelo próprio usuário numa conversa que já é chamado dele
+ * entra como "saída" (ele respondeu direto pelo Slack).
  *
  * Segurança: sem JWT (quem chama é o Slack), mas toda requisição precisa da
- * assinatura HMAC do Slack (secret SLACK_SIGNING_SECRET) e de timestamp
- * recente — sem isso a resposta é 401.
- *
- * Secrets: SLACK_SIGNING_SECRET, SLACK_USER_TOKEN (xoxp-, para ler nomes e
- * responder como você). Opcional: CHAMADOS_EMPRESA_ID.
+ * assinatura HMAC do Slack (SLACK_SIGNING_SECRET) com timestamp recente.
  */
-import { clienteServico, registrarEntrada } from "../_shared/chamados.ts";
+import { clienteServico, registrarMensagem } from "../_shared/chamados.ts";
+import { assinaturaSlackValida, autorizacoesDoEvento, slackGet } from "../_shared/slack.ts";
 
-const encoder = new TextEncoder();
-
-async function assinaturaValida(req: Request, corpo: string): Promise<boolean> {
-  const segredo = Deno.env.get("SLACK_SIGNING_SECRET");
-  const ts = req.headers.get("X-Slack-Request-Timestamp") ?? "";
-  const assinatura = req.headers.get("X-Slack-Signature") ?? "";
-  if (!segredo || !ts || !assinatura) return false;
-  // Rejeita requisições com mais de 5 minutos (proteção contra repetição).
-  if (Math.abs(Date.now() / 1000 - Number(ts)) > 300) return false;
-  const chave = await crypto.subtle.importKey("raw", encoder.encode(segredo), { name: "HMAC", hash: "SHA-256" }, false, ["sign"]);
-  const mac = new Uint8Array(await crypto.subtle.sign("HMAC", chave, encoder.encode(`v0:${ts}:${corpo}`)));
-  const esperado = "v0=" + Array.from(mac, (b) => b.toString(16).padStart(2, "0")).join("");
-  if (esperado.length !== assinatura.length) return false;
-  let dif = 0;
-  for (let i = 0; i < esperado.length; i++) dif |= esperado.charCodeAt(i) ^ assinatura.charCodeAt(i);
-  return dif === 0;
+interface Conexao {
+  empresa_id: string;
+  perfil_id: string;
+  slack_team_id: string;
+  slack_user_id: string;
+  access_token: string;
+  canais: string[];
 }
 
-// Cache simples de nomes (vale enquanto a instância da function estiver viva).
+// Cache de nomes (vale enquanto a instância da function estiver viva).
 const nomes = new Map<string, string>();
 
-async function slackApi(metodo: string, params: Record<string, string>) {
-  const token = Deno.env.get("SLACK_USER_TOKEN") ?? Deno.env.get("SLACK_BOT_TOKEN") ?? "";
-  const resp = await fetch(`https://slack.com/api/${metodo}?${new URLSearchParams(params)}`, {
-    headers: { Authorization: `Bearer ${token}` },
-  });
-  return resp.json();
-}
-
-async function nomeUsuario(id: string): Promise<string> {
+async function nomeUsuario(token: string, id: string): Promise<string> {
   if (nomes.has(id)) return nomes.get(id)!;
   try {
-    const r = await slackApi("users.info", { user: id });
+    const r = await slackGet(token, "users.info", { user: id });
     const p = r?.user?.profile;
     const nome = p?.display_name || p?.real_name || r?.user?.real_name || r?.user?.name || id;
     nomes.set(id, nome);
@@ -60,11 +41,11 @@ async function nomeUsuario(id: string): Promise<string> {
   }
 }
 
-async function nomeCanal(id: string, tipo: string): Promise<string> {
+async function nomeCanal(token: string, id: string, tipo: string): Promise<string> {
   if (tipo === "im") return "Mensagem direta";
   if (nomes.has(id)) return nomes.get(id)!;
   try {
-    const r = await slackApi("conversations.info", { channel: id });
+    const r = await slackGet(token, "conversations.info", { channel: id });
     const nome = r?.channel?.name ? `#${r.channel.name}` : tipo === "mpim" ? "Grupo direto" : id;
     nomes.set(id, nome);
     return nome;
@@ -73,11 +54,13 @@ async function nomeCanal(id: string, tipo: string): Promise<string> {
   }
 }
 
-/** Troca <@U123> por @Nome e <#C123|nome> por #nome. */
-async function limparTexto(texto: string): Promise<string> {
+/** Troca <@U123> por @Nome, <#C123|nome> por #nome e desfaz os escapes. */
+async function limparTexto(token: string, texto: string): Promise<string> {
   let t = texto || "";
-  for (const m of [...t.matchAll(/<@([UW][A-Z0-9]+)>/g)]) t = t.replace(m[0], `@${await nomeUsuario(m[1])}`);
-  t = t.replace(/<#[A-Z0-9]+\|([^>]+)>/g, "#$1").replace(/<(https?:[^|>]+)\|([^>]+)>/g, "$2 ($1)").replace(/<(https?:[^>]+)>/g, "$1");
+  for (const id of new Set([...t.matchAll(/<@([UW][A-Z0-9]+)>/g)].map((m) => m[1]))) {
+    t = t.replaceAll(`<@${id}>`, `@${await nomeUsuario(token, id)}`);
+  }
+  t = t.replace(/<#[A-Z0-9]+\|([^>]*)>/g, "#$1").replace(/<(https?:[^|>]+)\|([^>]+)>/g, "$2 ($1)").replace(/<(https?:[^>]+)>/g, "$1");
   return t.replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&amp;/g, "&");
 }
 
@@ -86,89 +69,84 @@ const tsParaIso = (ts: string) => new Date(Number(ts) * 1000).toISOString();
 // Subtipos que não são mensagem "de verdade" (edição, exclusão, entrada em canal...).
 const SUBTIPOS_ACEITOS = new Set([undefined, "file_share", "thread_broadcast", "me_message"]);
 
+// deno-lint-ignore no-explicit-any
 async function processar(payload: Record<string, any>) {
   const ev = payload.event ?? {};
-  if (ev.type !== "message" || !SUBTIPOS_ACEITOS.has(ev.subtype) || ev.bot_id || !ev.user) return;
-
   const db = clienteServico();
 
-  // Empresa dona deste workspace do Slack.
-  let { data: cfg } = await db
-    .from("chamados_config")
-    .select("empresa_id, slack_user_id, slack_canais, slack_team_id")
-    .eq("slack_team_id", payload.team_id)
-    .maybeSingle();
-  if (!cfg) {
-    const { data: todas } = await db.from("chamados_config").select("empresa_id, slack_user_id, slack_canais, slack_team_id");
-    const fixa = Deno.env.get("CHAMADOS_EMPRESA_ID");
-    cfg = (todas || []).find((c) => c.empresa_id === fixa) ?? ((todas || []).length === 1 ? todas![0] : null);
-    // Primeiro evento do workspace: grava o team_id para as próximas vezes.
-    if (cfg && !cfg.slack_team_id) await db.from("chamados_config").update({ slack_team_id: payload.team_id }).eq("empresa_id", cfg.empresa_id);
+  // Usuário removeu o app ou revogou o acesso: apaga as conexões dele.
+  if (ev.type === "tokens_revoked") {
+    const usuarios: string[] = ev.tokens?.oauth ?? [];
+    if (usuarios.length) await db.from("slack_conexoes").delete().eq("slack_team_id", payload.team_id).in("slack_user_id", usuarios);
+    return;
   }
-  if (!cfg) return;
-
-  const eu = cfg.slack_user_id as string | null;
-  const tipo: string = ev.channel_type ?? "channel";
-  const direta = tipo === "im" || tipo === "mpim";
-  const raizThread: string = ev.thread_ts ?? ev.ts;
-  const conversaId = direta ? `dm:${ev.channel}` : `th:${ev.channel}:${raizThread}`;
-  const textoOriginal: string = ev.text ?? "";
-
-  // Conversa já virou chamado? (respostas na thread continuam no mesmo chamado)
-  const { data: existente } = await db
-    .from("chamados")
-    .select("id")
-    .eq("empresa_id", cfg.empresa_id)
-    .eq("origem", "slack")
-    .eq("conversa_id", conversaId)
-    .maybeSingle();
-
-  const doProprioUsuario = !!eu && ev.user === eu;
-  const mencionaUsuario = !!eu && textoOriginal.includes(`<@${eu}>`);
-  const canalEscolhido = (cfg.slack_canais || []).includes(ev.channel);
-
-  const texto = await limparTexto(textoOriginal);
-  const anexos = (ev.files || []).map((f: any) => ({ nome: f.name || f.title, url: f.permalink, tipo: f.mimetype }));
-
-  if (doProprioUsuario) {
-    // Sua própria resposta pelo Slack: só registra se a conversa já é chamado.
-    if (!existente) return;
-    await db.from("chamado_mensagens").insert({
-      chamado_id: existente.id,
-      empresa_id: cfg.empresa_id,
-      direcao: "saida",
-      autor_nome: await nomeUsuario(ev.user),
-      texto,
-      externo_id: ev.ts,
-      anexos,
-      bruto: ev,
-      created_at: tsParaIso(ev.ts),
-    });
-    await db.from("chamados").update({ ultima_mensagem_em: tsParaIso(ev.ts) }).eq("id", existente.id);
+  if (ev.type === "app_uninstalled") {
+    await db.from("slack_conexoes").delete().eq("slack_team_id", payload.team_id);
     return;
   }
 
-  if (!(direta || mencionaUsuario || canalEscolhido || existente)) return;
+  if (ev.type !== "message" || !SUBTIPOS_ACEITOS.has(ev.subtype) || ev.bot_id || !ev.user) return;
 
-  await registrarEntrada(db, {
-    empresaId: cfg.empresa_id,
-    origem: "slack",
+  // Usuários conectados que enxergam esta mensagem.
+  const autorizados = await autorizacoesDoEvento(payload);
+  if (!autorizados.length) return;
+  const { data } = await db
+    .from("slack_conexoes")
+    .select("empresa_id, perfil_id, slack_team_id, slack_user_id, access_token, canais")
+    .eq("slack_team_id", payload.team_id)
+    .in("slack_user_id", [...new Set(autorizados.map((a) => a.user_id))]);
+  const conexoes = (data || []) as Conexao[];
+  if (!conexoes.length) return;
+
+  const token = conexoes[0].access_token; // qualquer um serve para ler nomes
+  const tipo: string = ev.channel_type ?? "channel";
+  const direta = tipo === "im" || tipo === "mpim";
+  const conversaId = direta ? `dm:${ev.channel}` : `th:${ev.channel}:${ev.thread_ts ?? ev.ts}`;
+  const textoOriginal: string = ev.text ?? "";
+  const texto = await limparTexto(token, textoOriginal);
+  const autor = await nomeUsuario(token, ev.user);
+  const canalNome = await nomeCanal(token, ev.channel, tipo);
+  const anexos = (ev.files || []).map((f: Record<string, string>) => ({ nome: f.name || f.title, url: f.permalink, tipo: f.mimetype }));
+  const base = {
+    origem: "slack" as const,
     conversaId,
-    canalNome: await nomeCanal(ev.channel, tipo),
-    contatoNome: await nomeUsuario(ev.user),
-    contatoId: ev.user,
     texto,
-    externoId: ev.ts,
+    externoId: String(ev.ts),
     anexos,
     bruto: ev,
     quando: tsParaIso(ev.ts),
-  });
+  };
+
+  for (const c of conexoes) {
+    try {
+      if (ev.user === c.slack_user_id) {
+        // Ele mesmo respondeu pelo Slack: só registra se a conversa já é chamado dele.
+        await registrarMensagem(db, { ...base, empresaId: c.empresa_id, donoId: c.perfil_id, direcao: "saida", autorNome: autor });
+        continue;
+      }
+      const relevante = direta || textoOriginal.includes(`<@${c.slack_user_id}>`) || (c.canais || []).includes(ev.channel);
+      await registrarMensagem(db, {
+        ...base,
+        empresaId: c.empresa_id,
+        donoId: c.perfil_id,
+        direcao: "entrada",
+        canalNome,
+        contatoNome: autor,
+        contatoId: ev.user,
+        // Resposta em thread de canal não escolhido: só entra se já é chamado.
+        soExistente: !relevante,
+      });
+    } catch (e) {
+      console.error("slack-eventos: conexão", c.perfil_id, e);
+    }
+  }
 }
 
 Deno.serve(async (req) => {
   if (req.method !== "POST") return new Response("ok");
   const corpo = await req.text();
 
+  // deno-lint-ignore no-explicit-any
   let payload: Record<string, any>;
   try {
     payload = JSON.parse(corpo);
@@ -176,7 +154,7 @@ Deno.serve(async (req) => {
     return new Response("json inválido", { status: 400 });
   }
 
-  if (!(await assinaturaValida(req, corpo))) return new Response("assinatura inválida", { status: 401 });
+  if (!(await assinaturaSlackValida(req, corpo))) return new Response("assinatura inválida", { status: 401 });
 
   // Verificação da URL ao configurar o app no Slack.
   if (payload.type === "url_verification") {

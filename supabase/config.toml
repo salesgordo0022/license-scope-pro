@@ -6,3 +6,8 @@ verify_jwt = false
 
 [functions.zapcontabil-webhook]
 verify_jwt = false
+
+# Retorno do OAuth do Slack (GET sem login). O "iniciar" exige login e é
+# verificado dentro da function.
+[functions.slack-oauth]
+verify_jwt = false

@@ -13,7 +13,7 @@
  * Segurança: sem JWT (quem chama é o ZapContábil); exige o token da empresa
  * na URL, comparado com chamados_config.zap_webhook_token.
  */
-import { clienteServico, registrarEntrada } from "../_shared/chamados.ts";
+import { clienteServico, iguaisSeguro, registrarMensagem } from "../_shared/chamados.ts";
 
 type Obj = Record<string, any>;
 
@@ -78,7 +78,7 @@ Deno.serve(async (req) => {
 
   const db = clienteServico();
   const { data: cfg } = await db.from("chamados_config").select("empresa_id, zap_webhook_token, zap_filtro").eq("empresa_id", empresaId).maybeSingle();
-  if (!cfg || !token || cfg.zap_webhook_token !== token) return new Response("não autorizado", { status: 401 });
+  if (!cfg || !iguaisSeguro(token, cfg.zap_webhook_token)) return new Response("não autorizado", { status: 401 });
 
   let payload: Obj;
   try {
@@ -95,43 +95,21 @@ Deno.serve(async (req) => {
     const filtro = (cfg.zap_filtro ?? "").trim().toLowerCase();
     if (filtro && !m.canal.some((c) => c.toLowerCase() === filtro)) return new Response("outro canal");
 
-    const conversaId = `wa:${m.numero}`;
     const anexos = m.midia ? [{ nome: m.tipoMidia ?? "anexo", url: m.midia }] : [];
-
-    if (m.fromMe) {
-      // Resposta feita pelo ZapContábil: entra como saída se a conversa já é chamado.
-      const { data: existente } = await db
-        .from("chamados")
-        .select("id")
-        .eq("empresa_id", cfg.empresa_id)
-        .eq("origem", "zapcontabil")
-        .eq("conversa_id", conversaId)
-        .maybeSingle();
-      if (existente) {
-        await db.from("chamado_mensagens").insert({
-          chamado_id: existente.id,
-          empresa_id: cfg.empresa_id,
-          direcao: "saida",
-          autor_nome: "ZapContábil",
-          texto: m.texto,
-          externo_id: m.id,
-          anexos,
-          bruto: payload,
-          ...(m.quandoIso ? { created_at: m.quandoIso } : {}),
-        });
-      }
-      return new Response("ok");
-    }
-
-    await registrarEntrada(db, {
+    // fromMe = resposta feita direto no ZapContábil: entra como saída se a
+    // conversa já é chamado. WhatsApp é fila comum da empresa (sem dono).
+    await registrarMensagem(db, {
       empresaId: cfg.empresa_id,
       origem: "zapcontabil",
-      conversaId,
-      canalNome: String(m.canalNome),
-      contatoNome: m.nome ? String(m.nome) : m.numero,
-      contatoId: m.numero,
+      conversaId: `wa:${m.numero}`,
+      donoId: null,
+      direcao: m.fromMe ? "saida" : "entrada",
       texto: m.texto || "(mídia)",
       externoId: m.id,
+      autorNome: m.fromMe ? "ZapContábil" : null,
+      canalNome: String(m.canalNome),
+      contatoNome: m.fromMe ? null : m.nome ? String(m.nome) : m.numero,
+      contatoId: m.numero,
       anexos,
       bruto: payload,
       quando: m.quandoIso,

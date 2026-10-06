@@ -1,7 +1,8 @@
 /**
  * Responde um chamado pela origem dele.
- *  - Slack: posta na DM ou na thread do chamado, como o usuário dono do
- *    SLACK_USER_TOKEN (a resposta aparece com o seu nome).
+ *  - Slack: posta na DM ou na thread do chamado com o Slack conectado de
+ *    quem está respondendo (a resposta aparece com o nome dele). DM só pode
+ *    ser respondida pelo dono do chamado — é a conversa particular dele.
  *  - ZapContábil: envia WhatsApp para o número do contato (mesma API e
  *    token do send-whatsapp).
  * A mensagem enviada é gravada como "saida" e o chamado passa para
@@ -11,23 +12,24 @@
  * RLS garante que só se responde chamado da própria empresa.
  */
 import { autenticar, json, respostaPreflight } from "../_shared/auth.ts";
+import { clienteServico } from "../_shared/chamados.ts";
+import { slackPost } from "../_shared/slack.ts";
 
 const ZAP_BASE = Deno.env.get("ZAPCONTABIL_BASE_URL") ?? "https://api-imperial.zapcontabil.chat";
 
-async function enviarSlack(conversaId: string, texto: string) {
-  const token = Deno.env.get("SLACK_USER_TOKEN");
-  if (!token) throw new Error("SLACK_USER_TOKEN não configurado");
+async function enviarSlack(perfilId: string | null, chamado: { conversa_id: string; dono_id: string | null }, texto: string) {
   // dm:<canal>  ou  th:<canal>:<ts da thread>
-  const [tipo, canal, thread] = conversaId.split(":");
+  const [tipo, canal, thread] = chamado.conversa_id.split(":");
+  if (tipo === "dm" && chamado.dono_id && chamado.dono_id !== perfilId) {
+    throw new Error("Esta é uma mensagem direta de outro usuário: só o dono do chamado pode responder");
+  }
+  // Token lido com a service role: a coluna não é exposta ao navegador.
+  const { data: conexao } = await clienteServico().from("slack_conexoes").select("access_token").eq("perfil_id", perfilId ?? "").maybeSingle();
+  if (!conexao) throw new Error("Conecte o seu Slack (botão Meu Slack) para responder chamados do Slack");
   const corpo: Record<string, string> = { channel: canal, text: texto };
   if (tipo === "th" && thread) corpo.thread_ts = thread;
-  const resp = await fetch("https://slack.com/api/chat.postMessage", {
-    method: "POST",
-    headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json; charset=utf-8" },
-    body: JSON.stringify(corpo),
-  });
-  const r = await resp.json();
-  if (!r.ok) throw new Error(`Slack recusou: ${r.error}`);
+  const r = await slackPost(conexao.access_token, "chat.postMessage", corpo);
+  if (!r.ok) throw new Error(r.error === "not_in_channel" || r.error === "channel_not_found" ? "Você não participa deste canal no Slack" : `Slack recusou: ${r.error}`);
   return String(r.ts);
 }
 
@@ -65,13 +67,13 @@ Deno.serve(async (req) => {
 
     const { data: chamado, error } = await auth.client
       .from("chamados")
-      .select("id, empresa_id, origem, conversa_id, contato_id, status")
+      .select("id, empresa_id, origem, conversa_id, contato_id, status, dono_id")
       .eq("id", chamado_id)
       .maybeSingle();
     if (error || !chamado) return json(req, { error: "Chamado não encontrado" }, 404);
 
     const externoId =
-      chamado.origem === "slack" ? await enviarSlack(chamado.conversa_id, mensagem) : await enviarZap(String(chamado.contato_id ?? "").replace(/\D/g, ""), mensagem);
+      chamado.origem === "slack" ? await enviarSlack(auth.perfilId, chamado, mensagem) : await enviarZap(String(chamado.contato_id ?? "").replace(/\D/g, ""), mensagem);
 
     const { data: perfil } = await auth.client.from("usuario_perfil").select("nome, email").eq("id", auth.perfilId ?? "").maybeSingle();
     const agora = new Date().toISOString();
@@ -89,12 +91,13 @@ Deno.serve(async (req) => {
       },
       { onConflict: "chamado_id,externo_id", ignoreDuplicates: true },
     );
-    await auth.client
+    // Service role: ultima_mensagem_em não é editável pela tela (o RLS já
+    // conferiu acima que este usuário enxerga o chamado).
+    await clienteServico()
       .from("chamados")
       .update({
         ultima_mensagem_em: agora,
         nao_lidas: 0,
-        updated_at: agora,
         ...(chamado.status === "aberto" ? { status: "em_atendimento" } : {}),
       })
       .eq("id", chamado.id);

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { format, isToday, isYesterday, parseISO } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { Inbox, Search, Send, Settings2, Loader2, MessageCircle, Paperclip, ChevronLeft, Copy, Check } from '@/components/icons';
+import { Inbox, Search, Send, Settings2, Loader2, MessageCircle, Paperclip, ChevronLeft, Copy, Check, BarChart3 } from '@/components/icons';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -12,6 +12,9 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
+import { MeuSlack, type ConexaoSlack } from '@/components/chamados/MeuSlack';
+import { RelatorioMensal } from '@/components/chamados/RelatorioMensal';
+import { erroDaFunction } from '@/lib/erroFunction';
 
 interface Chamado {
   id: string;
@@ -25,6 +28,7 @@ interface Chamado {
   prioridade: string;
   responsavel_id: string | null;
   cliente_id: string | null;
+  dono_id: string | null;
   ultima_mensagem_em: string;
   nao_lidas: number;
 }
@@ -45,6 +49,7 @@ interface Config {
   slack_canais: string[];
   zap_webhook_token: string;
   zap_filtro: string | null;
+  reabrir_horas: number;
 }
 
 const STATUS = [
@@ -82,18 +87,23 @@ function horaCurta(iso: string) {
 const SUPABASE_URL = (import.meta.env.VITE_SUPABASE_URL as string | undefined)?.replace(/\/$/, '') ?? '';
 
 /**
- * Chamados: caixa de entrada única com as mensagens do Slack (DMs, menções e
- * canais escolhidos) e de um canal do ZapContábil (WhatsApp). Dá para mudar
- * status, prioridade, responsável, vincular ao cliente e responder — a
- * resposta volta para a origem. Atualiza em tempo real.
+ * Chamados: caixa de entrada única com as mensagens do Slack e de um canal do
+ * ZapContábil (WhatsApp). Cada usuário conecta o próprio Slack ("Meu Slack")
+ * e recebe as DMs, menções e canais escolhidos DELE; o WhatsApp é a fila
+ * comum da empresa. Dá para mudar status, prioridade, responsável, vincular
+ * ao cliente e responder — a resposta volta para a origem. Atualiza em tempo
+ * real. "Relatório" mostra a quantidade de chamados por mês.
  */
 export default function Chamados() {
-  const { isAdmin } = useAuth();
+  const { isAdmin, profile } = useAuth();
+  const meuId = profile?.id ?? null;
   const [chamados, setChamados] = useState<Chamado[]>([]);
   const [carregando, setCarregando] = useState(true);
   const [tabelaOk, setTabelaOk] = useState(true);
   const [aba, setAba] = useState('ativos');
   const [origem, setOrigem] = useState<'todas' | 'slack' | 'zapcontabil'>('todas');
+  // 'meus' = sou dono ou responsável; 'todos' = tudo o que enxergo; outro valor = id de um usuário (admin).
+  const [de, setDe] = useState<string>('todos');
   const [busca, setBusca] = useState('');
   const [selecionadoId, setSelecionadoId] = useState<string | null>(null);
   const [mensagens, setMensagens] = useState<Mensagem[]>([]);
@@ -103,6 +113,10 @@ export default function Chamados() {
   const [clientes, setClientes] = useState<{ id: string; nome_empresa: string }[]>([]);
   const [config, setConfig] = useState<Config | null>(null);
   const [configAberta, setConfigAberta] = useState(false);
+  const [conexoes, setConexoes] = useState<ConexaoSlack[]>([]);
+  const [meuSlackAberto, setMeuSlackAberto] = useState(false);
+  const [relatorioAberto, setRelatorioAberto] = useState(false);
+  const minhaConexao = conexoes.find((c) => c.perfil_id === meuId) || null;
   const fimConversa = useRef<HTMLDivElement>(null);
   // Conversa aberta, lida dentro do callback de tempo real (que não é recriado).
   const abertoRef = useRef<string | null>(null);
@@ -126,12 +140,32 @@ export default function Chamados() {
     setMensagens((data || []) as Mensagem[]);
   }, []);
 
+  // Conexões do Slack: a minha (todos) e as da equipe (admin).
+  const carregarConexoes = useCallback(async () => {
+    const { data } = await supabase
+      .from('slack_conexoes')
+      .select('id, perfil_id, slack_team_id, slack_team_nome, slack_user_id, slack_nome, canais');
+    setConexoes((data || []) as ConexaoSlack[]);
+  }, []);
+
+  // Volta do "Conectar meu Slack" (?slack=ok|erro|cancelado).
+  useEffect(() => {
+    const url = new URL(window.location.href);
+    const r = url.searchParams.get('slack');
+    if (!r) return;
+    if (r === 'ok') toast.success('Slack conectado', { description: 'Escolha em Meu Slack os canais que devem virar chamado.' });
+    else if (r === 'erro') toast.error('Não foi possível conectar o Slack. Tente de novo.');
+    url.searchParams.delete('slack');
+    window.history.replaceState(null, '', url.toString());
+  }, []);
+
   useEffect(() => {
     carregarChamados();
+    carregarConexoes();
     supabase.from('usuario_perfil').select('id, nome, email').order('nome').then(({ data }) => setUsuarios(data || []));
     supabase.from('clientes').select('id, nome_empresa').order('nome_empresa').then(({ data }) => setClientes(data || []));
     supabase.from('chamados_config').select('*').maybeSingle().then(({ data }) => setConfig((data as Config) || null));
-  }, [carregarChamados]);
+  }, [carregarChamados, carregarConexoes]);
 
   // Tempo real: lista e conversa aberta atualizam sozinhas.
   useEffect(() => {
@@ -172,15 +206,26 @@ export default function Chamados() {
       const casaAba =
         aba === 'todos' ? true : aba === 'ativos' ? c.status !== 'resolvido' : c.status === aba;
       const casaOrigem = origem === 'todas' || c.origem === origem;
+      const casaDe =
+        de === 'todos' ? true : de === 'meus' ? c.dono_id === meuId || c.responsavel_id === meuId : c.dono_id === de || c.responsavel_id === de;
       const casaBusca =
         !termo ||
         [c.contato_nome, c.canal_nome, c.assunto, c.contato_id].some((v) => (v || '').toLowerCase().includes(termo));
-      return casaAba && casaOrigem && casaBusca;
+      return casaAba && casaOrigem && casaDe && casaBusca;
     });
-  }, [chamados, aba, origem, busca]);
+  }, [chamados, aba, origem, de, busca, meuId]);
 
   const contagem = (valor: string) =>
-    chamados.filter((c) => (valor === 'todos' ? true : valor === 'ativos' ? c.status !== 'resolvido' : c.status === valor)).length;
+    chamados.filter(
+      (c) =>
+        (valor === 'todos' ? true : valor === 'ativos' ? c.status !== 'resolvido' : c.status === valor) &&
+        (de === 'todos' || (de === 'meus' ? c.dono_id === meuId || c.responsavel_id === meuId : c.dono_id === de || c.responsavel_id === de))
+    ).length;
+
+  const nomeUsuario = (id: string | null) => {
+    const u = usuarios.find((x) => x.id === id);
+    return u?.nome || u?.email || null;
+  };
 
   const atualizar = async (campos: Partial<Chamado>) => {
     if (!selecionado) return;
@@ -200,15 +245,7 @@ export default function Chamados() {
     });
     setEnviando(false);
     if (error || data?.error) {
-      let detalhe = data?.error as string | undefined;
-      if (!detalhe && error && 'context' in error) {
-        try {
-          detalhe = (await (error as { context: Response }).context.json())?.error;
-        } catch {
-          /* sem corpo */
-        }
-      }
-      toast.error('Resposta não enviada', { description: detalhe || error?.message });
+      toast.error('Resposta não enviada', { description: await erroDaFunction(error, data) });
       return;
     }
     setResposta('');
@@ -240,11 +277,20 @@ export default function Chamados() {
           </h1>
           <p className="text-sm text-muted-foreground">Mensagens do Slack e do WhatsApp (ZapContábil) num lugar só</p>
         </div>
-        {isAdmin && (
-          <Button variant="outline" className="gap-2" onClick={() => setConfigAberta(true)}>
-            <Settings2 className="h-4 w-4" /> Integrações
+        <div className="flex flex-wrap gap-2">
+          <Button variant="outline" className="gap-2" onClick={() => setMeuSlackAberto(true)}>
+            <span className={cn('h-2 w-2 rounded-full', minhaConexao ? 'bg-emerald-500' : 'bg-muted-foreground/40')} />
+            {minhaConexao ? 'Meu Slack' : 'Conectar meu Slack'}
           </Button>
-        )}
+          <Button variant="outline" className="gap-2" onClick={() => setRelatorioAberto(true)}>
+            <BarChart3 className="h-4 w-4" /> Relatório
+          </Button>
+          {isAdmin && (
+            <Button variant="outline" className="gap-2" onClick={() => setConfigAberta(true)}>
+              <Settings2 className="h-4 w-4" /> Integrações
+            </Button>
+          )}
+        </div>
       </div>
 
       <div className="grid min-h-0 flex-1 gap-4 lg:grid-cols-[380px_minmax(0,1fr)]">
@@ -255,7 +301,24 @@ export default function Chamados() {
               <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
               <Input value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="Buscar contato, canal ou assunto..." className="pl-9" />
             </div>
-            <div className="flex gap-1.5">
+            <div className="flex flex-wrap items-center gap-1.5">
+              <Select value={de} onValueChange={setDe}>
+                <SelectTrigger className="h-7 w-auto min-w-[110px] rounded-full text-xs">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="todos">{isAdmin ? 'De todos' : 'Todos que vejo'}</SelectItem>
+                  <SelectItem value="meus">Meus</SelectItem>
+                  {isAdmin &&
+                    usuarios
+                      .filter((u) => u.id !== meuId)
+                      .map((u) => (
+                        <SelectItem key={u.id} value={u.id}>
+                          {u.nome || u.email}
+                        </SelectItem>
+                      ))}
+                </SelectContent>
+              </Select>
               {(['todas', 'slack', 'zapcontabil'] as const).map((o) => (
                 <button
                   key={o}
@@ -313,7 +376,10 @@ export default function Chamados() {
                       </span>
                       <span className="ml-auto shrink-0 text-[11px] text-muted-foreground">{horaCurta(c.ultima_mensagem_em)}</span>
                     </span>
-                    <span className="block truncate text-[11px] text-muted-foreground">{c.canal_nome}</span>
+                    <span className="block truncate text-[11px] text-muted-foreground">
+                      {c.canal_nome}
+                      {c.dono_id && c.dono_id !== meuId && nomeUsuario(c.dono_id) ? ` · Slack de ${nomeUsuario(c.dono_id)}` : ''}
+                    </span>
                     <span className="mt-0.5 flex items-center gap-2">
                       <span className="min-w-0 flex-1 truncate text-xs text-muted-foreground">{c.assunto}</span>
                       {c.nao_lidas > 0 && (
@@ -352,6 +418,7 @@ export default function Chamados() {
                     <p className="truncate text-xs text-muted-foreground">
                       {ORIGEM[selecionado.origem].rotulo} · {selecionado.canal_nome}
                       {selecionado.origem === 'zapcontabil' && selecionado.contato_id ? ` · ${selecionado.contato_id}` : ''}
+                      {selecionado.dono_id ? ` · Slack de ${selecionado.dono_id === meuId ? 'você' : nomeUsuario(selecionado.dono_id) || 'outro usuário'}` : ''}
                     </p>
                   </div>
                 </div>
@@ -468,45 +535,56 @@ export default function Chamados() {
         </section>
       </div>
 
-      <ConfigIntegracoes aberta={configAberta} onFechar={() => setConfigAberta(false)} config={config} onSalvo={setConfig} />
+      <ConfigIntegracoes
+        aberta={configAberta}
+        onFechar={() => setConfigAberta(false)}
+        config={config}
+        onSalvo={setConfig}
+        conexoes={conexoes}
+        nomeUsuario={nomeUsuario}
+      />
+      <MeuSlack aberta={meuSlackAberto} onFechar={() => setMeuSlackAberto(false)} conexao={minhaConexao} onMudou={carregarConexoes} />
+      <RelatorioMensal aberta={relatorioAberto} onFechar={() => setRelatorioAberto(false)} usuarios={usuarios} clientes={clientes} />
     </div>
   );
 }
 
-/** Tela de integrações: dados do Slack e do ZapContábil e os endereços para colar em cada um. */
+/**
+ * Tela de integrações (admin): quem da equipe já conectou o Slack, o canal do
+ * ZapContábil, o prazo de reabertura e os endereços para colar em cada lado.
+ */
 function ConfigIntegracoes({
   aberta,
   onFechar,
   config,
   onSalvo,
+  conexoes,
+  nomeUsuario,
 }: {
   aberta: boolean;
   onFechar: () => void;
   config: Config | null;
   onSalvo: (c: Config) => void;
+  conexoes: ConexaoSlack[];
+  nomeUsuario: (id: string | null) => string | null;
 }) {
-  const [slackUser, setSlackUser] = useState('');
-  const [canais, setCanais] = useState('');
   const [filtro, setFiltro] = useState('');
+  const [reabrirHoras, setReabrirHoras] = useState('24');
   const [salvando, setSalvando] = useState(false);
   const [copiado, setCopiado] = useState<string | null>(null);
 
   useEffect(() => {
     if (!aberta) return;
-    setSlackUser(config?.slack_user_id || '');
-    setCanais((config?.slack_canais || []).join(', '));
     setFiltro(config?.zap_filtro || '');
+    setReabrirHoras(String(config?.reabrir_horas ?? 24));
   }, [aberta, config]);
 
   const salvar = async () => {
     setSalvando(true);
+    const horas = Math.min(720, Math.max(0, Math.round(Number(reabrirHoras) || 0)));
     const dados = {
-      slack_user_id: slackUser.trim() || null,
-      slack_canais: canais
-        .split(/[\s,;]+/)
-        .map((c) => c.trim())
-        .filter(Boolean),
       zap_filtro: filtro.trim() || null,
+      reabrir_horas: horas,
       updated_at: new Date().toISOString(),
     };
     const resp = config
@@ -554,19 +632,39 @@ function ConfigIntegracoes({
               <span className="flex h-6 w-6 items-center justify-center rounded bg-[#4A154B] text-[10px] font-bold text-white">S</span> Slack
             </p>
             <div className="grid gap-1.5">
-              <Label className="text-xs">Seu ID de usuário no Slack (U…)</Label>
-              <Input value={slackUser} onChange={(e) => setSlackUser(e.target.value)} placeholder="U0123ABCD" />
-              <p className="text-[11px] text-muted-foreground">No Slack: clique na sua foto → Perfil → ⋮ → Copiar ID do membro. DMs e menções a você viram chamado.</p>
-            </div>
-            <div className="grid gap-1.5">
-              <Label className="text-xs">Canais que viram chamado por inteiro (IDs C…, separados por vírgula)</Label>
-              <Input value={canais} onChange={(e) => setCanais(e.target.value)} placeholder="C0123SUPORTE, C0456CLIENTES" />
-              <p className="text-[11px] text-muted-foreground">No canal: clique no nome → no rodapé aparece o ID do canal.</p>
+              <Label className="text-xs">Quem já conectou o Slack</Label>
+              {conexoes.length === 0 ? (
+                <p className="text-[11px] text-muted-foreground">Ninguém ainda. Cada usuário clica em “Conectar meu Slack” na tela de Chamados.</p>
+              ) : (
+                <ul className="divide-y rounded-md border text-xs">
+                  {conexoes.map((c) => (
+                    <li key={c.id} className="flex flex-wrap items-center justify-between gap-2 px-2 py-1.5">
+                      <span className="font-medium">{nomeUsuario(c.perfil_id) || 'Usuário'}</span>
+                      <span className="text-muted-foreground">
+                        {c.slack_nome || c.slack_user_id} · {c.canais.length ? `${c.canais.length} canal(is)` : 'só DMs e menções'}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              )}
             </div>
             <div className="grid gap-1.5">
               <Label className="text-xs">Request URL (Event Subscriptions do app do Slack)</Label>
               <CampoCopiar rotulo="slack" valor={urlSlack} />
-              {config?.slack_team_id && <p className="text-[11px] text-emerald-600">Workspace conectado: {config.slack_team_id}</p>}
+              <p className="text-[11px] text-muted-foreground">
+                No app do Slack, use também como Redirect URL (OAuth &amp; Permissions): <code>{`${SUPABASE_URL}/functions/v1/slack-oauth`}</code>
+              </p>
+            </div>
+          </div>
+
+          <div className="space-y-2 rounded-xl border p-4">
+            <p className="font-semibold">Contagem de chamados</p>
+            <div className="grid gap-1.5">
+              <Label className="text-xs">Reabrir o mesmo chamado se o contato voltar a falar em até (horas)</Label>
+              <Input type="number" min={0} max={720} value={reabrirHoras} onChange={(e) => setReabrirHoras(e.target.value)} className="w-32" />
+              <p className="text-[11px] text-muted-foreground">
+                Depois desse prazo, mensagem nova numa conversa resolvida abre um chamado novo (e conta de novo no mês). Padrão: 24h.
+              </p>
             </div>
           </div>
 
