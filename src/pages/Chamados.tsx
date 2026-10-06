@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { format, isToday, isYesterday, parseISO } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { Inbox, Search, Send, Settings2, Loader2, MessageCircle, Paperclip, ChevronLeft, Copy, Check, BarChart3 } from '@/components/icons';
+import { Inbox, Search, Send, Settings2, Loader2, MessageCircle, Paperclip, ChevronLeft, Copy, Check, BarChart3, RefreshCw } from '@/components/icons';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -50,6 +50,8 @@ interface Config {
   zap_webhook_token: string;
   zap_filtro: string | null;
   reabrir_horas: number;
+  zap_sync_ate: string | null;
+  zap_sync_erro: string | null;
 }
 
 const STATUS = [
@@ -237,6 +239,20 @@ export default function Chamados() {
     }
   };
 
+  // Busca agora as mensagens novas do WhatsApp (o agendamento faz isso a cada minuto).
+  const [sincronizando, setSincronizando] = useState(false);
+  const sincronizarZap = async () => {
+    setSincronizando(true);
+    const { data, error } = await supabase.functions.invoke('zapcontabil-sincronizar', { body: {} });
+    setSincronizando(false);
+    if (error || data?.error) {
+      toast.error('WhatsApp não sincronizado', { description: await erroDaFunction(error, data) });
+      return;
+    }
+    toast.success(data?.gravadas ? `${data.gravadas} mensagem(ns) nova(s) do WhatsApp` : 'WhatsApp em dia');
+    carregarChamados();
+  };
+
   const responder = async () => {
     if (!selecionado || !resposta.trim() || enviando) return;
     setEnviando(true);
@@ -282,6 +298,11 @@ export default function Chamados() {
             <span className={cn('h-2 w-2 rounded-full', minhaConexao ? 'bg-emerald-500' : 'bg-muted-foreground/40')} />
             {minhaConexao ? 'Meu Slack' : 'Conectar meu Slack'}
           </Button>
+          {config?.zap_filtro && (
+            <Button variant="outline" className="gap-2" onClick={sincronizarZap} disabled={sincronizando} title="Buscar agora as mensagens novas do WhatsApp">
+              <RefreshCw className={cn('h-4 w-4', sincronizando && 'animate-spin')} /> WhatsApp
+            </Button>
+          )}
           <Button variant="outline" className="gap-2" onClick={() => setRelatorioAberto(true)}>
             <BarChart3 className="h-4 w-4" /> Relatório
           </Button>
@@ -673,14 +694,24 @@ function ConfigIntegracoes({
               <span className="flex h-6 w-6 items-center justify-center rounded bg-[#25D366] text-[10px] font-bold text-white">W</span> ZapContábil (WhatsApp)
             </p>
             <div className="grid gap-1.5">
-              <Label className="text-xs">Canal a receber (ID ou nome da conexão/fila; vazio = todos)</Label>
-              <Input value={filtro} onChange={(e) => setFiltro(e.target.value)} placeholder="Ex.: Suporte" />
+              <Label className="text-xs">Canal (nome da conexão ou do setor no ZapContábil)</Label>
+              <Input value={filtro} onChange={(e) => setFiltro(e.target.value)} placeholder="Ex.: Impertech" />
+              <p className="text-[11px] text-muted-foreground">
+                Todas as mensagens desse canal entram como chamados da equipe toda, a cada minuto. Respostas enviadas daqui saem assinadas com o nome de quem respondeu, como no ZapContábil.
+              </p>
+              {config?.zap_sync_erro ? (
+                <p className="text-[11px] text-destructive">Erro na última sincronização: {config.zap_sync_erro}</p>
+              ) : config?.zap_sync_ate ? (
+                <p className="text-[11px] text-emerald-600">Sincronizado até {format(parseISO(config.zap_sync_ate), "dd/MM 'às' HH:mm")}</p>
+              ) : null}
             </div>
-            <div className="grid gap-1.5">
-              <Label className="text-xs">URL do webhook (cole no ZapContábil)</Label>
-              <CampoCopiar rotulo="zap" valor={urlZap} />
-              <p className="text-[11px] text-muted-foreground">Esta URL tem um token secreto: não compartilhe.</p>
-            </div>
+            <details className="text-[11px] text-muted-foreground">
+              <summary className="cursor-pointer">Webhook (opcional, se o ZapContábil oferecer)</summary>
+              <div className="mt-2 grid gap-1.5">
+                <CampoCopiar rotulo="zap" valor={urlZap} />
+                <p>Esta URL tem um token secreto: não compartilhe.</p>
+              </div>
+            </details>
           </div>
         </div>
 

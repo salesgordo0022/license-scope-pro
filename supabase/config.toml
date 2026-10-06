@@ -11,3 +11,8 @@ verify_jwt = false
 # verificado dentro da function.
 [functions.slack-oauth]
 verify_jwt = false
+
+# Sincronização do ZapContábil: chamada pelo pg_cron (token da empresa na URL)
+# ou pelo botão da tela (usuário logado, verificado dentro da function).
+[functions.zapcontabil-sincronizar]
+verify_jwt = false

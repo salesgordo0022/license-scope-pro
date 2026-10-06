@@ -181,7 +181,10 @@ export type Database = {
           slack_team_id: string | null
           slack_user_id: string | null
           updated_at: string
+          zap_conexao_id: number | null
           zap_filtro: string | null
+          zap_sync_ate: string | null
+          zap_sync_erro: string | null
           zap_webhook_token: string
         }
         Insert: {
@@ -191,7 +194,10 @@ export type Database = {
           slack_team_id?: string | null
           slack_user_id?: string | null
           updated_at?: string
+          zap_conexao_id?: number | null
           zap_filtro?: string | null
+          zap_sync_ate?: string | null
+          zap_sync_erro?: string | null
           zap_webhook_token?: string
         }
         Update: {
@@ -201,7 +207,10 @@ export type Database = {
           slack_team_id?: string | null
           slack_user_id?: string | null
           updated_at?: string
+          zap_conexao_id?: number | null
           zap_filtro?: string | null
+          zap_sync_ate?: string | null
+          zap_sync_erro?: string | null
           zap_webhook_token?: string
         }
         Relationships: [

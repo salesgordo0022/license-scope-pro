@@ -3,8 +3,9 @@
  *  - Slack: posta na DM ou na thread do chamado com o Slack conectado de
  *    quem está respondendo (a resposta aparece com o nome dele). DM só pode
  *    ser respondida pelo dono do chamado — é a conversa particular dele.
- *  - ZapContábil: envia WhatsApp para o número do contato (mesma API e
- *    token do send-whatsapp).
+ *  - ZapContábil: envia WhatsApp para o número do contato pela conexão do
+ *    canal escolhido, assinado "*Nome:*" com o nome de quem respondeu —
+ *    igual aparece quando o atendente responde pelo próprio ZapContábil.
  * A mensagem enviada é gravada como "saida" e o chamado passa para
  * "em atendimento".
  *
@@ -14,8 +15,15 @@
 import { autenticar, json, respostaPreflight } from "../_shared/auth.ts";
 import { clienteServico } from "../_shared/chamados.ts";
 import { slackPost } from "../_shared/slack.ts";
+import { assinar, zapEnviarTexto } from "../_shared/zapcontabil.ts";
 
-const ZAP_BASE = Deno.env.get("ZAPCONTABIL_BASE_URL") ?? "https://api-imperial.zapcontabil.chat";
+/** Conexão do canal escolhido (descoberta na sincronização) ou a do secret. */
+async function conexaoZap(empresaId: string): Promise<number | null> {
+  const { data } = await clienteServico().from("chamados_config").select("zap_conexao_id").eq("empresa_id", empresaId).maybeSingle();
+  if (data?.zap_conexao_id) return data.zap_conexao_id;
+  const env = (Deno.env.get("ZAPCONTABIL_CONNECTION_ID") ?? "").trim();
+  return env && env.toLowerCase() !== "none" && Number.isFinite(Number(env)) ? Number(env) : null;
+}
 
 async function enviarSlack(perfilId: string | null, chamado: { conversa_id: string; dono_id: string | null }, texto: string) {
   // dm:<canal>  ou  th:<canal>:<ts da thread>
@@ -31,27 +39,6 @@ async function enviarSlack(perfilId: string | null, chamado: { conversa_id: stri
   const r = await slackPost(conexao.access_token, "chat.postMessage", corpo);
   if (!r.ok) throw new Error(r.error === "not_in_channel" || r.error === "channel_not_found" ? "Você não participa deste canal no Slack" : `Slack recusou: ${r.error}`);
   return String(r.ts);
-}
-
-async function enviarZap(numero: string, texto: string) {
-  const token = Deno.env.get("ZAPCONTABIL_API_TOKEN");
-  if (!token) throw new Error("ZAPCONTABIL_API_TOKEN não configurado");
-  const connEnv = (Deno.env.get("ZAPCONTABIL_CONNECTION_ID") ?? "0").trim();
-  const payload: Record<string, unknown> = { body: texto };
-  if (connEnv !== "" && connEnv.toLowerCase() !== "none") payload.connectionFrom = Number(connEnv);
-  const resp = await fetch(`${ZAP_BASE}/api/send/${numero}`, {
-    method: "POST",
-    headers: { accept: "application/json", Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-    body: JSON.stringify(payload),
-  });
-  const corpo = await resp.text();
-  if (!resp.ok) throw new Error(`ZapContábil recusou (${resp.status}): ${corpo.slice(0, 200)}`);
-  try {
-    const j = JSON.parse(corpo);
-    return String(j?.id ?? j?.message?.id ?? j?.data?.id ?? `zap-${Date.now()}`);
-  } catch {
-    return `zap-${Date.now()}`;
-  }
 }
 
 Deno.serve(async (req) => {
@@ -72,10 +59,14 @@ Deno.serve(async (req) => {
       .maybeSingle();
     if (error || !chamado) return json(req, { error: "Chamado não encontrado" }, 404);
 
-    const externoId =
-      chamado.origem === "slack" ? await enviarSlack(auth.perfilId, chamado, mensagem) : await enviarZap(String(chamado.contato_id ?? "").replace(/\D/g, ""), mensagem);
-
     const { data: perfil } = await auth.client.from("usuario_perfil").select("nome, email").eq("id", auth.perfilId ?? "").maybeSingle();
+    const nome = perfil?.nome || perfil?.email?.split("@")[0] || "Atendente";
+
+    const externoId =
+      chamado.origem === "slack"
+        ? await enviarSlack(auth.perfilId, chamado, mensagem)
+        : await zapEnviarTexto(String(chamado.contato_id ?? "").replace(/\D/g, ""), assinar(nome, mensagem), await conexaoZap(chamado.empresa_id));
+
     const agora = new Date().toISOString();
     // ON CONFLICT: o Slack também avisa a nossa própria mensagem pelo evento; se ele chegar antes, ignora.
     await auth.client.from("chamado_mensagens").upsert(
@@ -83,7 +74,7 @@ Deno.serve(async (req) => {
         chamado_id: chamado.id,
         empresa_id: chamado.empresa_id,
         direcao: "saida",
-        autor_nome: perfil?.nome || perfil?.email || "Você",
+        autor_nome: nome,
         texto: mensagem,
         externo_id: externoId,
         enviado_por: auth.perfilId,
