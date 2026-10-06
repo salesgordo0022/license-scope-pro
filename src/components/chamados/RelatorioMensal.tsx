@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { format, parseISO } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
@@ -51,6 +52,7 @@ export function RelatorioMensal({
   const [mes, setMes] = useState(() => mesDe(new Date()));
   const [dados, setDados] = useState<ChamadoRelatorio[]>([]);
   const [carregando, setCarregando] = useState(false);
+  const navigate = useNavigate();
 
   useEffect(() => {
     if (!aberta) return;
@@ -130,18 +132,16 @@ export function RelatorioMensal({
           <thead>
             <tr className="text-[11px] text-muted-foreground">
               <th className="px-3 py-1.5 text-left font-medium" />
-              <th className="px-3 py-1.5 text-right font-medium">Recebidos</th>
-              <th className="px-3 py-1.5 text-right font-medium">Resolvidos</th>
               <th className="px-3 py-1.5 text-right font-medium">Em aberto</th>
+              <th className="px-3 py-1.5 text-right font-medium">Resolvidos</th>
             </tr>
           </thead>
           <tbody>
             {linhas.map((l) => (
               <tr key={l.chave ?? '-'} className="border-t border-border/50">
                 <td className="max-w-[220px] truncate px-3 py-1.5">{nome(l.chave)}</td>
-                <td className="px-3 py-1.5 text-right tabular-nums">{l.recebidos}</td>
-                <td className="px-3 py-1.5 text-right tabular-nums text-emerald-600">{l.resolvidos}</td>
                 <td className={`px-3 py-1.5 text-right font-semibold tabular-nums ${l.emAberto > 0 ? 'text-amber-600' : 'text-muted-foreground'}`}>{l.emAberto}</td>
+                <td className="px-3 py-1.5 text-right tabular-nums text-emerald-600">{l.resolvidos}</td>
               </tr>
             ))}
           </tbody>
@@ -194,17 +194,17 @@ export function RelatorioMensal({
   };
 
   const cartoes = [
-    { rotulo: 'Recebidos no mês', valor: String(resumo.recebidos), dica: 'Chamados que chegaram no mês (não diminui ao resolver)' },
-    { rotulo: 'Resolvidos no mês', valor: String(resumo.resolvidos), cor: 'text-emerald-600' },
     {
       rotulo: mes >= mesDe(new Date()) ? 'Em aberto agora' : 'Em aberto no fim do mês',
       valor: String(resumo.emAberto),
-      cor: resumo.emAberto > 0 ? 'text-amber-600' : undefined,
-      dica: 'Ainda não resolvidos (inclui os que chegaram em meses anteriores)',
+      cor: resumo.emAberto > 0 ? 'text-amber-600' : 'text-emerald-600',
+      dica: 'Chamados não resolvidos (inclui os que chegaram em meses anteriores). Resolver tira daqui.',
     },
+    { rotulo: 'Em aberto sem resposta', valor: String(resumo.semResposta), cor: resumo.semResposta > 0 ? 'text-red-500' : undefined, dica: 'Em aberto que ninguém respondeu ainda' },
+    { rotulo: 'Mais antigo em aberto', valor: resumo.maisAntigoEmAbertoMin === null ? '—' : formatarDuracaoMin(resumo.maisAntigoEmAbertoMin), dica: 'Há quanto tempo o chamado pendente mais velho espera' },
+    { rotulo: 'Resolvidos no mês', valor: String(resumo.resolvidos), cor: 'text-emerald-600' },
     { rotulo: '1ª resposta (mediana)', valor: formatarDuracaoMin(resumo.medianaPrimeiraRespostaMin) },
     { rotulo: 'Resolução (mediana)', valor: formatarDuracaoMin(resumo.medianaResolucaoHoras === null ? null : resumo.medianaResolucaoHoras * 60) },
-    { rotulo: 'Ainda sem resposta', valor: String(resumo.semResposta) },
   ];
 
   const mesAtual = mesDe(new Date());
@@ -215,7 +215,7 @@ export function RelatorioMensal({
         <DialogHeader>
           <DialogTitle>Chamados por mês</DialogTitle>
           <DialogDescription>
-            Recebidos = chamados que chegaram no mês. Em aberto = ainda não resolvidos (resolver tira daqui). Conversa resolvida que volta a falar depois do prazo de reabertura conta como chamado novo.
+            O que está pendente: chamados ainda não resolvidos. O que já foi resolvido não conta como pendente.
           </DialogDescription>
         </DialogHeader>
 
@@ -244,6 +244,56 @@ export function RelatorioMensal({
           ))}
         </div>
 
+        <div className="rounded-xl border">
+          <p className="flex items-center gap-2 border-b px-3 py-2 text-sm font-semibold">
+            <span className="h-2.5 w-2.5 rounded-full bg-amber-500" /> Chamados em aberto
+            <span className="ml-auto text-xs font-normal text-muted-foreground">do mais antigo para o mais novo</span>
+          </p>
+          {resumo.listaEmAberto.length === 0 ? (
+            <p className="px-3 py-5 text-center text-sm text-emerald-600">Nenhum chamado pendente. Tudo resolvido!</p>
+          ) : (
+            <div className="max-h-72 overflow-y-auto">
+              <table className="w-full text-sm">
+                <thead className="sticky top-0 bg-card">
+                  <tr className="text-[11px] text-muted-foreground">
+                    <th className="px-3 py-1.5 text-left font-medium">Contato</th>
+                    <th className="px-3 py-1.5 text-left font-medium">Onde</th>
+                    <th className="px-3 py-1.5 text-left font-medium">Com quem</th>
+                    <th className="px-3 py-1.5 text-right font-medium">Esperando há</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {(resumo.listaEmAberto as ChamadoRelatorio[]).map((c) => (
+                    <tr
+                      key={c.id}
+                      className="cursor-pointer border-t border-border/50 hover:bg-muted/50"
+                      title="Abrir a conversa"
+                      onClick={() => {
+                        onFechar();
+                        navigate(`/chamados?chamado=${c.id}`);
+                      }}
+                    >
+                      <td className="max-w-[200px] px-3 py-1.5">
+                        <span className="block truncate font-medium">{c.contato_nome || c.contato_id || 'Contato'}</span>
+                        <span className="block truncate text-[11px] text-muted-foreground">{c.assunto}</span>
+                      </td>
+                      <td className="px-3 py-1.5 text-xs text-muted-foreground">
+                        {ORIGENS[c.origem] || c.origem}
+                        {c.canal_nome ? ` · ${c.canal_nome}` : ''}
+                        {!c.primeira_resposta_em && <span className="ml-1 rounded bg-red-50 px-1 text-[10px] text-red-600">sem resposta</span>}
+                      </td>
+                      <td className="px-3 py-1.5 text-xs">{nomeUsuario(atendenteDe(c))}</td>
+                      <td className="px-3 py-1.5 text-right text-xs font-semibold tabular-nums text-amber-600">
+                        {formatarDuracaoMin((Math.min(Date.now(), intervaloMes(mes).fim.getTime()) - new Date(c.created_at).getTime()) / 60000)}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+
         <div className="rounded-xl border p-3">
           <p className="mb-2 text-sm font-semibold">Últimos {MESES_SERIE} meses</p>
           <div className="h-48">
@@ -253,17 +303,16 @@ export function RelatorioMensal({
                 <XAxis dataKey="rotulo" tick={{ fontSize: 11 }} />
                 <YAxis allowDecimals={false} tick={{ fontSize: 11 }} />
                 <Tooltip />
-                <Bar dataKey="recebidos" name="Recebidos" fill="#2563EB" radius={[4, 4, 0, 0]} maxBarSize={30} />
-                <Bar dataKey="resolvidos" name="Resolvidos" fill="#10B981" radius={[4, 4, 0, 0]} maxBarSize={30} />
                 <Bar dataKey="emAberto" name="Em aberto (fim do mês)" fill="#F59E0B" radius={[4, 4, 0, 0]} maxBarSize={30} />
+                <Bar dataKey="resolvidos" name="Resolvidos" fill="#10B981" radius={[4, 4, 0, 0]} maxBarSize={30} />
               </BarChart>
             </ResponsiveContainer>
           </div>
         </div>
 
         <div className="grid gap-3 lg:grid-cols-2">
-          <QuemMaisPede titulo="Quem mais pede no Slack" cor="bg-[#4A154B]" linhas={pedemSlack} rotuloPessoa="Pessoa" />
-          <QuemMaisPede titulo="Quem mais pede no WhatsApp" cor="bg-[#25D366]" linhas={pedemZap} rotuloPessoa="Contato" />
+          <QuemMaisPede titulo="Quem mais pediu no Slack (mês)" cor="bg-[#4A154B]" linhas={pedemSlack} rotuloPessoa="Pessoa" />
+          <QuemMaisPede titulo="Quem mais pediu no WhatsApp (mês)" cor="bg-[#25D366]" linhas={pedemZap} rotuloPessoa="Contato" />
         </div>
 
         <div className="grid gap-3 md:grid-cols-2">

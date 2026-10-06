@@ -39,7 +39,12 @@ export interface ResumoMes {
   recebidos: number;
   resolvidos: number;
   emAberto: number;
+  /** Em aberto que ainda não tiveram nenhuma resposta. */
   semResposta: number;
+  /** Idade, em minutos, do chamado em aberto mais antigo (no fim do mês / agora). */
+  maisAntigoEmAbertoMin: number | null;
+  /** Os chamados em aberto, do mais antigo para o mais novo. */
+  listaEmAberto: ChamadoResumo[];
   medianaPrimeiraRespostaMin: number | null;
   medianaResolucaoHoras: number | null;
   porAtendente: LinhaContagem[];
@@ -88,7 +93,9 @@ function agrupar(chamados: ChamadoResumo[], chave: (c: ChamadoResumo) => string 
     const chegou = dentro(c.created_at, inicio, fim);
     const resolveu = dentro(c.resolvido_em, inicio, fim);
     const aberto = emAbertoNoFim(c, fim);
-    if (!chegou && !resolveu && !aberto) continue;
+    // Só entra quem está pendente ou foi resolvido no mês: chamado que chegou e
+    // já foi resolvido conta como resolvido, nunca como pendente.
+    if (!resolveu && !aberto) continue;
     const k = chave(c);
     const linha = mapa.get(k) ?? { chave: k, recebidos: 0, resolvidos: 0, emAberto: 0 };
     if (chegou) linha.recebidos++;
@@ -106,7 +113,11 @@ export function resumirMes(chamados: ChamadoResumo[], mes: string): ResumoMes {
   const doMes = chamados.filter((c) => dentro(c.created_at, inicio, fim));
   const resolvidosNoMes = chamados.filter((c) => dentro(c.resolvido_em, inicio, fim));
 
-  const emAberto = chamados.filter((c) => emAbertoNoFim(c, fim)).length;
+  const pendentes = chamados.filter((c) => emAbertoNoFim(c, fim)).sort((a, b) => a.created_at.localeCompare(b.created_at));
+  const emAberto = pendentes.length;
+  // Referência para "há quanto tempo": agora (mês corrente) ou o fim do mês.
+  const referencia = Math.min(Date.now(), fim.getTime());
+  const semResposta = pendentes.filter((c) => !c.primeira_resposta_em || new Date(c.primeira_resposta_em).getTime() >= fim.getTime()).length;
 
   const primeiras = doMes
     .filter((c) => c.primeira_resposta_em)
@@ -125,7 +136,9 @@ export function resumirMes(chamados: ChamadoResumo[], mes: string): ResumoMes {
     recebidos: doMes.length,
     resolvidos: resolvidosNoMes.length,
     emAberto,
-    semResposta: doMes.filter((c) => !c.primeira_resposta_em).length,
+    semResposta,
+    maisAntigoEmAbertoMin: pendentes.length ? Math.max(0, (referencia - new Date(pendentes[0].created_at).getTime()) / 60000) : null,
+    listaEmAberto: pendentes,
     medianaPrimeiraRespostaMin: mediana(primeiras),
     medianaResolucaoHoras: mediana(resolucoes),
     porAtendente: agrupar(chamados, atendenteDe, inicio, fim),
