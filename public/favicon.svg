@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256">
+  <!-- Símbolo "Bloco IT" da ImperTech (mesmo do sistema) sobre fundo marinho -->
+  <rect width="256" height="256" rx="56" fill="#0B1A3D"/>
+  <g transform="translate(128 128) scale(0.92) translate(-131 -128)">
+    <path fill="#2F8BF5" d="M36 44H226L203 84H160V212H120V84H36Z"/>
+    <path fill="#FFFFFF" d="M36 112H76V212H36Z"/>
+  </g>
+</svg>
