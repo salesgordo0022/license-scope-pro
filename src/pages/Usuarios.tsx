@@ -28,6 +28,8 @@ import {
 } from '@/components/ui/select';
 import { Label } from '@/components/ui/label';
 import { supabase } from '@/integrations/supabase/client';
+import { avaliarSenha, SENHA_TAMANHO_MINIMO } from '@/lib/authPolicy';
+import { erroDaFunction } from '@/lib/erroFunction';
 import { toast } from 'sonner';
 import { useAuth } from '@/contexts/AuthContext';
 import { format } from 'date-fns';
@@ -106,23 +108,24 @@ export default function Usuarios() {
         toast.error('Apenas super admins podem criar super admins');
         return;
       }
+      const forca = avaliarSenha(createData.password);
+      if (!forca.valida) {
+        toast.error('Senha fraca', { description: forca.problemas.join('. ') });
+        return;
+      }
 
       const { data, error } = await supabase.functions.invoke('create-user', {
         body: {
-          email: createData.email,
+          email: createData.email.trim(),
           password: createData.password,
-          nome: createData.nome,
+          nome: createData.nome.trim(),
           tipo: createData.tipo,
         },
       });
 
-      const errorMsg = data?.error || error?.message || '';
-      if (errorMsg) {
-        if (errorMsg.includes('already been registered')) {
-          toast.error('Este email já está cadastrado no sistema');
-        } else {
-          toast.error(errorMsg);
-        }
+      // Em erro HTTP a mensagem real da function vem no corpo (error.context).
+      if (error || data?.error) {
+        toast.error((await erroDaFunction(error, data)) || 'Erro ao criar usuário');
         return;
       }
 
@@ -156,12 +159,15 @@ export default function Usuarios() {
         return;
       }
 
+      // Tipo só é enviado quando muda: o banco só deixa super admin alterar papel.
+      const mudouTipo = formData.tipo !== (editingUsuario.tipo || 'revendedor');
+      if (mudouTipo && !isSuperAdmin) {
+        toast.error('Apenas super admins podem alterar o tipo do usuário');
+        return;
+      }
       const { error } = await supabase
         .from('usuario_perfil')
-        .update({
-          nome: formData.nome,
-          tipo: formData.tipo,
-        })
+        .update({ nome: formData.nome.trim(), ...(mudouTipo ? { tipo: formData.tipo } : {}) })
         .eq('id', editingUsuario.id);
 
       if (error) throw error;
@@ -204,8 +210,12 @@ export default function Usuarios() {
     if (!confirm('Tem certeza que deseja excluir este usuário?')) return;
 
     try {
-      const { error } = await supabase.from('usuario_perfil').delete().eq('id', id);
-      if (error) throw error;
+      // Pela function: remove a conta do Auth (não só o perfil), liberando o email.
+      const { data, error } = await supabase.functions.invoke('delete-user', { body: { perfil_id: id } });
+      if (error || data?.error) {
+        toast.error((await erroDaFunction(error, data)) || 'Erro ao excluir usuário');
+        return;
+      }
       toast.success('Usuário excluído com sucesso!');
       fetchUsuarios();
     } catch (error) {
@@ -317,6 +327,7 @@ export default function Usuarios() {
               <Label htmlFor="tipo">Tipo</Label>
               <Select
                 value={formData.tipo}
+                disabled={!isSuperAdmin}
                 onValueChange={(value) => setFormData({ ...formData, tipo: value as UserRole })}
               >
                 <SelectTrigger>
@@ -374,10 +385,15 @@ export default function Usuarios() {
                 id="create-password"
                 type="password"
                 required
-                minLength={6}
+                minLength={SENHA_TAMANHO_MINIMO}
                 value={createData.password}
                 onChange={(e) => setCreateData({ ...createData, password: e.target.value })}
               />
+              <p className="text-xs text-muted-foreground">
+                {createData.password && !avaliarSenha(createData.password).valida
+                  ? avaliarSenha(createData.password).problemas.join('. ')
+                  : `Mínimo ${SENHA_TAMANHO_MINIMO} caracteres, misturando 3 destes: minúscula, maiúscula, número e símbolo.`}
+              </p>
             </div>
             <div className="space-y-2">
               <Label htmlFor="create-tipo">Tipo</Label>

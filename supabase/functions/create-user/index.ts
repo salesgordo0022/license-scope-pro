@@ -28,7 +28,10 @@ Deno.serve(async (req) => {
       return json(req, { error: "Sem permissão" }, 403);
     }
 
-    const { email, password, nome, tipo } = await req.json();
+    const corpo = await req.json();
+    const email = typeof corpo.email === "string" ? corpo.email.trim().toLowerCase() : corpo.email;
+    const nome = typeof corpo.nome === "string" ? corpo.nome.trim() : corpo.nome;
+    const { password, tipo } = corpo;
 
     // --- Validação de entrada --------------------------------------------
     if (!email || !password || !nome) {
@@ -36,6 +39,11 @@ Deno.serve(async (req) => {
     }
     if (typeof password !== "string" || password.length < SENHA_MINIMA) {
       return json(req, { error: `A senha precisa ter ao menos ${SENHA_MINIMA} caracteres` }, 400);
+    }
+    // Mesma regra da tela (src/lib/authPolicy.ts): 3 de 4 tipos de caractere.
+    const categorias = [/[a-z]/, /[A-Z]/, /[0-9]/, /[^A-Za-z0-9]/].filter((r) => r.test(password)).length;
+    if (categorias < 3) {
+      return json(req, { error: "A senha precisa misturar ao menos 3 destes: minúscula, maiúscula, número e símbolo" }, 400);
     }
     if (typeof email !== "string" || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) {
       return json(req, { error: "Email inválido" }, 400);
@@ -61,20 +69,26 @@ Deno.serve(async (req) => {
 
     if (createError || !newUser?.user) {
       console.error("[create-user] falha ao criar:", createError);
-      return json(req, { error: createError?.message ?? "Não foi possível criar o usuário" }, 400);
+      const msg = createError?.message ?? "";
+      if (/already|registered|exists/i.test(msg)) return json(req, { error: "Este email já está cadastrado no sistema" }, 409);
+      return json(req, { error: msg || "Não foi possível criar o usuário" }, 400);
     }
 
     // O trigger `handle_new_user` já criou o perfil como 'revendedor' e sem
     // empresa. Aqui ajustamos o tipo e amarramos o usuário ao tenant de quem
     // o criou — um super_admin pode criar sem empresa (acesso global).
-    const { error: perfilError } = await adminClient
+    // upsert: se o trigger não tiver criado o perfil, cria aqui.
+    const { data: perfil, error: perfilError } = await adminClient
       .from("usuario_perfil")
-      .update({ tipo: tipoFinal, nome, empresa_id: auth.empresaId })
-      .eq("user_id", newUser.user.id);
+      .upsert({ user_id: newUser.user.id, email, tipo: tipoFinal, nome, empresa_id: auth.empresaId }, { onConflict: "user_id" })
+      .select("id")
+      .maybeSingle();
 
-    if (perfilError) {
-      console.error("[create-user] usuário criado mas perfil não atualizado:", perfilError);
-      return json(req, { error: "Usuário criado, mas o perfil não pôde ser configurado" }, 500);
+    if (perfilError || !perfil) {
+      // Desfaz: sem perfil configurado a conta ficaria órfã e o email "já cadastrado".
+      console.error("[create-user] perfil não configurado, desfazendo:", perfilError);
+      await adminClient.auth.admin.deleteUser(newUser.user.id).catch(() => undefined);
+      return json(req, { error: `Não foi possível configurar o perfil: ${perfilError?.message ?? "perfil não encontrado"}` }, 500);
     }
 
     // Devolve só o necessário: o objeto completo do Auth traz metadados
