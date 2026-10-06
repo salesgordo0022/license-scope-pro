@@ -2,11 +2,14 @@
  * Números mensais dos Chamados (lógica pura, sem Supabase — fácil de testar).
  *
  * Regras:
- *  - "Abertos no mês" = chamados criados no mês. Cada ocorrência é um chamado
+ *  - "Recebidos no mês" = chamados criados no mês. Cada ocorrência é um chamado
  *    (conversa resolvida que volta a falar depois do prazo de reabertura vira
  *    chamado novo), então esta é a contagem que vale para gestão/cobrança.
- *  - "Resolvidos no mês" = resolvido_em dentro do mês (podem ter sido abertos antes).
- *  - "Pendentes no fim do mês" = criados até o fim do mês e não resolvidos até lá.
+ *    Não diminui quando o chamado é resolvido — é a entrada do mês.
+ *  - "Resolvidos no mês" = resolvido_em dentro do mês (podem ter chegado antes).
+ *  - "Em aberto" = criados até o fim do mês e ainda não resolvidos naquele
+ *    momento. No mês corrente é o que está em aberto agora: resolver um
+ *    chamado tira ele daqui.
  *  - Tempos usam a MEDIANA (um chamado esquecido não distorce a média).
  *  - Atendente = responsável; sem responsável, o dono (Slack). WhatsApp sem
  *    responsável fica em "Sem atendente".
@@ -26,22 +29,23 @@ export interface ChamadoResumo {
 
 export interface LinhaContagem {
   chave: string | null;
-  abertos: number;
+  recebidos: number;
   resolvidos: number;
+  emAberto: number;
 }
 
 export interface ResumoMes {
   mes: string;
-  abertos: number;
+  recebidos: number;
   resolvidos: number;
-  pendentesFimMes: number;
+  emAberto: number;
   semResposta: number;
   medianaPrimeiraRespostaMin: number | null;
   medianaResolucaoHoras: number | null;
   porAtendente: LinhaContagem[];
   porCliente: LinhaContagem[];
   porOrigem: LinhaContagem[];
-  /** abertos por dia do mês (índice 0 = dia 1) */
+  /** recebidos por dia do mês (índice 0 = dia 1) */
   porDia: number[];
 }
 
@@ -74,19 +78,25 @@ const dentro = (iso: string | null, inicio: Date, fim: Date) => {
   return t >= inicio.getTime() && t < fim.getTime();
 };
 
+/** Chegou até o fim do mês e não estava resolvido naquele momento. */
+const emAbertoNoFim = (c: ChamadoResumo, fim: Date) =>
+  new Date(c.created_at).getTime() < fim.getTime() && (!c.resolvido_em || new Date(c.resolvido_em).getTime() >= fim.getTime());
+
 function agrupar(chamados: ChamadoResumo[], chave: (c: ChamadoResumo) => string | null, inicio: Date, fim: Date): LinhaContagem[] {
   const mapa = new Map<string | null, LinhaContagem>();
   for (const c of chamados) {
-    const abriu = dentro(c.created_at, inicio, fim);
+    const chegou = dentro(c.created_at, inicio, fim);
     const resolveu = dentro(c.resolvido_em, inicio, fim);
-    if (!abriu && !resolveu) continue;
+    const aberto = emAbertoNoFim(c, fim);
+    if (!chegou && !resolveu && !aberto) continue;
     const k = chave(c);
-    const linha = mapa.get(k) ?? { chave: k, abertos: 0, resolvidos: 0 };
-    if (abriu) linha.abertos++;
+    const linha = mapa.get(k) ?? { chave: k, recebidos: 0, resolvidos: 0, emAberto: 0 };
+    if (chegou) linha.recebidos++;
     if (resolveu) linha.resolvidos++;
+    if (aberto) linha.emAberto++;
     mapa.set(k, linha);
   }
-  return [...mapa.values()].sort((a, b) => b.abertos - a.abertos || b.resolvidos - a.resolvidos);
+  return [...mapa.values()].sort((a, b) => b.emAberto - a.emAberto || b.recebidos - a.recebidos || b.resolvidos - a.resolvidos);
 }
 
 export const atendenteDe = (c: ChamadoResumo) => c.responsavel_id ?? c.dono_id ?? null;
@@ -96,10 +106,7 @@ export function resumirMes(chamados: ChamadoResumo[], mes: string): ResumoMes {
   const doMes = chamados.filter((c) => dentro(c.created_at, inicio, fim));
   const resolvidosNoMes = chamados.filter((c) => dentro(c.resolvido_em, inicio, fim));
 
-  const pendentesFimMes = chamados.filter((c) => {
-    if (new Date(c.created_at).getTime() >= fim.getTime()) return false;
-    return !c.resolvido_em || new Date(c.resolvido_em).getTime() >= fim.getTime();
-  }).length;
+  const emAberto = chamados.filter((c) => emAbertoNoFim(c, fim)).length;
 
   const primeiras = doMes
     .filter((c) => c.primeira_resposta_em)
@@ -115,9 +122,9 @@ export function resumirMes(chamados: ChamadoResumo[], mes: string): ResumoMes {
 
   return {
     mes,
-    abertos: doMes.length,
+    recebidos: doMes.length,
     resolvidos: resolvidosNoMes.length,
-    pendentesFimMes,
+    emAberto,
     semResposta: doMes.filter((c) => !c.primeira_resposta_em).length,
     medianaPrimeiraRespostaMin: mediana(primeiras),
     medianaResolucaoHoras: mediana(resolucoes),
@@ -169,15 +176,16 @@ export function solicitantesDoMes(
     .sort((a, b) => b.abertos - a.abertos || a.nome.localeCompare(b.nome));
 }
 
-/** Abertos e resolvidos dos últimos `n` meses, terminando em `ultimoMes`. */
+/** Recebidos, resolvidos e em aberto (no fim de cada mês) dos últimos `n` meses. */
 export function serieMensal(chamados: ChamadoResumo[], ultimoMes: string, n = 6) {
   return Array.from({ length: n }, (_, i) => {
     const mes = deslocarMes(ultimoMes, i - n + 1);
     const { inicio, fim } = intervaloMes(mes);
     return {
       mes,
-      abertos: chamados.filter((c) => dentro(c.created_at, inicio, fim)).length,
+      recebidos: chamados.filter((c) => dentro(c.created_at, inicio, fim)).length,
       resolvidos: chamados.filter((c) => dentro(c.resolvido_em, inicio, fim)).length,
+      emAberto: chamados.filter((c) => emAbertoNoFim(c, fim)).length,
     };
   });
 }

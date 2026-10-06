@@ -32,7 +32,8 @@ const nomeMes = (mes: string) => format(intervaloMes(mes).inicio, "MMMM 'de' yyy
 const mesCurto = (mes: string) => format(intervaloMes(mes).inicio, 'MMM/yy', { locale: ptBR });
 
 /**
- * Relatório mensal dos chamados: quantos abriram, quantos foram resolvidos,
+ * Relatório mensal dos chamados: quantos chegaram, quantos foram resolvidos,
+ * quantos seguem em aberto,
  * tempo de 1ª resposta e de resolução, e a divisão por atendente, cliente e
  * origem. Cada usuário vê os números dos chamados que enxerga (admin: todos).
  */
@@ -129,16 +130,18 @@ export function RelatorioMensal({
           <thead>
             <tr className="text-[11px] text-muted-foreground">
               <th className="px-3 py-1.5 text-left font-medium" />
-              <th className="px-3 py-1.5 text-right font-medium">Abertos</th>
+              <th className="px-3 py-1.5 text-right font-medium">Recebidos</th>
               <th className="px-3 py-1.5 text-right font-medium">Resolvidos</th>
+              <th className="px-3 py-1.5 text-right font-medium">Em aberto</th>
             </tr>
           </thead>
           <tbody>
             {linhas.map((l) => (
               <tr key={l.chave ?? '-'} className="border-t border-border/50">
                 <td className="max-w-[220px] truncate px-3 py-1.5">{nome(l.chave)}</td>
-                <td className="px-3 py-1.5 text-right font-semibold tabular-nums">{l.abertos}</td>
-                <td className="px-3 py-1.5 text-right tabular-nums text-muted-foreground">{l.resolvidos}</td>
+                <td className="px-3 py-1.5 text-right tabular-nums">{l.recebidos}</td>
+                <td className="px-3 py-1.5 text-right tabular-nums text-emerald-600">{l.resolvidos}</td>
+                <td className={`px-3 py-1.5 text-right font-semibold tabular-nums ${l.emAberto > 0 ? 'text-amber-600' : 'text-muted-foreground'}`}>{l.emAberto}</td>
               </tr>
             ))}
           </tbody>
@@ -191,9 +194,14 @@ export function RelatorioMensal({
   };
 
   const cartoes = [
-    { rotulo: 'Abertos no mês', valor: String(resumo.abertos) },
-    { rotulo: 'Resolvidos no mês', valor: String(resumo.resolvidos) },
-    { rotulo: 'Pendentes no fim do mês', valor: String(resumo.pendentesFimMes) },
+    { rotulo: 'Recebidos no mês', valor: String(resumo.recebidos), dica: 'Chamados que chegaram no mês (não diminui ao resolver)' },
+    { rotulo: 'Resolvidos no mês', valor: String(resumo.resolvidos), cor: 'text-emerald-600' },
+    {
+      rotulo: mes >= mesDe(new Date()) ? 'Em aberto agora' : 'Em aberto no fim do mês',
+      valor: String(resumo.emAberto),
+      cor: resumo.emAberto > 0 ? 'text-amber-600' : undefined,
+      dica: 'Ainda não resolvidos (inclui os que chegaram em meses anteriores)',
+    },
     { rotulo: '1ª resposta (mediana)', valor: formatarDuracaoMin(resumo.medianaPrimeiraRespostaMin) },
     { rotulo: 'Resolução (mediana)', valor: formatarDuracaoMin(resumo.medianaResolucaoHoras === null ? null : resumo.medianaResolucaoHoras * 60) },
     { rotulo: 'Ainda sem resposta', valor: String(resumo.semResposta) },
@@ -206,7 +214,9 @@ export function RelatorioMensal({
       <DialogContent className="max-h-[92vh] max-w-4xl overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Chamados por mês</DialogTitle>
-          <DialogDescription>Cada ocorrência conta como um chamado. Conversa resolvida que volta a falar depois do prazo de reabertura conta de novo.</DialogDescription>
+          <DialogDescription>
+            Recebidos = chamados que chegaram no mês. Em aberto = ainda não resolvidos (resolver tira daqui). Conversa resolvida que volta a falar depois do prazo de reabertura conta como chamado novo.
+          </DialogDescription>
         </DialogHeader>
 
         <div className="flex flex-wrap items-center justify-between gap-2">
@@ -220,16 +230,16 @@ export function RelatorioMensal({
             </Button>
             {carregando && <Loader2 className="ml-2 h-4 w-4 animate-spin text-muted-foreground" />}
           </div>
-          <Button variant="outline" className="gap-2" onClick={exportar} disabled={carregando || resumo.abertos === 0}>
+          <Button variant="outline" className="gap-2" onClick={exportar} disabled={carregando || resumo.recebidos === 0}>
             <Download className="h-4 w-4" /> Exportar CSV
           </Button>
         </div>
 
         <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-          {cartoes.map((c) => (
-            <div key={c.rotulo} className="rounded-xl border p-3">
+          {cartoes.map((c: { rotulo: string; valor: string; cor?: string; dica?: string }) => (
+            <div key={c.rotulo} className="rounded-xl border p-3" title={c.dica}>
               <p className="text-[11px] text-muted-foreground">{c.rotulo}</p>
-              <p className="text-2xl font-bold tabular-nums">{c.valor}</p>
+              <p className={`text-2xl font-bold tabular-nums ${c.cor ?? ''}`}>{c.valor}</p>
             </div>
           ))}
         </div>
@@ -243,8 +253,9 @@ export function RelatorioMensal({
                 <XAxis dataKey="rotulo" tick={{ fontSize: 11 }} />
                 <YAxis allowDecimals={false} tick={{ fontSize: 11 }} />
                 <Tooltip />
-                <Bar dataKey="abertos" name="Abertos" fill="#2563EB" radius={[4, 4, 0, 0]} maxBarSize={36} />
-                <Bar dataKey="resolvidos" name="Resolvidos" fill="#10B981" radius={[4, 4, 0, 0]} maxBarSize={36} />
+                <Bar dataKey="recebidos" name="Recebidos" fill="#2563EB" radius={[4, 4, 0, 0]} maxBarSize={30} />
+                <Bar dataKey="resolvidos" name="Resolvidos" fill="#10B981" radius={[4, 4, 0, 0]} maxBarSize={30} />
+                <Bar dataKey="emAberto" name="Em aberto (fim do mês)" fill="#F59E0B" radius={[4, 4, 0, 0]} maxBarSize={30} />
               </BarChart>
             </ResponsiveContainer>
           </div>
