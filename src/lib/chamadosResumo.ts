@@ -128,6 +128,47 @@ export function resumirMes(chamados: ChamadoResumo[], mes: string): ResumoMes {
   };
 }
 
+export interface Solicitante {
+  /** contato_id: usuário do Slack (U…) ou número do WhatsApp. */
+  chave: string;
+  nome: string;
+  abertos: number;
+  /** Chamados por canal (ex.: "#suporte", "Mensagem direta", "IMPERTECH"), do maior para o menor. */
+  canais: { canal: string; abertos: number }[];
+}
+
+/**
+ * Quem mais abriu chamado no mês, numa origem (slack ou zapcontabil).
+ * Solicitante = contato que iniciou a conversa (no Slack, quem mandou a DM
+ * ou começou a thread; no WhatsApp, o número do cliente).
+ */
+export function solicitantesDoMes(
+  chamados: (ChamadoResumo & { contato_id: string | null; contato_nome: string | null; canal_nome: string | null })[],
+  mes: string,
+  origem: string,
+): Solicitante[] {
+  const { inicio, fim } = intervaloMes(mes);
+  const mapa = new Map<string, { nome: string; abertos: number; canais: Map<string, number> }>();
+  for (const c of chamados) {
+    if (c.origem !== origem || !dentro(c.created_at, inicio, fim)) continue;
+    const chave = c.contato_id || c.contato_nome || '?';
+    const item = mapa.get(chave) ?? { nome: c.contato_nome || c.contato_id || 'Desconhecido', abertos: 0, canais: new Map() };
+    item.abertos++;
+    const canal = c.canal_nome || '—';
+    item.canais.set(canal, (item.canais.get(canal) ?? 0) + 1);
+    if (c.contato_nome) item.nome = c.contato_nome;
+    mapa.set(chave, item);
+  }
+  return [...mapa.entries()]
+    .map(([chave, v]) => ({
+      chave,
+      nome: v.nome,
+      abertos: v.abertos,
+      canais: [...v.canais.entries()].map(([canal, abertos]) => ({ canal, abertos })).sort((a, b) => b.abertos - a.abertos),
+    }))
+    .sort((a, b) => b.abertos - a.abertos || a.nome.localeCompare(b.nome));
+}
+
 /** Abertos e resolvidos dos últimos `n` meses, terminando em `ultimoMes`. */
 export function serieMensal(chamados: ChamadoResumo[], ultimoMes: string, n = 6) {
   return Array.from({ length: n }, (_, i) => {

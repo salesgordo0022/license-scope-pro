@@ -16,13 +16,15 @@ import {
   paraCsv,
   resumirMes,
   serieMensal,
+  solicitantesDoMes,
+  type Solicitante,
   type ChamadoResumo,
   type LinhaContagem,
 } from '@/lib/chamadosResumo';
 
-type ChamadoRelatorio = ChamadoResumo & { contato_nome: string | null; assunto: string | null };
+type ChamadoRelatorio = ChamadoResumo & { contato_nome: string | null; contato_id: string | null; canal_nome: string | null; assunto: string | null };
 
-const COLUNAS = 'id, origem, status, created_at, primeira_resposta_em, resolvido_em, dono_id, responsavel_id, cliente_id, contato_nome, assunto';
+const COLUNAS = 'id, origem, status, created_at, primeira_resposta_em, resolvido_em, dono_id, responsavel_id, cliente_id, contato_nome, contato_id, canal_nome, assunto';
 const MESES_SERIE = 6;
 const ORIGENS: Record<string, string> = { slack: 'Slack', zapcontabil: 'WhatsApp' };
 
@@ -74,6 +76,8 @@ export function RelatorioMensal({
   }, [aberta, mes]);
 
   const resumo = useMemo(() => resumirMes(dados, mes), [dados, mes]);
+  const pedemSlack = useMemo(() => solicitantesDoMes(dados, mes, 'slack'), [dados, mes]);
+  const pedemZap = useMemo(() => solicitantesDoMes(dados, mes, 'zapcontabil'), [dados, mes]);
   const serie = useMemo(() => serieMensal(dados, mes, MESES_SERIE).map((s) => ({ ...s, rotulo: mesCurto(s.mes) })), [dados, mes]);
 
   const nomeUsuario = (id: string | null) => {
@@ -93,10 +97,11 @@ export function RelatorioMensal({
       .sort((a, b) => a.created_at.localeCompare(b.created_at));
     const dataHora = (iso: string | null) => (iso ? format(parseISO(iso), 'dd/MM/yyyy HH:mm') : '');
     const csv = paraCsv([
-      ['Aberto em', 'Origem', 'Contato', 'Assunto', 'Cliente', 'Atendente', 'Status', '1ª resposta em', 'Resolvido em'],
+      ['Aberto em', 'Origem', 'Canal', 'Contato', 'Assunto', 'Cliente', 'Atendente', 'Status', '1ª resposta em', 'Resolvido em'],
       ...doMes.map((c) => [
         dataHora(c.created_at),
         ORIGENS[c.origem] || c.origem,
+        c.canal_nome,
         c.contato_nome,
         c.assunto,
         c.cliente_id ? nomeCliente(c.cliente_id) : '',
@@ -141,6 +146,49 @@ export function RelatorioMensal({
       )}
     </div>
   );
+
+  const QuemMaisPede = ({ titulo, cor, linhas, rotuloPessoa }: { titulo: string; cor: string; linhas: Solicitante[]; rotuloPessoa: string }) => {
+    const total = linhas.reduce((s, l) => s + l.abertos, 0);
+    return (
+      <div className="rounded-xl border">
+        <p className="flex items-center gap-2 border-b px-3 py-2 text-sm font-semibold">
+          <span className={`h-2.5 w-2.5 rounded-full ${cor}`} /> {titulo}
+          <span className="ml-auto text-xs font-normal text-muted-foreground">{linhas.length} pessoa(s) · {total} chamado(s)</span>
+        </p>
+        {linhas.length === 0 ? (
+          <p className="px-3 py-4 text-center text-xs text-muted-foreground">Ninguém abriu chamado neste mês</p>
+        ) : (
+          <div className="max-h-80 overflow-y-auto">
+            <table className="w-full text-sm">
+              <thead className="sticky top-0 bg-card">
+                <tr className="text-[11px] text-muted-foreground">
+                  <th className="w-8 px-3 py-1.5 text-left font-medium">#</th>
+                  <th className="px-3 py-1.5 text-left font-medium">{rotuloPessoa}</th>
+                  <th className="px-3 py-1.5 text-left font-medium">Onde pediu</th>
+                  <th className="px-3 py-1.5 text-right font-medium">Chamados</th>
+                </tr>
+              </thead>
+              <tbody>
+                {linhas.map((l, i) => (
+                  <tr key={l.chave} className="border-t border-border/50 align-top">
+                    <td className="px-3 py-1.5 text-muted-foreground tabular-nums">{i + 1}</td>
+                    <td className="max-w-[180px] truncate px-3 py-1.5 font-medium">{l.nome}</td>
+                    <td className="px-3 py-1.5 text-xs text-muted-foreground">
+                      {l.canais.map((c) => `${c.canal} (${c.abertos})`).join(' · ')}
+                    </td>
+                    <td className="px-3 py-1.5 text-right font-semibold tabular-nums">
+                      {l.abertos}
+                      <span className="ml-1 text-[10px] font-normal text-muted-foreground">{Math.round((l.abertos / total) * 100)}%</span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+    );
+  };
 
   const cartoes = [
     { rotulo: 'Abertos no mês', valor: String(resumo.abertos) },
@@ -200,6 +248,11 @@ export function RelatorioMensal({
               </BarChart>
             </ResponsiveContainer>
           </div>
+        </div>
+
+        <div className="grid gap-3 lg:grid-cols-2">
+          <QuemMaisPede titulo="Quem mais pede no Slack" cor="bg-[#4A154B]" linhas={pedemSlack} rotuloPessoa="Pessoa" />
+          <QuemMaisPede titulo="Quem mais pede no WhatsApp" cor="bg-[#25D366]" linhas={pedemZap} rotuloPessoa="Contato" />
         </div>
 
         <div className="grid gap-3 md:grid-cols-2">
