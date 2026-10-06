@@ -404,7 +404,7 @@ Também removidos: `refs/original` (backup do filter-branch), o reflog e o
 `git cat-file -p 1806e3a:.env` agora responde *"invalid object name"*.
 
 **Backup antes de tudo**, caso precise voltar:
-`%TEMP%\claude\...\scratchpad\backup-git\historico-completo.bundle`
+`backup-git\historico-completo.bundle` (pasta temporária local)
 (restaura com `git clone historico-completo.bundle pasta-restaurada`)
 
 ### ⚠️ O que isso NÃO resolve
