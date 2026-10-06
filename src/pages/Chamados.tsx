@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useLocation } from 'react-router-dom';
 import { format, isToday, isYesterday, parseISO } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { Inbox, Search, Send, Settings2, Loader2, MessageCircle, Paperclip, ChevronLeft, Copy, Check, BarChart3, RefreshCw } from '@/components/icons';
@@ -149,6 +150,13 @@ export default function Chamados() {
       .select('id, perfil_id, slack_team_id, slack_team_nome, slack_user_id, slack_nome, canais');
     setConexoes((data || []) as ConexaoSlack[]);
   }, []);
+
+  // Clique num aviso: /chamados?abrir=<id> abre a conversa.
+  const { search } = useLocation();
+  useEffect(() => {
+    const id = new URLSearchParams(search).get('abrir');
+    if (id) setSelecionadoId(id);
+  }, [search]);
 
   // Volta do "Conectar meu Slack" (?slack=ok|erro|cancelado).
   useEffect(() => {

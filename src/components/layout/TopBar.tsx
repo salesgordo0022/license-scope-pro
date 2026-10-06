@@ -1,6 +1,17 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Bell, ChevronDown, LogOut, Search, ShieldCheck, UserCog, User, KeyRound, Receipt, Plus, Users, ClipboardList, FileText } from '@/components/icons';
+import { Bell, ChevronDown, LogOut, Search, ShieldCheck, UserCog, User, KeyRound, Receipt, Plus, Users, ClipboardList, FileText, Inbox } from '@/components/icons';
+import { Switch } from '@/components/ui/switch';
+import { useAvisosGlobais } from '@/hooks/use-avisos-globais';
+import {
+  avisarNoSistema,
+  definirNotificacoesLigadas,
+  notificacoesLigadas,
+  pedirPermissao,
+  permissaoAtual,
+  type PermissaoNotificacao,
+} from '@/lib/notificacoesSistema';
+import { toast } from 'sonner';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -35,14 +46,42 @@ const dataBr = (iso: string) => new Date(`${iso}T00:00:00`).toLocaleDateString('
 
 /**
  * Barra superior das telas autenticadas: busca global (abre a tela de clientes
- * já filtrada), sino com licenças a vencer e boletos atrasados, e o menu do
- * usuário com atalhos de conta e logout.
+ * já filtrada), sino com mensagens novas dos Chamados, licenças a vencer e
+ * boletos atrasados, e o menu do usuário com atalhos de conta e logout.
+ *
+ * O sino também liga os avisos do sistema operacional (fora do navegador):
+ * mensagens novas dos Chamados na hora e um resumo diário de boletos/licenças.
  */
 export function TopBar() {
   const navigate = useNavigate();
   const { profile, signOut, isAdmin } = useAuth();
   const [busca, setBusca] = useState('');
   const [alertas, setAlertas] = useState<Alerta[]>([]);
+  const naoLidas = useAvisosGlobais();
+  const [permissao, setPermissao] = useState<PermissaoNotificacao>(permissaoAtual);
+  const [ligadas, setLigadas] = useState(notificacoesLigadas);
+  const avisosAtivos = permissao === 'granted' && ligadas;
+
+  const alternarAvisos = async (ligar: boolean) => {
+    if (!ligar) {
+      definirNotificacoesLigadas(false);
+      setLigadas(false);
+      return;
+    }
+    const p = await pedirPermissao();
+    setPermissao(p);
+    if (p === 'granted') {
+      definirNotificacoesLigadas(true);
+      setLigadas(true);
+      avisarNoSistema({ titulo: 'Avisos ligados', corpo: 'Você vai receber os avisos do ImperTech aqui, mesmo com o navegador em segundo plano.', tag: 'teste-avisos', naoRepetirPorMs: 1000 });
+    } else if (p === 'denied') {
+      toast.error('O navegador bloqueou os avisos', {
+        description: 'Clique no cadeado ao lado do endereço do site → Notificações → Permitir, e recarregue a página.',
+      });
+    } else if (p === 'indisponivel') {
+      toast.error('Este navegador não suporta avisos na área de trabalho');
+    }
+  };
 
   useEffect(() => {
     const carregarAlertas = async () => {
@@ -86,6 +125,20 @@ export function TopBar() {
     };
     carregarAlertas().catch((e) => console.error('Erro ao carregar alertas:', e));
   }, []);
+
+  // Resumo de boletos/licenças no sistema operacional: uma vez por dia.
+  useEffect(() => {
+    if (!avisosAtivos || alertas.length === 0) return;
+    const boletos = alertas.filter((a) => a.tipo === 'boleto').length;
+    const licencas = alertas.length - boletos;
+    const partes = [boletos && `${boletos} boleto(s) vencido(s)`, licencas && `${licencas} licença(s) vencendo`].filter(Boolean);
+    avisarNoSistema(
+      { titulo: 'Pendências do dia', corpo: partes.join(' · '), tag: `pendencias-${dataLocalIso(new Date())}`, url: boletos ? '/pagamentos' : '/licencas', naoRepetirPorMs: 24 * 3600 * 1000 },
+      navigate,
+    );
+  }, [avisosAtivos, alertas, navigate]);
+
+  const totalSino = alertas.length + (naoLidas > 0 ? 1 : 0);
 
   const pesquisar = (e: React.FormEvent) => {
     e.preventDefault();
@@ -134,17 +187,43 @@ export function TopBar() {
           <DropdownMenuTrigger asChild>
             <button className="relative flex h-10 w-10 items-center justify-center rounded-full text-foreground/80 transition hover:bg-muted" title="Notificações">
               <Bell className="h-5 w-5" />
-              {alertas.length > 0 && (
+              {totalSino > 0 && (
                 <span className="absolute right-1.5 top-1.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-semibold text-white ring-2 ring-background">
-                  {alertas.length > 9 ? '9+' : alertas.length}
+                  {totalSino > 9 ? '9+' : totalSino}
                 </span>
               )}
             </button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-80">
             <DropdownMenuLabel>Notificações</DropdownMenuLabel>
+            <div className="mx-2 mb-1 flex items-center justify-between gap-3 rounded-lg bg-muted/60 px-3 py-2">
+              <span className="min-w-0">
+                <span className="block text-xs font-semibold">Avisos na área de trabalho</span>
+                <span className="block text-[11px] leading-snug text-muted-foreground">
+                  {permissao === 'denied'
+                    ? 'Bloqueado no navegador: libere no cadeado ao lado do endereço'
+                    : avisosAtivos
+                      ? 'Ligado: aparecem mesmo fora do navegador'
+                      : 'Receba os avisos mesmo com o sistema em segundo plano'}
+                </span>
+              </span>
+              <Switch checked={avisosAtivos} onCheckedChange={alternarAvisos} disabled={permissao === 'indisponivel'} />
+            </div>
             <DropdownMenuSeparator />
-            {alertas.length === 0 ? (
+            {naoLidas > 0 && (
+              <DropdownMenuItem className="items-start gap-3 py-2" onClick={() => navigate('/chamados')}>
+                <span className="mt-0.5 rounded-lg bg-blue-100 p-1.5 text-blue-600">
+                  <Inbox className="h-4 w-4" />
+                </span>
+                <span className="min-w-0">
+                  <span className="block text-sm font-medium leading-snug">
+                    {naoLidas} mensage{naoLidas === 1 ? 'm' : 'ns'} não lida{naoLidas === 1 ? '' : 's'} nos Chamados
+                  </span>
+                  <span className="block truncate text-xs text-muted-foreground">Slack e WhatsApp</span>
+                </span>
+              </DropdownMenuItem>
+            )}
+            {alertas.length === 0 && naoLidas === 0 ? (
               <p className="px-2 py-6 text-center text-sm text-muted-foreground">Nenhum alerta no momento.</p>
             ) : (
               alertas.map((a) => (
