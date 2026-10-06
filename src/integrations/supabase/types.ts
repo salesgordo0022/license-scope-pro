@@ -92,8 +92,8 @@ export type Database = {
           id: string
           nao_lidas: number
           origem: string
-          prioridade: string
           primeira_resposta_em: string | null
+          prioridade: string
           resolvido_em: string | null
           responsavel_id: string | null
           status: string
@@ -113,8 +113,8 @@ export type Database = {
           id?: string
           nao_lidas?: number
           origem: string
-          prioridade?: string
           primeira_resposta_em?: string | null
+          prioridade?: string
           resolvido_em?: string | null
           responsavel_id?: string | null
           status?: string
@@ -134,8 +134,8 @@ export type Database = {
           id?: string
           nao_lidas?: number
           origem?: string
-          prioridade?: string
           primeira_resposta_em?: string | null
+          prioridade?: string
           resolvido_em?: string | null
           responsavel_id?: string | null
           status?: string
@@ -1525,6 +1525,7 @@ export type Database = {
       }
       slack_conexoes: {
         Row: {
+          access_token: string
           canais: string[]
           created_at: string
           empresa_id: string
@@ -1537,6 +1538,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          access_token: string
           canais?: string[]
           created_at?: string
           empresa_id: string
@@ -1549,6 +1551,7 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          access_token?: string
           canais?: string[]
           created_at?: string
           empresa_id?: string
@@ -1572,6 +1575,45 @@ export type Database = {
             foreignKeyName: "slack_conexoes_perfil_id_fkey"
             columns: ["perfil_id"]
             isOneToOne: true
+            referencedRelation: "usuario_perfil"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      slack_oauth_estados: {
+        Row: {
+          empresa_id: string
+          estado: string
+          expira_em: string
+          perfil_id: string
+          volta_url: string
+        }
+        Insert: {
+          empresa_id: string
+          estado: string
+          expira_em?: string
+          perfil_id: string
+          volta_url: string
+        }
+        Update: {
+          empresa_id?: string
+          estado?: string
+          expira_em?: string
+          perfil_id?: string
+          volta_url?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "slack_oauth_estados_empresa_id_fkey"
+            columns: ["empresa_id"]
+            isOneToOne: false
+            referencedRelation: "empresas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "slack_oauth_estados_perfil_id_fkey"
+            columns: ["perfil_id"]
+            isOneToOne: false
             referencedRelation: "usuario_perfil"
             referencedColumns: ["id"]
           },
@@ -1651,12 +1693,71 @@ export type Database = {
           },
         ]
       }
+      zap_atendimentos: {
+        Row: {
+          atualizado_em: string
+          canal_nome: string | null
+          empresa_id: string
+          nome: string | null
+          numero: string | null
+          passa: boolean
+          ticket_id: string
+        }
+        Insert: {
+          atualizado_em?: string
+          canal_nome?: string | null
+          empresa_id: string
+          nome?: string | null
+          numero?: string | null
+          passa: boolean
+          ticket_id: string
+        }
+        Update: {
+          atualizado_em?: string
+          canal_nome?: string | null
+          empresa_id?: string
+          nome?: string | null
+          numero?: string | null
+          passa?: boolean
+          ticket_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "zap_atendimentos_empresa_id_fkey"
+            columns: ["empresa_id"]
+            isOneToOne: false
+            referencedRelation: "empresas"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
+      chamado_registrar: {
+        Args: {
+          p_anexos?: Json
+          p_autor_nome?: string
+          p_bruto?: Json
+          p_canal_nome?: string
+          p_contato_id?: string
+          p_contato_nome?: string
+          p_conversa_id: string
+          p_direcao: string
+          p_dono_id: string
+          p_empresa_id: string
+          p_externo_id: string
+          p_origem: string
+          p_quando?: string
+          p_so_existente?: boolean
+          p_texto: string
+        }
+        Returns: Json
+      }
       get_user_empresa_id: { Args: never; Returns: string }
+      get_user_perfil_id: { Args: never; Returns: string }
       get_user_role: {
         Args: never
         Returns: Database["public"]["Enums"]["user_role"]
