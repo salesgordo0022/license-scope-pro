@@ -1001,6 +1001,24 @@ export type Database = {
           },
         ]
       }
+      integracao_segredos: {
+        Row: {
+          chave: string
+          updated_at: string
+          valor: string
+        }
+        Insert: {
+          chave: string
+          updated_at?: string
+          valor: string
+        }
+        Update: {
+          chave?: string
+          updated_at?: string
+          valor?: string
+        }
+        Relationships: []
+      }
       licencas: {
         Row: {
           cliente_id: string
