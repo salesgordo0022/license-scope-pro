@@ -22,10 +22,12 @@ import { toast } from 'sonner';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import DetalhesVendaDialog from './DetalhesVendaDialog';
+import { criarProspecto, converterProspectoDaVenda } from '@/lib/funil';
 
 type Revenda = {
   id: string;
-  cliente_id: string;
+  cliente_id: string | null;
+  prospecto_id: string | null;
   empresa_id: string | null;
   revendedor_id: string | null;
   pipeline_id: string | null;
@@ -40,10 +42,14 @@ type Revenda = {
   origem: string | null;
   tags: string[] | null;
   created_at: string | null;
-  cliente?: { nome_empresa: string };
+  cliente?: { nome_empresa: string } | null;
+  prospecto?: { nome_empresa: string } | null;
 };
 
 type Cliente = { id: string; nome_empresa: string };
+
+/** Nome mostrado no card: cliente (se já fechou) ou prospecto. */
+const nomeDaVenda = (r: Revenda) => r.cliente?.nome_empresa || r.prospecto?.nome_empresa || 'Sem nome';
 
 type Pipeline = {
   id: string;
@@ -93,6 +99,11 @@ const formatCurrency = (v: number) =>
 export default function KanbanVendas() {
   const [revendas, setRevendas] = useState<Revenda[]>([]);
   const [clientes, setClientes] = useState<Cliente[]>([]);
+  const [prospectos, setProspectos] = useState<Cliente[]>([]);
+  const [sistemas, setSistemas] = useState<string[]>([]);
+  // Com quem é a venda: "p:<id>" (prospecto), "c:<id>" (cliente) ou "novo" (prospecto criado agora).
+  const [vinculo, setVinculo] = useState('');
+  const [novoProspecto, setNovoProspecto] = useState({ nome_empresa: '', telefone: '', cnpj: '', nome_contato: '' });
   const [pipelines, setPipelines] = useState<Pipeline[]>([]);
   const [activePipelineId, setActivePipelineId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -125,13 +136,17 @@ export default function KanbanVendas() {
   /** Carrega negociações, clientes e pipelines configurados. */
   const fetchData = async () => {
     try {
-      const [{ data: rv }, { data: cl }, { data: pl }] = await Promise.all([
-        supabase.from('revendas').select('*, cliente:clientes(nome_empresa)').order('created_at', { ascending: false }),
+      const [{ data: rv }, { data: cl }, { data: pl }, { data: pr }, { data: si }] = await Promise.all([
+        supabase.from('revendas').select('*, cliente:clientes(nome_empresa), prospecto:prospectos(nome_empresa)').order('created_at', { ascending: false }),
         supabase.from('clientes').select('id, nome_empresa').order('nome_empresa'),
         supabase.from('pipelines_vendas').select('*').eq('ativo', true).order('ordem').order('created_at'),
+        supabase.from('prospectos').select('id, nome_empresa').is('cliente_id', null).order('nome_empresa'),
+        supabase.from('sistemas').select('nome').eq('ativo', true).order('nome'),
       ]);
+      setProspectos((pr as Cliente[]) || []);
+      setSistemas(((si as { nome: string }[]) || []).map((s) => s.nome.trim()));
       const pipelinesList = (pl as Pipeline[]) || [];
-      setRevendas((rv as Revenda[]) || []);
+      setRevendas(((rv as unknown) as Revenda[]) || []);
       setClientes((cl as Cliente[]) || []);
       setPipelines(pipelinesList);
       setActivePipelineId(prev => {
@@ -148,6 +163,8 @@ export default function KanbanVendas() {
   useEffect(() => { fetchData(); }, []);
 
   const resetForm = () => {
+    setVinculo('');
+    setNovoProspecto({ nome_empresa: '', telefone: '', cnpj: '', nome_contato: '' });
     setForm({
       cliente_id: '', sistema: '', status_venda: 'lead', temperatura: 'morno',
       valor_estimado: 0, data_proxima_acao: '', proxima_acao: '',
@@ -170,6 +187,17 @@ export default function KanbanVendas() {
     return data.id;
   };
 
+  /** Se a venda acabou de fechar e é de um prospecto, ele vira cliente. */
+  const converterSeFechou = async (revendaId: string, status: string, jaTemCliente: boolean, nome: string) => {
+    if (status !== 'fechado' || jaTemCliente) return;
+    try {
+      await converterProspectoDaVenda(revendaId);
+      toast.success(`${nome} agora é cliente`, { description: 'Cadastro criado na aba Clientes.' });
+    } catch (err) {
+      toast.error('Venda fechada, mas o cliente não foi criado', { description: err instanceof Error ? err.message : String(err) });
+    }
+  };
+
   /** Salva a negociação (nova ou editada). */
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -177,20 +205,59 @@ export default function KanbanVendas() {
       const pipelineId = await ensurePipeline();
       if (!pipelineId) return;
 
+      // Com quem é a venda.
+      let cliente_id: string | null = null;
+      let prospecto_id: string | null = null;
+      let nome = '';
+      if (vinculo === 'novo') {
+        if (!novoProspecto.nome_empresa.trim()) {
+          toast.error('Informe o nome da empresa');
+          return;
+        }
+        prospecto_id = await criarProspecto({ ...novoProspecto, nome_empresa: novoProspecto.nome_empresa.trim(), origem: 'manual' });
+        nome = novoProspecto.nome_empresa.trim();
+      } else if (vinculo.startsWith('p:')) {
+        prospecto_id = vinculo.slice(2);
+        nome = prospectos.find((p) => p.id === prospecto_id)?.nome_empresa || '';
+      } else if (vinculo.startsWith('c:')) {
+        cliente_id = vinculo.slice(2);
+      } else {
+        toast.error('Escolha o cliente ou o prospecto');
+        return;
+      }
+      const { cliente_id: _antigo, ...campos } = form;
+      const dados = {
+        ...campos,
+        cliente_id,
+        prospecto_id,
+        pipeline_id: pipelineId,
+        ...(form.status_venda === 'fechado' && !editing?.data_venda ? { data_venda: new Date().toISOString().split('T')[0] } : {}),
+      };
+
+      let revendaId: string;
       if (editing) {
-        const { error } = await supabase.from('revendas').update({ ...form, pipeline_id: pipelineId }).eq('id', editing.id);
+        // Venda de prospecto que já virou cliente continua ligada ao cliente.
+        const dadosEdicao = editing.cliente_id && prospecto_id === editing.prospecto_id ? { ...dados, cliente_id: editing.cliente_id } : dados;
+        const { error } = await supabase.from('revendas').update(dadosEdicao).eq('id', editing.id);
         if (error) throw error;
+        revendaId = editing.id;
         toast.success('Venda atualizada!');
+        await converterSeFechou(revendaId, form.status_venda, !!dadosEdicao.cliente_id, nome);
       } else {
         const { data: profile } = await supabase.from('usuario_perfil').select('id, empresa_id').maybeSingle();
-        const { error } = await supabase.from('revendas').insert({
-          ...form,
-          pipeline_id: pipelineId,
-          empresa_id: profile?.empresa_id || null,
-          revendedor_id: profile?.id || null,
-        });
+        const { data: criada, error } = await supabase
+          .from('revendas')
+          .insert({
+            ...dados,
+            empresa_id: profile?.empresa_id || null,
+            revendedor_id: profile?.id || null,
+          })
+          .select('id')
+          .single();
         if (error) throw error;
+        revendaId = criada.id;
         toast.success('Venda criada!');
+        await converterSeFechou(revendaId, form.status_venda, !!cliente_id, nome);
       }
       setDialogOpen(false);
       setEditing(null);
@@ -204,8 +271,9 @@ export default function KanbanVendas() {
   /** Abre o formulário preenchido com a negociação escolhida. */
   const handleEdit = (r: Revenda) => {
     setEditing(r);
+    setVinculo(r.prospecto_id && !r.cliente_id ? `p:${r.prospecto_id}` : r.cliente_id ? `c:${r.cliente_id}` : '');
     setForm({
-      cliente_id: r.cliente_id,
+      cliente_id: r.cliente_id || '',
       sistema: r.sistema || '',
       status_venda: r.status_venda,
       temperatura: r.temperatura || 'morno',
@@ -248,9 +316,13 @@ export default function KanbanVendas() {
     try {
       const updateData: Record<string, any> = { status_venda: newStatus };
       if (newStatus === 'fechado') updateData.data_venda = new Date().toISOString().split('T')[0];
-      const { error } = await supabase.from('revendas').update(updateData).eq('id', draggedId);
+      const { error } = await supabase.from('revendas').update(updateData).eq('id', item.id);
       if (error) throw error;
       toast.success(`Movido para ${COLUNAS.find(c => c.id === newStatus)?.label}`);
+      if (newStatus === 'fechado' && !item.cliente_id) {
+        await converterSeFechou(item.id, newStatus, false, nomeDaVenda(item));
+        fetchData();
+      }
     } catch {
       toast.error('Erro ao mover');
       fetchData();
@@ -459,9 +531,12 @@ export default function KanbanVendas() {
                               <div className="flex items-start justify-between gap-1">
                                 <div className="flex items-center gap-1.5 min-w-0">
                                   <GripVertical className="h-3.5 w-3.5 text-muted-foreground/40 shrink-0" />
-                                  <p className="text-sm font-medium truncate">
-                                    {item.cliente?.nome_empresa || 'Cliente'}
-                                  </p>
+                                  <p className="text-sm font-medium truncate">{nomeDaVenda(item)}</p>
+                                  {!item.cliente_id && (
+                                    <span className="shrink-0 rounded bg-violet-50 px-1 text-[9px] font-semibold uppercase text-violet-600" title="Ainda não é cliente: vira cliente quando a venda fechar">
+                                      Prospecto
+                                    </span>
+                                  )}
                                 </div>
                                 <div className="flex gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
                                   <Button size="icon" variant="ghost" className="h-6 w-6" onClick={() => handleEdit(item)}>
@@ -548,20 +623,58 @@ export default function KanbanVendas() {
           </DialogHeader>
           <form onSubmit={handleSubmit} className="space-y-4 mt-4">
             <div className="space-y-2">
-              <Label>Cliente *</Label>
-              <Select value={form.cliente_id} onValueChange={v => setForm({ ...form, cliente_id: v })}>
-                <SelectTrigger><SelectValue placeholder="Selecione..." /></SelectTrigger>
+              <Label>Empresa *</Label>
+              <Select value={vinculo} onValueChange={setVinculo}>
+                <SelectTrigger><SelectValue placeholder="Prospecto ou cliente..." /></SelectTrigger>
                 <SelectContent>
+                  <SelectItem value="novo">+ Novo prospecto</SelectItem>
+                  {prospectos.length > 0 && <SelectItem value="__titulo_p" disabled>— Prospectos (ainda não são clientes) —</SelectItem>}
+                  {prospectos.map(p => (
+                    <SelectItem key={p.id} value={`p:${p.id}`}>{p.nome_empresa}</SelectItem>
+                  ))}
+                  {editing?.prospecto_id && !editing.cliente_id && !prospectos.some(p => p.id === editing.prospecto_id) && (
+                    <SelectItem value={`p:${editing.prospecto_id}`}>{nomeDaVenda(editing)}</SelectItem>
+                  )}
+                  <SelectItem value="__titulo_c" disabled>— Clientes (venda adicional) —</SelectItem>
                   {clientes.map(c => (
-                    <SelectItem key={c.id} value={c.id}>{c.nome_empresa}</SelectItem>
+                    <SelectItem key={c.id} value={`c:${c.id}`}>{c.nome_empresa}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
+              <p className="text-[11px] text-muted-foreground">Prospecto só entra na aba Clientes quando a venda for marcada como Fechado.</p>
             </div>
+            {vinculo === 'novo' && (
+              <div className="grid grid-cols-2 gap-3 rounded-lg border border-violet-200 bg-violet-50/40 p-3">
+                <div className="col-span-2 space-y-1">
+                  <Label className="text-xs">Nome da empresa *</Label>
+                  <Input value={novoProspecto.nome_empresa} onChange={e => setNovoProspecto({ ...novoProspecto, nome_empresa: e.target.value })} />
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs">Contato</Label>
+                  <Input value={novoProspecto.nome_contato} onChange={e => setNovoProspecto({ ...novoProspecto, nome_contato: e.target.value })} />
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs">Telefone</Label>
+                  <Input value={novoProspecto.telefone} onChange={e => setNovoProspecto({ ...novoProspecto, telefone: e.target.value })} />
+                </div>
+                <div className="col-span-2 space-y-1">
+                  <Label className="text-xs">CNPJ</Label>
+                  <Input value={novoProspecto.cnpj} onChange={e => setNovoProspecto({ ...novoProspecto, cnpj: e.target.value })} />
+                </div>
+              </div>
+            )}
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label>Sistema</Label>
-                <Input value={form.sistema} onChange={e => setForm({ ...form, sistema: e.target.value })} placeholder="Ex: ERP" />
+                <Select value={form.sistema.trim() || '__nenhum'} onValueChange={v => setForm({ ...form, sistema: v === '__nenhum' ? '' : v })}>
+                  <SelectTrigger><SelectValue placeholder="Escolha" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__nenhum">Não definido</SelectItem>
+                    {Array.from(new Set([...sistemas, ...(form.sistema ? [form.sistema.trim()] : [])])).map(s => (
+                      <SelectItem key={s} value={s}>{s}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
               <div className="space-y-2">
                 <Label>Valor Estimado</Label>
@@ -669,7 +782,7 @@ export default function KanbanVendas() {
             </div>
             <div className="flex justify-end gap-3 pt-4">
               <Button type="button" variant="outline" onClick={() => setDialogOpen(false)}>Cancelar</Button>
-              <Button type="submit" disabled={!form.cliente_id}>{editing ? 'Salvar' : 'Criar'}</Button>
+              <Button type="submit" disabled={!vinculo}>{editing ? 'Salvar' : 'Criar'}</Button>
             </div>
           </form>
         </DialogContent>
@@ -728,7 +841,7 @@ export default function KanbanVendas() {
         open={detailsOpen}
         onOpenChange={setDetailsOpen}
         revendaId={detailsItem?.id ?? null}
-        clienteNome={detailsItem?.cliente?.nome_empresa}
+        clienteNome={detailsItem ? nomeDaVenda(detailsItem) : undefined}
         onSaved={fetchData}
       />
     </div>
