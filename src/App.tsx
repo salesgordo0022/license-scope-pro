@@ -6,7 +6,21 @@ import { ThemeProvider } from "next-themes";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
-import { lazy, Suspense } from "react";
+import { lazy as reactLazy, Suspense, type ComponentType } from "react";
+
+// Após uma atualização, o navegador pode pedir um arquivo antigo que não existe
+// mais ("Failed to fetch dynamically imported module"). Recarrega a página uma vez.
+const lazy = <T extends ComponentType<any>>(f: () => Promise<{ default: T }>) =>
+  reactLazy(() =>
+    f().then((m) => { sessionStorage.removeItem("chunk-reload"); return m; }).catch((e) => {
+      if (!sessionStorage.getItem("chunk-reload")) {
+        sessionStorage.setItem("chunk-reload", "1");
+        window.location.reload();
+        return new Promise<{ default: T }>(() => {});
+      }
+      throw e;
+    })
+  );
 import TetrisLoading from "@/components/ui/tetris-loader";
 
 // Cada tela vira um arquivo separado, baixado só quando é aberta: o sistema
