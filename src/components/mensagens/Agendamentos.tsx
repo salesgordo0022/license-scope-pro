@@ -15,7 +15,8 @@ import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import { erroDaFunction } from '@/lib/erroFunction';
-import { useConexoesZap } from '@/hooks/use-conexoes-zap';
+import { canalLembrado, lembrarCanal, useConexoesZap } from '@/hooks/use-conexoes-zap';
+import { SeletorCanal } from '@/components/mensagens/SeletorCanal';
 import { descreverRegra, preencherVariaveis, proximaExecucao, type Recorrencia, type RegraAgenda } from '@/lib/agenda';
 
 interface Agendamento extends RegraAgenda {
@@ -124,7 +125,7 @@ const vazio = (): Omit<Agendamento, 'id' | 'proxima_execucao' | 'ultima_execucao
   hora: '09:00',
   destino: 'todos_ativos',
   clientes_ids: [],
-  conexao_id: null,
+  conexao_id: canalLembrado(),
   conexao_nome: null,
   anexo_path: null,
   anexo_nome: null,
@@ -150,7 +151,7 @@ export default function Agendamentos() {
   const [salvando, setSalvando] = useState(false);
   const [subindo, setSubindo] = useState(false);
   const [verFila, setVerFila] = useState<'proximos' | 'enviados'>('proximos');
-  const { conexoes, erro: erroConexoes } = useConexoesZap();
+  const { conexoes } = useConexoesZap();
 
   const carregar = useCallback(async () => {
     const [ag, fi, cl] = await Promise.all([
@@ -331,7 +332,7 @@ export default function Agendamentos() {
               <p className="mt-2 line-clamp-2 whitespace-pre-line text-xs text-muted-foreground">{a.mensagem}</p>
               <div className="mt-3 flex flex-wrap gap-1.5 text-[11px]">
                 <Badge variant="secondary">{destinatarios(a)}</Badge>
-                <Badge variant="secondary">Canal: {a.conexao_nome || 'padrão'}</Badge>
+                <Badge variant="secondary">Canal: {a.conexao_nome || conexoes.find((c) => c.id === a.conexao_id)?.nome || 'padrão'}</Badge>
                 {a.anexo_nome && (
                   <Badge variant="secondary" className="gap-1">
                     <Paperclip className="h-3 w-3" /> {a.anexo_nome}
@@ -573,20 +574,13 @@ export default function Agendamentos() {
 
             <div className="space-y-1.5">
               <Label>Canal do WhatsApp (conexão do ZapContábil)</Label>
-              <Select value={form.conexao_id == null ? 'padrao' : String(form.conexao_id)} onValueChange={(v) => setForm({ ...form, conexao_id: v === 'padrao' ? null : Number(v) })}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="padrao">Padrão (o mesmo do envio de boletos)</SelectItem>
-                  {conexoes.map((c) => (
-                    <SelectItem key={c.id} value={String(c.id)}>
-                      {c.nome} {c.status && c.status !== 'CONNECTED' ? `(${c.status.toLowerCase()})` : ''}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              {erroConexoes && <p className="text-[11px] text-destructive">Não carregou os canais: {erroConexoes}</p>}
+              <SeletorCanal
+                valor={form.conexao_id}
+                onChange={(id) => {
+                  setForm({ ...form, conexao_id: id });
+                  lembrarCanal(id);
+                }}
+              />
             </div>
 
             <div className="space-y-2">
