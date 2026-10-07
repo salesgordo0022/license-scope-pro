@@ -15,7 +15,7 @@
 import { autenticar, json, respostaPreflight } from "../_shared/auth.ts";
 import { clienteServico, iguaisSeguro } from "../_shared/chamados.ts";
 import { segredo } from "../_shared/segredos.ts";
-import { lista, normalizarNumero, zapEnviarDocumento, zapEnviarTexto, zapGet } from "../_shared/zapcontabil.ts";
+import { lista, normalizarNumero, zapEnviarDocumento, zapEnviarTexto, zapGarantirContato, zapGet } from "../_shared/zapcontabil.ts";
 import { preencherVariaveis, proximaExecucao, type RegraAgenda } from "../_shared/agenda.ts";
 import type { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 
@@ -107,6 +107,7 @@ interface ItemFila {
   id: string;
   empresa_id: string;
   cliente_id: string | null;
+  cliente_nome: string | null;
   telefone: string;
   mensagem: string;
   tipo: string;
@@ -118,6 +119,9 @@ interface ItemFila {
 
 async function enviarItem(db: SupabaseClient, item: ItemFila): Promise<{ status: string; erro: string | null }> {
   const conexao = item.conexao_id ?? conexaoPadrao();
+  // Cliente precisa existir no canal escolhido; se não existir, tenta adicionar.
+  const avisoContato = await zapGarantirContato(item.telefone, item.cliente_nome ?? item.telefone, conexao);
+  if (avisoContato) return { status: "erro", erro: avisoContato.slice(0, 500) };
   const texto = await zapEnviarTexto(item.telefone, item.mensagem, conexao).then(() => null).catch((e) => (e instanceof Error ? e.message : String(e)));
   if (texto) return { status: "erro", erro: texto.slice(0, 500) };
   if (!item.anexo_path) return { status: "enviado", erro: null };

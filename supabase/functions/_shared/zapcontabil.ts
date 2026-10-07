@@ -22,6 +22,40 @@ export async function zapGet(caminho: string, params: Record<string, string> = {
   return corpo ? JSON.parse(corpo) : null;
 }
 
+// deno-lint-ignore no-explicit-any
+export async function zapPost(caminho: string, corpoJson: Record<string, unknown>): Promise<any> {
+  const resp = await fetch(`${ZAP_BASE}${caminho}`, {
+    method: "POST",
+    headers: { accept: "application/json", Authorization: `Bearer ${token()}`, "Content-Type": "application/json" },
+    body: JSON.stringify(corpoJson),
+  });
+  const corpo = await resp.text();
+  if (!resp.ok) throw new Error(`ZapContábil ${caminho} (${resp.status}): ${corpo.slice(0, 200)}`);
+  return corpo ? JSON.parse(corpo) : null;
+}
+
+/**
+ * Garante que o número existe como contato no ZapContábil (canal escolhido).
+ * Se não existir, tenta cadastrar. Devolve null quando deu certo; senão, o aviso.
+ */
+export async function zapGarantirContato(numero: string, nome: string, conexaoId: number | null): Promise<string | null> {
+  try {
+    const r = await zapGet("/api/contacts", { search: numero });
+    const achou = lista(r, "contacts").some((c: Record<string, unknown>) => String(c.number ?? c.numero ?? "").replace(/\D/g, "").endsWith(numero.slice(-11)));
+    if (achou) return null;
+  } catch { /* se a busca falhar, tenta cadastrar mesmo assim */ }
+  try {
+    await zapPost("/api/contacts", {
+      name: nome || numero,
+      number: numero,
+      ...(conexaoId !== null ? { connectionId: conexaoId } : {}),
+    });
+    return null;
+  } catch (e) {
+    return `Cliente não encontrado no canal e não foi possível adicioná-lo: ${e instanceof Error ? e.message : String(e)}`;
+  }
+}
+
 /** As listas vêm como array ou como { <chave>: [...] } (ex.: { messages, count }). */
 // deno-lint-ignore no-explicit-any
 export function lista(r: any, chave: string): any[] {
