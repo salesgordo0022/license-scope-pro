@@ -2,6 +2,7 @@ import { motion } from 'framer-motion';
 import { Target, Columns3, Search } from '@/components/icons';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import MetasVendas from '@/components/vendas/MetasVendas';
+import MetasSistema from '@/components/vendas/MetasSistema';
 import KanbanVendas from '@/components/vendas/KanbanVendas';
 import ProspeccaoEmpresas from '@/components/vendas/ProspeccaoEmpresas';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
@@ -52,7 +53,10 @@ export default function Revendas() {
 
         <TabsContent value="metas">
           <ErrorBoundary>
-            <MetasVendas />
+            <div className="space-y-8">
+              <MetasSistema />
+              <MetasVendas />
+            </div>
           </ErrorBoundary>
         </TabsContent>
       </Tabs>

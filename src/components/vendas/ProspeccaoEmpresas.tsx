@@ -15,6 +15,7 @@ import {
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { supabase } from '@/integrations/supabase/client';
+import { enviarAoFunil } from '@/lib/funil';
 import { toast } from 'sonner';
 
 const ESTADOS = [
@@ -126,52 +127,37 @@ export default function ProspeccaoEmpresas() {
   }, [uf, municipio, dataInicio, dataFim, regimeTributario, empresas, buscou, adicionados]);
 
 
-  /** Importa a empresa encontrada como um cliente da carteira. */
+  /**
+   * Manda a empresa encontrada para o funil de vendas como LEAD (prospecto).
+   * Ela não entra em Clientes agora: vira cliente sozinha quando a venda for
+   * marcada como "Fechado" no Kanban.
+   */
   const adicionarCliente = useCallback(async (emp: Empresa) => {
     setAdicionando(emp.cnpj);
     try {
-      const { data: userData } = await supabase.auth.getUser();
-      if (!userData.user) throw new Error('Não autenticado');
-      const { data: perfil } = await supabase
-        .from('usuario_perfil')
-        .select('empresa_id')
-        .eq('user_id', userData.user.id)
-        .maybeSingle();
-
-      const enderecoStr = [
-        emp.endereco.logradouro,
-        emp.endereco.numero,
-        emp.endereco.bairro,
-        emp.endereco.cep,
-      ].filter(Boolean).join(', ');
-
-      const { error: insErr } = await supabase.from('clientes').insert({
+      const enderecoStr = [emp.endereco.logradouro, emp.endereco.numero, emp.endereco.bairro].filter(Boolean).join(', ');
+      const r = await enviarAoFunil({
         nome_empresa: emp.razaoSocial || emp.nomeFantasia || 'Sem nome',
         cnpj: emp.cnpj,
         email: emp.email || null,
         telefone: emp.telefone || null,
-        endereco: enderecoStr,
-        cidade: emp.endereco.cidade || '',
-        estado: emp.endereco.uf || '',
+        endereco: enderecoStr || null,
+        cidade: emp.endereco.cidade || null,
+        estado: emp.endereco.uf || null,
+        cep: emp.endereco.cep || null,
         segmento: emp.atividadePrincipal || null,
-        regime_tributario: emp.regimeTributario || '',
+        regime_tributario: emp.regimeTributario || null,
         observacoes: `Prospectado via CNPJá. Regime: ${emp.regimeTributario || '—'}. Porte: ${emp.porte || '—'}. Abertura: ${emp.dataAbertura || '—'}`,
-        status: 'ativo' as const,
-
-        empresa_id: perfil?.empresa_id ?? null,
-      });
-
-      if (insErr) throw insErr;
+        origem: 'prospeccao',
+      }, { origem: 'Prospecção ativa' });
       setAdicionados((prev) => new Set(prev).add(emp.cnpj));
-      toast.success('Cliente cadastrado!');
-    } catch (e: any) {
-      const msg = e?.message || 'Erro ao cadastrar cliente';
-      if (msg.toLowerCase().includes('duplicate') || msg.includes('23505')) {
-        toast.error('Cliente já cadastrado (CNPJ duplicado)');
-        setAdicionados((prev) => new Set(prev).add(emp.cnpj));
-      } else {
-        toast.error(msg);
-      }
+      toast.success(r.jaEstava ? 'Esta empresa já estava no funil' : 'Enviada ao funil como lead', {
+        description: 'Ela entra em Clientes quando a venda for marcada como Fechado.',
+      });
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : 'Erro ao enviar ao funil';
+      if (msg.includes('já é cliente')) setAdicionados((prev) => new Set(prev).add(emp.cnpj));
+      toast.error(msg);
     } finally {
       setAdicionando(null);
     }
@@ -238,7 +224,7 @@ export default function ProspeccaoEmpresas() {
       'Capital Social': e.capitalSocial,
       'Porte': e.porte,
       'Regime Tributário': e.regimeTributario || '',
-      'Já adicionado': adicionados.has(e.cnpj) ? 'Sim' : 'Não',
+      'No funil': adicionados.has(e.cnpj) ? 'Sim' : 'Não',
     }));
     const ws = XLSX.utils.json_to_sheet(linhas);
     // largura automática por coluna
@@ -531,7 +517,7 @@ export default function ProspeccaoEmpresas() {
                       ) : (
                         <Building2 className="h-3 w-3 mr-1" />
                       )}
-                      {adicionados.has(emp.cnpj) ? 'Adicionado' : 'Adicionar'}
+                      {adicionados.has(emp.cnpj) ? 'No funil' : 'Enviar ao funil'}
                     </Button>
 
                   </div>

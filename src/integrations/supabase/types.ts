@@ -1124,6 +1124,42 @@ export type Database = {
         }
         Relationships: []
       }
+      metas_sistema: {
+        Row: {
+          created_at: string
+          empresa_id: string | null
+          id: string
+          mes: string
+          observacoes: string | null
+          planos: Json
+          quantidade: number
+          sistema: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          empresa_id?: string | null
+          id?: string
+          mes: string
+          observacoes?: string | null
+          planos?: Json
+          quantidade?: number
+          sistema: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          empresa_id?: string | null
+          id?: string
+          mes?: string
+          observacoes?: string | null
+          planos?: Json
+          quantidade?: number
+          sistema?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       metas_vendas: {
         Row: {
           cliente_cnpj: string | null
@@ -1327,6 +1363,75 @@ export type Database = {
           },
         ]
       }
+      prospectos: {
+        Row: {
+          cep: string | null
+          cidade: string | null
+          cliente_id: string | null
+          cnpj: string | null
+          convertido_em: string | null
+          created_at: string
+          dados_cliente: Json | null
+          email: string | null
+          empresa_id: string | null
+          endereco: string | null
+          estado: string | null
+          id: string
+          nome_contato: string | null
+          nome_empresa: string
+          observacoes: string | null
+          origem: string
+          regime_tributario: string | null
+          segmento: string | null
+          telefone: string | null
+          updated_at: string
+        }
+        Insert: {
+          cep?: string | null
+          cidade?: string | null
+          cliente_id?: string | null
+          cnpj?: string | null
+          convertido_em?: string | null
+          created_at?: string
+          dados_cliente?: Json | null
+          email?: string | null
+          empresa_id?: string | null
+          endereco?: string | null
+          estado?: string | null
+          id?: string
+          nome_contato?: string | null
+          nome_empresa: string
+          observacoes?: string | null
+          origem?: string
+          regime_tributario?: string | null
+          segmento?: string | null
+          telefone?: string | null
+          updated_at?: string
+        }
+        Update: {
+          cep?: string | null
+          cidade?: string | null
+          cliente_id?: string | null
+          cnpj?: string | null
+          convertido_em?: string | null
+          created_at?: string
+          dados_cliente?: Json | null
+          email?: string | null
+          empresa_id?: string | null
+          endereco?: string | null
+          estado?: string | null
+          id?: string
+          nome_contato?: string | null
+          nome_empresa?: string
+          observacoes?: string | null
+          origem?: string
+          regime_tributario?: string | null
+          segmento?: string | null
+          telefone?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
       pipelines_vendas: {
         Row: {
           ativo: boolean
@@ -1404,7 +1509,7 @@ export type Database = {
       revendas: {
         Row: {
           anotacoes: Json
-          cliente_id: string
+          cliente_id: string | null
           created_at: string | null
           data_proxima_acao: string | null
           data_venda: string | null
@@ -1413,6 +1518,7 @@ export type Database = {
           observacoes: string | null
           origem: string | null
           pipeline_id: string | null
+          prospecto_id: string | null
           proxima_acao: string | null
           revendedor_id: string | null
           sistema: string | null
@@ -1424,7 +1530,7 @@ export type Database = {
         }
         Insert: {
           anotacoes?: Json
-          cliente_id: string
+          cliente_id?: string | null
           created_at?: string | null
           data_proxima_acao?: string | null
           data_venda?: string | null
@@ -1433,6 +1539,7 @@ export type Database = {
           observacoes?: string | null
           origem?: string | null
           pipeline_id?: string | null
+          prospecto_id?: string | null
           proxima_acao?: string | null
           revendedor_id?: string | null
           sistema?: string | null
@@ -1444,7 +1551,7 @@ export type Database = {
         }
         Update: {
           anotacoes?: Json
-          cliente_id?: string
+          cliente_id?: string | null
           created_at?: string | null
           data_proxima_acao?: string | null
           data_venda?: string | null
@@ -1453,6 +1560,7 @@ export type Database = {
           observacoes?: string | null
           origem?: string | null
           pipeline_id?: string | null
+          prospecto_id?: string | null
           proxima_acao?: string | null
           revendedor_id?: string | null
           sistema?: string | null
@@ -1754,6 +1862,10 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      prospecto_converter: {
+        Args: { p_revenda_id: string }
+        Returns: string
+      }
       chamado_registrar: {
         Args: {
           p_anexos?: Json
