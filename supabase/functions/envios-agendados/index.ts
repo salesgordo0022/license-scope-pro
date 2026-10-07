@@ -6,6 +6,7 @@
  *       fila_envios, e a regra passa para a próxima data.
  *    2. Envia a fila que já chegou a hora (até LOTE por rodada, com pausa).
  *  POST { acao: "conexoes" }        (logado) → conexões do ZapContábil
+ *  POST { acao: "verificar_contato", telefone } (logado) → { existe, nome }
  *  POST { acao: "upload_anexo", nome, base64, tipo }      (logado) → { path }
  *  POST { acao: "agendar_boleto", cliente_id, telefone, mensagem,
  *         nome, base64, tipo, enviar_em, conexao_id? }   (logado) → { id }
@@ -15,7 +16,7 @@
 import { autenticar, json, respostaPreflight } from "../_shared/auth.ts";
 import { clienteServico, iguaisSeguro } from "../_shared/chamados.ts";
 import { segredo } from "../_shared/segredos.ts";
-import { lista, normalizarNumero, zapEnviarDocumento, zapEnviarTexto, zapGarantirContato, zapGet } from "../_shared/zapcontabil.ts";
+import { lista, normalizarNumero, zapContatoExiste, zapEnviarDocumento, zapEnviarTexto, zapGarantirContato, zapGet } from "../_shared/zapcontabil.ts";
 import { preencherVariaveis, proximaExecucao, type RegraAgenda } from "../_shared/agenda.ts";
 import type { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 
@@ -119,9 +120,10 @@ interface ItemFila {
 
 async function enviarItem(db: SupabaseClient, item: ItemFila): Promise<{ status: string; erro: string | null }> {
   const conexao = item.conexao_id ?? conexaoPadrao();
-  // Cliente precisa existir no canal escolhido; se não existir, tenta adicionar.
-  const avisoContato = await zapGarantirContato(item.telefone, item.cliente_nome ?? item.telefone, conexao);
-  if (avisoContato) return { status: "erro", erro: avisoContato.slice(0, 500) };
+  // Cliente que ainda não é contato no ZapContábil é cadastrado antes do envio.
+  // Se a consulta falhar ("desconhecido"), envia mesmo assim: o envio é o que importa.
+  const contato = await zapGarantirContato(item.telefone, item.cliente_nome ?? item.telefone, conexao);
+  if (contato.situacao === "sem_whatsapp") return { status: "erro", erro: "Número sem WhatsApp: o ZapContábil recusou o cadastro do contato." };
   const texto = await zapEnviarTexto(item.telefone, item.mensagem, conexao).then(() => null).catch((e) => (e instanceof Error ? e.message : String(e)));
   if (texto) return { status: "erro", erro: texto.slice(0, 500) };
   if (!item.anexo_path) return { status: "enviado", erro: null };
@@ -208,6 +210,10 @@ Deno.serve(async (req) => {
         padrao: Boolean(c.isDefault),
       }));
       return json(req, { conexoes });
+    }
+
+    if (acao === "verificar_contato") {
+      return json(req, await zapContatoExiste(String(corpo.telefone ?? "")));
     }
 
     if (acao === "upload_anexo") {

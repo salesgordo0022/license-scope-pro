@@ -1,9 +1,10 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 import { corsHeaders, respostaPreflight } from "../_shared/auth.ts";
+import { zapGarantirContato } from "../_shared/zapcontabil.ts";
 
 const ZAP_BASE = "https://api-imperial.zapcontabil.chat";
 // Versão da função: o frontend usa para detectar deploy desatualizado.
-const FUNCTION_VERSION = 3;
+const FUNCTION_VERSION = 4; // 4: canal escolhido (conexao_id) e cadastro do contato no ZapContábil
 
 interface SendBody {
   telefone: string;
@@ -16,6 +17,8 @@ interface SendBody {
   media_bucket?: string;       // bucket do Storage (padrão: boletos)
   media_base64?: string;       // conteúdo do arquivo em base64 (o servidor grava no Storage com service role)
   media_content_type?: string; // MIME do arquivo em base64 (padrão: application/pdf)
+  conexao_id?: number | null;  // canal (conexão do ZapContábil) escolhido na tela; vazio = o do secret
+  nome_contato?: string;       // nome para cadastrar o contato no ZapContábil se ele não existir
 }
 
 interface Attempt {
@@ -182,7 +185,7 @@ Deno.serve(async (req) => {
     // sobrescrito com o ID real obtido em /api/connections, ou "none" para
     // deixar o ZapContábil escolher a conexão padrão.
     const connEnv = (Deno.env.get("ZAPCONTABIL_CONNECTION_ID") ?? "0").trim();
-    const connectionFrom: number | null = connEnv === "" || connEnv.toLowerCase() === "none" ? null : Number(connEnv);
+    let connectionFrom: number | null = connEnv === "" || connEnv.toLowerCase() === "none" ? null : Number(connEnv);
 
     const authHeader = req.headers.get("Authorization");
     if (!authHeader) return json(req, { success: false, error: "Não autenticado" });
@@ -196,6 +199,10 @@ Deno.serve(async (req) => {
     if (userErr || !userData.user) return json(req, { success: false, error: "Sessão inválida" });
 
     const body = (await req.json()) as SendBody;
+    // Canal escolhido na tela tem prioridade sobre o padrão do secret.
+    if (body.conexao_id !== undefined && body.conexao_id !== null && Number.isFinite(Number(body.conexao_id))) {
+      connectionFrom = Number(body.conexao_id);
+    }
     const telefone = onlyDigits(body.telefone || "");
     const mensagem = (body.mensagem || "").trim();
     const tipo = (body.tipo || "avulsa").trim();
@@ -289,6 +296,12 @@ Deno.serve(async (req) => {
     }
     const temAnexo = !!(media_url || media_path || arquivoBase64);
     const anexoSolicitado = !!(media_base64 || body.media_url || body.media_path);
+
+    // 0) Contato no ZapContábil: se não existir, cadastra com o nome do cliente.
+    const contato = await zapGarantirContato(numero, (body.nome_contato || "").trim(), connectionFrom);
+    if (contato.situacao === "sem_whatsapp") {
+      return json(req, { success: false, version: FUNCTION_VERSION, contato: contato.situacao, error: "Este número não tem WhatsApp (o ZapContábil recusou o cadastro). Confira o telefone do cliente." });
+    }
 
     // 1) Texto da mensagem
     const texto = await enviarTexto(ZAPCONTABIL_API_TOKEN, numero, mensagem, connectionFrom);
@@ -408,6 +421,7 @@ Deno.serve(async (req) => {
       documentByLink,
       docFalhou: temAnexo && !usedMedia && !documentByLink,
       warning,
+      contato: contato.situacao, // existe | criado | desconhecido
       attempts,
     });
   } catch (err) {

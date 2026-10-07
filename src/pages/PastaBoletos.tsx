@@ -29,6 +29,8 @@ import { toast } from "sonner";
 import { Input } from "@/components/ui/input";
 import { proximaExecucao } from "@/lib/agenda";
 import { erroDaFunction } from "@/lib/erroFunction";
+import { SeletorCanal } from "@/components/mensagens/SeletorCanal";
+import { canalLembrado, lembrarCanal } from "@/hooks/use-conexoes-zap";
 import {
   analisarBoleto,
   extrairTextoPdf,
@@ -183,6 +185,9 @@ export default function PastaBoletos() {
   );
   const [enviandoTodos, setEnviandoTodos] = useState(false);
   const [agendarPara, setAgendarPara] = useState(proximoDia10);
+  const [canal, setCanal] = useState<number | null>(canalLembrado);
+  const canalRef = useRef(canal);
+  canalRef.current = canal;
   const agendarParaRef = useRef(agendarPara);
   agendarParaRef.current = agendarPara;
 
@@ -504,6 +509,8 @@ export default function PastaBoletos() {
           media_content_type: file.type || "application/pdf",
           media_filename: entry.name,
           media_bucket: "boletos",
+          conexao_id: canalRef.current,
+          nome_contato: entry.clienteNome || "",
         },
       });
       if (error) throw error;
@@ -577,6 +584,7 @@ export default function PastaBoletos() {
           tipo: file.type || "application/pdf",
           base64: await fileToBase64(file),
           enviar_em: quando.toISOString(),
+          conexao_id: canalRef.current,
         },
       });
       if (error || data?.error) throw new Error((await erroDaFunction(error, data)) || "Falha ao agendar");
@@ -835,6 +843,14 @@ export default function PastaBoletos() {
               </CardDescription>
             </div>
             <div className="flex flex-wrap items-center justify-end gap-2">
+              <SeletorCanal
+                className="w-[200px]"
+                valor={canal}
+                onChange={(id) => {
+                  setCanal(id);
+                  lembrarCanal(id);
+                }}
+              />
               <div className="flex items-center gap-1 rounded-lg border p-1">
                 <Input
                   type="datetime-local"

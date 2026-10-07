@@ -14,6 +14,8 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { toast } from "sonner";
 import Agendamentos from "@/components/mensagens/Agendamentos";
+import { SeletorCanal } from "@/components/mensagens/SeletorCanal";
+import { canalLembrado, lembrarCanal } from "@/hooks/use-conexoes-zap";
 
 interface Cliente {
   id: string;
@@ -64,6 +66,8 @@ export default function Mensagens() {
   const [historico, setHistorico] = useState<MensagemHist[]>([]);
 
   const [modo, setModo] = useState<Modo>("individual");
+  // Canal (conexão do ZapContábil) por onde sai o envio; lembrado neste navegador.
+  const [canal, setCanal] = useState<number | null>(canalLembrado);
   const [clienteId, setClienteId] = useState<string>("");
   const [selecionados, setSelecionados] = useState<string[]>([]);
   const [filtroClientes, setFiltroClientes] = useState("");
@@ -217,13 +221,15 @@ export default function Mensagens() {
         media_base64: base64 || undefined,
         media_content_type: arquivo?.type || "application/pdf",
         media_filename: arquivoNome || undefined,
+        conexao_id: canal,
+        nome_contato: c.nome_empresa,
       },
     });
-    if (error) return { ok: false, docOk: false, msg: error.message };
-    const res = data as { success: boolean; error?: string; usedMedia?: boolean; documentByLink?: boolean; docFalhou?: boolean; warning?: string | null };
-    if (!res?.success) return { ok: false, docOk: false, msg: res?.error };
+    if (error) return { ok: false, docOk: false, msg: error.message, criado: false };
+    const res = data as { success: boolean; error?: string; usedMedia?: boolean; documentByLink?: boolean; docFalhou?: boolean; warning?: string | null; contato?: string };
+    if (!res?.success) return { ok: false, docOk: false, msg: res?.error, criado: false };
     const docOk = !arquivoUrl || !!res.usedMedia || !!res.documentByLink;
-    return { ok: true, docOk, msg: res.warning || undefined };
+    return { ok: true, docOk, msg: res.warning || undefined, criado: res.contato === "criado" };
   }
 
   /** Envia para todos os destinatários selecionados, um a um, e consolida o resultado. */
@@ -244,6 +250,15 @@ export default function Mensagens() {
           toast.error("Telefone inválido");
           return;
         }
+        // O cliente já é contato no ZapContábil? Se não for, avisa antes e cadastra no envio.
+        const nomeContato = clientes.find((c) => c.id === clienteId)?.nome_empresa || "";
+        const { data: verif } = await supabase.functions.invoke("envios-agendados", { body: { acao: "verificar_contato", telefone } });
+        if (verif?.existe === false) {
+          const ok = window.confirm(
+            `${nomeContato || "Este número"} não está cadastrado como contato no ZapContábil.\n\nCadastrar o contato agora e enviar a mensagem?`
+          );
+          if (!ok) return;
+        }
         const base64 = arquivo ? await fileToBase64(arquivo) : undefined;
         const { data, error } = await supabase.functions.invoke("send-whatsapp", {
           body: {
@@ -254,10 +269,13 @@ export default function Mensagens() {
             media_base64: base64,
             media_content_type: arquivo?.type || "application/pdf",
             media_filename: arquivoNome || undefined,
+            conexao_id: canal,
+            nome_contato: nomeContato,
           },
         });
         if (error) throw error;
-        const res = data as { success: boolean; version?: number; error?: string; usedMedia?: boolean; documentByLink?: boolean; docFalhou?: boolean; warning?: string | null };
+        const res = data as { success: boolean; version?: number; error?: string; usedMedia?: boolean; documentByLink?: boolean; docFalhou?: boolean; warning?: string | null; contato?: string };
+        if (res.success && res.contato === "criado") toast.info(`${nomeContato || "Contato"} cadastrado no ZapContábil`);
         if (!res.success) {
           toast.error(res.error || "Falha ao enviar");
         } else if (arquivo && (!res.version || res.version < 3)) {
@@ -292,9 +310,11 @@ export default function Mensagens() {
         let okComDoc = 0;
         let okSemDoc = 0;
         let fail = 0;
+        let criados = 0;
         const base64 = arquivo ? await fileToBase64(arquivo) : undefined;
         for (const c of alvos) {
           const r = await enviarUm(c, base64);
+          if (r.criado) criados++;
           if (!r.ok) fail++;
           else if (!r.docOk) okSemDoc++;
           else okComDoc++;
@@ -307,6 +327,7 @@ export default function Mensagens() {
         } else {
           toast.success(`Envios concluídos: ${okComDoc} ok, ${fail} falhas`);
         }
+        if (criados > 0) toast.info(`${criados} cliente(s) não estavam no ZapContábil e foram cadastrados como contato.`);
         carregarHistorico();
       }
     } catch (e) {
@@ -384,6 +405,18 @@ export default function Mensagens() {
                   <Button type="button" variant={modo === "massa" ? "default" : "outline"} onClick={() => setModo("massa")}>
                     <Users className="mr-2 h-4 w-4" /> Em massa
                   </Button>
+                </div>
+
+                {/* Canal */}
+                <div className="space-y-1.5">
+                  <Label>Canal do WhatsApp</Label>
+                  <SeletorCanal
+                    valor={canal}
+                    onChange={(id) => {
+                      setCanal(id);
+                      lembrarCanal(id);
+                    }}
+                  />
                 </div>
 
                 {/* Tipo */}

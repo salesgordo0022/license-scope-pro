@@ -15,14 +15,8 @@ import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import { erroDaFunction } from '@/lib/erroFunction';
+import { useConexoesZap } from '@/hooks/use-conexoes-zap';
 import { descreverRegra, preencherVariaveis, proximaExecucao, type Recorrencia, type RegraAgenda } from '@/lib/agenda';
-
-export interface ConexaoZap {
-  id: number;
-  nome: string;
-  status: string;
-  padrao: boolean;
-}
 
 interface Agendamento extends RegraAgenda {
   id: string;
@@ -119,15 +113,6 @@ function arquivoParaBase64(f: File): Promise<string> {
   });
 }
 
-/** Conexões (canais) do ZapContábil, para escolher por onde sai a mensagem. */
-export function useConexoesZap() {
-  const [conexoes, setConexoes] = useState<ConexaoZap[]>([]);
-  useEffect(() => {
-    supabase.functions.invoke('envios-agendados', { body: { acao: 'conexoes' } }).then(({ data }) => setConexoes((data?.conexoes as ConexaoZap[]) || []));
-  }, []);
-  return conexoes;
-}
-
 const vazio = (): Omit<Agendamento, 'id' | 'proxima_execucao' | 'ultima_execucao'> => ({
   titulo: '',
   tipo: 'avulsa',
@@ -165,7 +150,7 @@ export default function Agendamentos() {
   const [salvando, setSalvando] = useState(false);
   const [subindo, setSubindo] = useState(false);
   const [verFila, setVerFila] = useState<'proximos' | 'enviados'>('proximos');
-  const conexoes = useConexoesZap();
+  const { conexoes, erro: erroConexoes } = useConexoesZap();
 
   const carregar = useCallback(async () => {
     const [ag, fi, cl] = await Promise.all([
@@ -601,6 +586,7 @@ export default function Agendamentos() {
                   ))}
                 </SelectContent>
               </Select>
+              {erroConexoes && <p className="text-[11px] text-destructive">Não carregou os canais: {erroConexoes}</p>}
             </div>
 
             <div className="space-y-2">

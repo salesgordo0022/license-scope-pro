@@ -34,28 +34,6 @@ export async function zapPost(caminho: string, corpoJson: Record<string, unknown
   return corpo ? JSON.parse(corpo) : null;
 }
 
-/**
- * Garante que o número existe como contato no ZapContábil (canal escolhido).
- * Se não existir, tenta cadastrar. Devolve null quando deu certo; senão, o aviso.
- */
-export async function zapGarantirContato(numero: string, nome: string, conexaoId: number | null): Promise<string | null> {
-  try {
-    const r = await zapGet("/api/contacts", { search: numero });
-    const achou = lista(r, "contacts").some((c: Record<string, unknown>) => String(c.number ?? c.numero ?? "").replace(/\D/g, "").endsWith(numero.slice(-11)));
-    if (achou) return null;
-  } catch { /* se a busca falhar, tenta cadastrar mesmo assim */ }
-  try {
-    await zapPost("/api/contacts", {
-      name: nome || numero,
-      number: numero,
-      ...(conexaoId !== null ? { connectionId: conexaoId } : {}),
-    });
-    return null;
-  } catch (e) {
-    return `Cliente não encontrado no canal e não foi possível adicioná-lo: ${e instanceof Error ? e.message : String(e)}`;
-  }
-}
-
 /** As listas vêm como array ou como { <chave>: [...] } (ex.: { messages, count }). */
 // deno-lint-ignore no-explicit-any
 export function lista(r: any, chave: string): any[] {
@@ -143,4 +121,59 @@ export async function zapEnviarDocumento(
     }
   }
   return false;
+}
+
+/** Mesmo número com ou sem o 9º dígito: compara DDD + últimos 8 dígitos. */
+function mesmoNumero(a: string, b: string): boolean {
+  const x = normalizarNumero(a);
+  const y = normalizarNumero(b);
+  return x.slice(2, 4) === y.slice(2, 4) && x.slice(-8) === y.slice(-8);
+}
+
+export type SituacaoContato = "existe" | "nao_existe" | "criado" | "sem_whatsapp" | "desconhecido";
+
+/** O número já está cadastrado como contato no ZapContábil? */
+export async function zapContatoExiste(numero: string): Promise<{ existe: boolean | null; nome?: string }> {
+  const n = normalizarNumero(numero);
+  try {
+    for (const busca of [n, n.slice(-8)]) {
+      // "searchParam" e "search": versões diferentes da plataforma usam um ou outro.
+      const r = await zapGet("/api/contacts", { searchParam: busca, search: busca, pageSize: "50" });
+      const achado = lista(r, "contacts").find((c: Record<string, unknown>) => mesmoNumero(String(c.number ?? ""), n));
+      if (achado) return { existe: true, nome: String(achado.name ?? "") };
+    }
+    return { existe: false };
+  } catch {
+    return { existe: null }; // não deu para consultar: segue o envio normalmente
+  }
+}
+
+/**
+ * Garante o contato no ZapContábil antes de enviar: se não existir, cadastra
+ * com o nome do cliente. O próprio ZapContábil valida se o número tem
+ * WhatsApp (e ajusta o 9º dígito).
+ */
+export async function zapGarantirContato(
+  numero: string,
+  nome: string,
+  conexaoId: number | null = null,
+): Promise<{ situacao: SituacaoContato; detalhe?: string }> {
+  const n = normalizarNumero(numero);
+  const consulta = await zapContatoExiste(n);
+  if (consulta.existe === true) return { situacao: "existe" };
+  if (consulta.existe === null) return { situacao: "desconhecido" };
+  try {
+    const resp = await fetch(`${ZAP_BASE}/api/contacts/`, {
+      method: "POST",
+      headers: { accept: "application/json", Authorization: `Bearer ${token()}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ name: (nome || n).slice(0, 100), number: n, ...(conexaoId !== null ? { connectionId: conexaoId } : {}) }),
+    });
+    const corpo = await resp.text();
+    if (resp.ok) return { situacao: "criado" };
+    if (/exist|duplic|já cadastrad/i.test(corpo)) return { situacao: "existe" };
+    if (/whats|invalid|inválid|not.*(found|registered)|n[aã]o.*(existe|encontrad)/i.test(corpo)) return { situacao: "sem_whatsapp", detalhe: corpo.slice(0, 200) };
+    return { situacao: "desconhecido", detalhe: `HTTP ${resp.status}: ${corpo.slice(0, 200)}` };
+  } catch (e) {
+    return { situacao: "desconhecido", detalhe: String(e).slice(0, 200) };
+  }
 }
