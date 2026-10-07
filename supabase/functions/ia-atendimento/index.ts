@@ -24,7 +24,7 @@ import type { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.45.0
 const NOME_IA = "Assistente ImperTech";
 const MAX_RESPOSTAS = 8;
 const ESPERA_MS = 15_000; // junta mensagens seguidas do cliente numa resposta só
-const MODELO_PADRAO = "llama-3.3-70b-versatile";
+const MODELO_PADRAO = "openai/gpt-oss-120b"; // o llama-3.3 saiu da lista do Groq
 const GROQ_URL = "https://api.groq.com/openai/v1/chat/completions";
 
 const dormir = (ms: number) => new Promise((r) => setTimeout(r, ms));

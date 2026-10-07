@@ -7,7 +7,7 @@
 -- devolve para a equipe. Se alguém da equipe responder, a IA sai na hora.
 --
 -- Chave do Groq: INSERT em integracao_segredos ('GROQ_API_KEY'); modelo
--- opcional em 'GROQ_MODEL' (padrão llama-3.3-70b-versatile).
+-- opcional em 'GROQ_MODEL' (padrão openai/gpt-oss-120b).
 
 ALTER TABLE public.chamados
   ADD COLUMN IF NOT EXISTS ia_ativa boolean NOT NULL DEFAULT false,
