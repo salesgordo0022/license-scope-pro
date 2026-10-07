@@ -18,6 +18,7 @@ export type Database = {
         Row: {
           anexos: Json
           autor_nome: string | null
+          aviso: boolean
           bruto: Json | null
           chamado_id: string
           created_at: string
@@ -32,6 +33,7 @@ export type Database = {
         Insert: {
           anexos?: Json
           autor_nome?: string | null
+          aviso?: boolean
           bruto?: Json | null
           chamado_id: string
           created_at?: string
@@ -46,6 +48,7 @@ export type Database = {
         Update: {
           anexos?: Json
           autor_nome?: string | null
+          aviso?: boolean
           bruto?: Json | null
           chamado_id?: string
           created_at?: string
@@ -84,6 +87,7 @@ export type Database = {
       chamados: {
         Row: {
           assunto: string | null
+          aviso_demora_em: string | null
           canal_nome: string | null
           cliente_id: string | null
           contato_id: string | null
@@ -111,6 +115,7 @@ export type Database = {
         }
         Insert: {
           assunto?: string | null
+          aviso_demora_em?: string | null
           canal_nome?: string | null
           cliente_id?: string | null
           contato_id?: string | null
@@ -138,6 +143,7 @@ export type Database = {
         }
         Update: {
           assunto?: string | null
+          aviso_demora_em?: string | null
           canal_nome?: string | null
           cliente_id?: string | null
           contato_id?: string | null
@@ -936,6 +942,178 @@ export type Database = {
             referencedRelation: "empresas"
             referencedColumns: ["id"]
           },
+        ]
+      }
+      ia_alertas: {
+        Row: {
+          chamado_id: string | null
+          created_at: string
+          destino: string | null
+          empresa_id: string | null
+          erro: string | null
+          id: string
+          mensagem: string | null
+          perfil_id: string | null
+          quantidade: number | null
+          status: string
+          tipo: string
+        }
+        Insert: {
+          chamado_id?: string | null
+          created_at?: string
+          destino?: string | null
+          empresa_id?: string | null
+          erro?: string | null
+          id?: string
+          mensagem?: string | null
+          perfil_id?: string | null
+          quantidade?: number | null
+          status?: string
+          tipo: string
+        }
+        Update: {
+          chamado_id?: string | null
+          created_at?: string
+          destino?: string | null
+          empresa_id?: string | null
+          erro?: string | null
+          id?: string
+          mensagem?: string | null
+          perfil_id?: string | null
+          quantidade?: number | null
+          status?: string
+          tipo?: string
+        }
+        Relationships: [
+        ]
+      }
+      ia_config: {
+        Row: {
+          alerta_conexao_id: number | null
+          alerta_conexao_nome: string | null
+          alerta_fila_ativo: boolean
+          alerta_fila_geral: boolean
+          alerta_fila_limite: number
+          alerta_intervalo_min: number
+          aviso_demora_ativo: boolean
+          aviso_demora_min: number
+          aviso_demora_slack: boolean
+          aviso_demora_texto: string
+          aviso_demora_whatsapp: boolean
+          empresa_id: string
+          horario_dias: number[]
+          horario_fim: string
+          horario_inicio: string
+          modelo: string | null
+          plantao_ia_ajuda: boolean
+          updated_at: string
+          usar_forum: boolean
+        }
+        Insert: {
+          alerta_conexao_id?: number | null
+          alerta_conexao_nome?: string | null
+          alerta_fila_ativo?: boolean
+          alerta_fila_geral?: boolean
+          alerta_fila_limite?: number
+          alerta_intervalo_min?: number
+          aviso_demora_ativo?: boolean
+          aviso_demora_min?: number
+          aviso_demora_slack?: boolean
+          aviso_demora_texto?: string
+          aviso_demora_whatsapp?: boolean
+          empresa_id?: string
+          horario_dias?: number[]
+          horario_fim?: string
+          horario_inicio?: string
+          modelo?: string | null
+          plantao_ia_ajuda?: boolean
+          updated_at?: string
+          usar_forum?: boolean
+        }
+        Update: {
+          alerta_conexao_id?: number | null
+          alerta_conexao_nome?: string | null
+          alerta_fila_ativo?: boolean
+          alerta_fila_geral?: boolean
+          alerta_fila_limite?: number
+          alerta_intervalo_min?: number
+          aviso_demora_ativo?: boolean
+          aviso_demora_min?: number
+          aviso_demora_slack?: boolean
+          aviso_demora_texto?: string
+          aviso_demora_whatsapp?: boolean
+          empresa_id?: string
+          horario_dias?: number[]
+          horario_fim?: string
+          horario_inicio?: string
+          modelo?: string | null
+          plantao_ia_ajuda?: boolean
+          updated_at?: string
+          usar_forum?: boolean
+        }
+        Relationships: [
+        ]
+      }
+      ia_conhecimento: {
+        Row: {
+          ativo: boolean
+          conteudo: string
+          created_at: string
+          criado_por: string | null
+          empresa_id: string | null
+          id: string
+          tags: string[]
+          titulo: string
+          updated_at: string
+        }
+        Insert: {
+          ativo?: boolean
+          conteudo: string
+          created_at?: string
+          criado_por?: string | null
+          empresa_id?: string | null
+          id?: string
+          tags?: string[]
+          titulo: string
+          updated_at?: string
+        }
+        Update: {
+          ativo?: boolean
+          conteudo?: string
+          created_at?: string
+          criado_por?: string | null
+          empresa_id?: string | null
+          id?: string
+          tags?: string[]
+          titulo?: string
+          updated_at?: string
+        }
+        Relationships: [
+        ]
+      }
+      ia_equipe: {
+        Row: {
+          empresa_id: string | null
+          perfil_id: string
+          receber_alertas: boolean
+          updated_at: string
+          whatsapp: string | null
+        }
+        Insert: {
+          empresa_id?: string | null
+          perfil_id: string
+          receber_alertas?: boolean
+          updated_at?: string
+          whatsapp?: string | null
+        }
+        Update: {
+          empresa_id?: string | null
+          perfil_id?: string
+          receber_alertas?: boolean
+          updated_at?: string
+          whatsapp?: string | null
+        }
+        Relationships: [
         ]
       }
       implantacao_checklist: {

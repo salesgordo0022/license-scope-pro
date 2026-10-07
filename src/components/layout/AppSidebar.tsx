@@ -20,6 +20,7 @@ import {
   MessageSquare,
   Map as MapIcon,
   FolderOpen,
+  Zap,
 } from '@/components/icons';
 import { useAuth } from '@/contexts/AuthContext';
 import { cn } from '@/lib/utils';
@@ -39,6 +40,7 @@ const navigation = [
   { name: 'Dashboard', href: '/dashboard', icon: LayoutGrid },
   { name: 'Chamados', href: '/chamados', icon: Inbox },
   { name: 'Fórum', href: '/forum', icon: ForumIcone },
+  { name: 'Assistente IA', href: '/ia', icon: Zap },
   { name: 'Clientes', href: '/clientes', icon: Users },
   { name: 'Licenças', href: '/licencas', icon: KeyRound },
   { name: 'Pagamentos', href: '/pagamentos', icon: DollarSign },

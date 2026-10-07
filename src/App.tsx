@@ -29,6 +29,7 @@ const Login = lazy(() => import("./pages/Login"));
 const Dashboard = lazy(() => import("./pages/Dashboard"));
 const Chamados = lazy(() => import("./pages/Chamados"));
 const Forum = lazy(() => import("./pages/Forum"));
+const AssistenteIA = lazy(() => import("./pages/AssistenteIA"));
 const Clientes = lazy(() => import("./pages/Clientes"));
 const Licencas = lazy(() => import("./pages/Licencas"));
 const Revendas = lazy(() => import("./pages/Revendas"));
@@ -78,6 +79,7 @@ const App = () => (
               <Route path="/dashboard" element={<Dashboard />} />
               <Route path="/chamados" element={<Chamados />} />
               <Route path="/forum" element={<Forum />} />
+              <Route path="/ia" element={<AssistenteIA />} />
               <Route path="/clientes" element={<Clientes />} />
               <Route path="/licencas" element={<Licencas />} />
               <Route path="/pagamentos" element={<Pagamentos />} />

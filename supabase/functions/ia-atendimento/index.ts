@@ -61,10 +61,10 @@ interface Decisao {
 }
 
 // ------------------------------------------------------------------ Groq
-async function chamarGroq(mensagens: { role: string; content: string }[]): Promise<string> {
+async function chamarGroq(mensagens: { role: string; content: string }[], modeloEscolhido?: string | null): Promise<string> {
   const chave = await segredo("GROQ_API_KEY");
   if (!chave) throw new Error("Chave do Groq não configurada (GROQ_API_KEY)");
-  const modelo = (await segredo("GROQ_MODEL")) || MODELO_PADRAO;
+  const modelo = modeloEscolhido || (await segredo("GROQ_MODEL")) || MODELO_PADRAO;
   const pedir = async (comJson: boolean) => {
     const resp = await fetch(GROQ_URL, {
       method: "POST",
@@ -101,16 +101,16 @@ function lerDecisao(bruto: string): Decisao {
   return { resposta, acao, motivo: String(obj?.motivo ?? "").slice(0, 300) };
 }
 
-function montarPrompt(c: Chamado, nomeCliente: string | null, historico: Mensagem[], primeira: boolean) {
+function montarPrompt(c: Chamado, nomeCliente: string | null, historico: Mensagem[], primeira: boolean, conhecimento = "") {
   const canal = c.origem === "slack" ? "Slack" : "WhatsApp";
   const sistema = `Você é o ${NOME_IA}, assistente virtual do suporte da ImperTech (sistemas para empresas e escritórios de contabilidade).
 Você está atendendo um chamado pelo ${canal} com ${c.contato_nome || "o cliente"}${nomeCliente ? `, da empresa ${nomeCliente}` : ""}.
 
 ORIENTAÇÃO DA EQUIPE (sua fonte principal; siga à risca):
 """
-${c.ia_instrucoes || "(sem orientação)"}
+${c.ia_instrucoes || "(sem orientação específica: use só a base de conhecimento abaixo)"}
 """
-
+${conhecimento ? `\nBASE DE CONHECIMENTO DA IMPERTECH (use quando ajudar; não invente além do que está aqui):\n"""\n${conhecimento}\n"""\n` : ""}
 Como atender:
 - Português do Brasil, cordial e simples, como uma pessoa do suporte. Mensagens curtas de ${canal} (até umas 8 linhas). Quando houver passos, numere 1, 2, 3.
 - ${primeira ? "Esta é a sua primeira mensagem: apresente-se como assistente virtual da ImperTech, diga que vai ajudar com o assunto e já explique." : "Continue a conversa a partir da última mensagem do cliente."}
@@ -137,7 +137,7 @@ Responda SOMENTE com um objeto JSON, sem texto fora dele:
 }
 
 // --------------------------------------------------------------- envio
-async function enviarAoCliente(db: SupabaseClient, c: Chamado, texto: string): Promise<string> {
+async function enviarAoCliente(db: SupabaseClient, c: Chamado, texto: string, _aviso = false): Promise<string> {
   if (c.origem === "zapcontabil") {
     const { data: cfg } = await db.from("chamados_config").select("zap_conexao_id").eq("empresa_id", c.empresa_id).maybeSingle();
     return zapEnviarTexto(String(c.contato_id ?? "").replace(/\D/g, ""), `*${NOME_IA} (IA):*\n${texto}`, cfg?.zap_conexao_id ?? null);
@@ -167,7 +167,10 @@ async function responder(db: SupabaseClient, chamadoId: string, primeira: boolea
   ]);
   const historico = ((hist || []) as Mensagem[]).reverse();
 
-  const decisao = lerDecisao(await chamarGroq(montarPrompt(chamado, cli?.nome_empresa ?? null, historico, primeira)));
+  const cfg = await carregarConfig(db, chamado.empresa_id);
+  const ultimasDoCliente = historico.filter((m) => m.direcao === "entrada").slice(-3).map((m) => m.texto).join(" ");
+  const conhecimento = await buscarConhecimento(db, chamado.empresa_id, `${chamado.ia_instrucoes ?? ""} ${ultimasDoCliente}`, cfg.usar_forum);
+  const decisao = lerDecisao(await chamarGroq(montarPrompt(chamado, cli?.nome_empresa ?? null, historico, primeira, conhecimento), cfg.modelo));
   if (!decisao.resposta) throw new Error("A IA não devolveu resposta");
 
   const limite = chamado.ia_respostas + 1 >= MAX_RESPOSTAS && decisao.acao === "continuar";
@@ -203,6 +206,273 @@ async function responder(db: SupabaseClient, chamadoId: string, primeira: boolea
   return { acao: limite ? "passar_humano" : decisao.acao, resposta: texto };
 }
 
+// ------------------------------------------------------ painel / config
+interface ConfigIA {
+  empresa_id: string;
+  alerta_fila_ativo: boolean;
+  alerta_fila_limite: number;
+  alerta_intervalo_min: number;
+  alerta_fila_geral: boolean;
+  alerta_conexao_id: number | null;
+  aviso_demora_ativo: boolean;
+  aviso_demora_min: number;
+  aviso_demora_slack: boolean;
+  aviso_demora_whatsapp: boolean;
+  aviso_demora_texto: string;
+  plantao_ia_ajuda: boolean;
+  horario_dias: number[];
+  horario_inicio: string;
+  horario_fim: string;
+  usar_forum: boolean;
+  modelo: string | null;
+}
+
+const CONFIG_PADRAO: Omit<ConfigIA, "empresa_id"> = {
+  alerta_fila_ativo: true,
+  alerta_fila_limite: 5,
+  alerta_intervalo_min: 60,
+  alerta_fila_geral: true,
+  alerta_conexao_id: null,
+  aviso_demora_ativo: true,
+  aviso_demora_min: 10,
+  aviso_demora_slack: true,
+  aviso_demora_whatsapp: false,
+  aviso_demora_texto: "Oi {nome}! Recebemos sua mensagem. {atendente} está finalizando outro atendimento e já te responde. Obrigado pela paciência! 🙏",
+  plantao_ia_ajuda: false,
+  horario_dias: [1, 2, 3, 4, 5],
+  horario_inicio: "08:00",
+  horario_fim: "18:00",
+  usar_forum: true,
+  modelo: null,
+};
+
+async function carregarConfig(db: SupabaseClient, empresaId: string): Promise<ConfigIA> {
+  const { data } = await db.from("ia_config").select("*").eq("empresa_id", empresaId).maybeSingle();
+  return { ...CONFIG_PADRAO, empresa_id: empresaId, ...(data || {}) } as ConfigIA;
+}
+
+/** Agora está dentro do horário do plantão? (Brasília) */
+function noHorario(cfg: ConfigIA, agora = new Date()): boolean {
+  const l = new Date(agora.getTime() - 3 * 3600_000);
+  const dia = l.getUTCDay();
+  const minutos = l.getUTCHours() * 60 + l.getUTCMinutes();
+  const m = (h: string) => Number(h.slice(0, 2)) * 60 + Number(h.slice(3, 5));
+  return (cfg.horario_dias || []).includes(dia) && minutos >= m(cfg.horario_inicio) && minutos < m(cfg.horario_fim);
+}
+
+const PALAVRAS_VAZIAS = new Set("a o e de da do das dos em no na nos nas um uma para por com que se não nao como meu minha seu sua isso esse essa ele ela eu voce você tem ter ja já mais muito bom boa dia tarde noite oi ola olá obrigado".split(" "));
+const palavras = (t: string) =>
+  [...new Set((t || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").match(/[a-z0-9]{3,}/g) ?? [])].filter((w) => !PALAVRAS_VAZIAS.has(w));
+const semHtml = (h: string) => (h || "").replace(/<[^>]+>/g, " ").replace(/&nbsp;/g, " ").replace(/\s+/g, " ").trim();
+
+/**
+ * Artigos da base (e posts resolvidos do Fórum) mais parecidos com o assunto:
+ * conta palavras em comum, com peso maior no título e nas tags. Até ~6 mil
+ * caracteres, para caber no pedido à IA.
+ */
+async function buscarConhecimento(db: SupabaseClient, empresaId: string, assunto: string, usarForum: boolean): Promise<string> {
+  const alvo = palavras(assunto);
+  if (!alvo.length) return "";
+  const [{ data: base }, forum] = await Promise.all([
+    db.from("ia_conhecimento").select("titulo, conteudo, tags").eq("empresa_id", empresaId).eq("ativo", true).limit(500),
+    usarForum
+      ? db.from("forum_posts").select("titulo, conteudo_html, tags").eq("empresa_id", empresaId).eq("status", "resolvido").limit(300)
+      : Promise.resolve({ data: [] as { titulo: string; conteudo_html: string; tags: string[] }[] }),
+  ]);
+  const itens = [
+    ...((base || []) as { titulo: string; conteudo: string; tags: string[] }[]).map((b) => ({ titulo: b.titulo, texto: b.conteudo, tags: b.tags || [], fonte: "Base" })),
+    ...((forum.data || []) as { titulo: string; conteudo_html: string; tags: string[] }[]).map((f) => ({ titulo: f.titulo, texto: semHtml(f.conteudo_html), tags: f.tags || [], fonte: "Fórum" })),
+  ];
+  const pontuados = itens
+    .map((it) => {
+      const cab = new Set(palavras(`${it.titulo} ${it.tags.join(" ")}`));
+      const corpo = new Set(palavras(it.texto));
+      const pontos = alvo.reduce((s, w) => s + (cab.has(w) ? 3 : 0) + (corpo.has(w) ? 1 : 0), 0);
+      return { ...it, pontos };
+    })
+    .filter((it) => it.pontos >= 2)
+    .sort((a, b) => b.pontos - a.pontos)
+    .slice(0, 4);
+  let total = 0;
+  const partes: string[] = [];
+  for (const it of pontuados) {
+    const trecho = `## ${it.titulo} (${it.fonte})\n${it.texto.slice(0, 2500)}`;
+    if (total + trecho.length > 6000) break;
+    partes.push(trecho);
+    total += trecho.length;
+  }
+  return partes.join("\n\n");
+}
+
+// --------------------------------------------------------------- plantão
+interface ChamadoAberto {
+  id: string;
+  empresa_id: string;
+  origem: "slack" | "zapcontabil";
+  conversa_id: string;
+  contato_nome: string | null;
+  contato_id: string | null;
+  canal_nome: string | null;
+  assunto: string | null;
+  status: string;
+  dono_id: string | null;
+  responsavel_id: string | null;
+  ia_ativa: boolean;
+  aviso_demora_em: string | null;
+  created_at: string;
+}
+
+const minutosDesde = (iso: string) => Math.round((Date.now() - new Date(iso).getTime()) / 60000);
+const tempo = (min: number) => (min < 60 ? `${min} min` : min < 1440 ? `${Math.floor(min / 60)}h${String(min % 60).padStart(2, "0")}` : `${Math.floor(min / 1440)} dia(s)`);
+
+/** Resumo de 1 linha por chamado, feito pela IA (se falhar, usa o assunto). */
+async function resumir(db: SupabaseClient, cfg: ConfigIA, chamados: ChamadoAberto[]): Promise<Record<string, string>> {
+  const resumos: Record<string, string> = {};
+  for (const c of chamados) resumos[c.id] = (c.assunto || "").slice(0, 90);
+  try {
+    const blocos: string[] = [];
+    for (const c of chamados.slice(0, 25)) {
+      const { data } = await db.from("chamado_mensagens").select("direcao, texto").eq("chamado_id", c.id).order("created_at", { ascending: false }).limit(4);
+      const conversa = ((data || []) as { direcao: string; texto: string }[]).reverse().map((m) => `${m.direcao === "entrada" ? "Cliente" : "Equipe"}: ${m.texto.slice(0, 300)}`).join("\n");
+      blocos.push(`ID ${c.id} | ${c.contato_nome || c.contato_id}\n${conversa}`);
+    }
+    const bruto = await chamarGroq(
+      [
+        { role: "system", content: 'Resuma cada chamado de suporte em UMA frase curta (até 15 palavras), em português, dizendo qual é o problema. Responda só com JSON: {"resumos": {"<ID>": "frase"}}' },
+        { role: "user", content: blocos.join("\n\n---\n\n") },
+      ],
+      cfg.modelo,
+    );
+    const obj = JSON.parse(bruto.match(/\{[\s\S]*\}/)?.[0] ?? "{}");
+    for (const [id, frase] of Object.entries(obj?.resumos ?? {})) if (resumos[id] !== undefined && frase) resumos[id] = String(frase).slice(0, 140);
+  } catch (e) {
+    console.error("ia-plantao: resumo", e);
+  }
+  return resumos;
+}
+
+/** Fila do colaborador: responsável por ele, ou sem responsável e dele (Slack), ou fila geral (WhatsApp sem dono). */
+function filaDe(perfilId: string, abertos: ChamadoAberto[], filaGeral: boolean) {
+  return abertos.filter(
+    (c) => c.responsavel_id === perfilId || (!c.responsavel_id && c.dono_id === perfilId) || (filaGeral && !c.responsavel_id && !c.dono_id),
+  );
+}
+
+async function alertaDeFila(db: SupabaseClient, cfg: ConfigIA, abertos: ChamadoAberto[]) {
+  const { data: equipe } = await db.from("ia_equipe").select("perfil_id, whatsapp, receber_alertas").eq("empresa_id", cfg.empresa_id).eq("receber_alertas", true);
+  const { data: nomes } = await db.from("usuario_perfil").select("id, nome, email").eq("empresa_id", cfg.empresa_id);
+  for (const pessoa of (equipe || []) as { perfil_id: string; whatsapp: string | null }[]) {
+    const fone = (pessoa.whatsapp || "").replace(/\D/g, "");
+    if (fone.length < 10) continue;
+    const fila = filaDe(pessoa.perfil_id, abertos, cfg.alerta_fila_geral);
+    if (fila.length < cfg.alerta_fila_limite) continue;
+
+    // No máximo 1 alerta por intervalo, a não ser que a fila tenha crescido bastante.
+    const { data: ultimo } = await db
+      .from("ia_alertas")
+      .select("quantidade, created_at")
+      .eq("perfil_id", pessoa.perfil_id)
+      .eq("tipo", "fila")
+      .eq("status", "enviado")
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (ultimo && minutosDesde(ultimo.created_at) < cfg.alerta_intervalo_min && fila.length < (ultimo.quantidade ?? 0) + Math.max(3, Math.ceil(cfg.alerta_fila_limite / 2))) continue;
+
+    const ordenados = [...fila].sort((a, b) => a.created_at.localeCompare(b.created_at));
+    const resumos = await resumir(db, cfg, ordenados);
+    const nome = ((nomes || []) as { id: string; nome: string | null; email: string | null }[]).find((n) => n.id === pessoa.perfil_id);
+    const primeiroNome = (nome?.nome || nome?.email || "").split(/[ @]/)[0];
+    const linhas = ordenados.slice(0, 20).map((c, i) => {
+      const min = minutosDesde(c.created_at);
+      return `${i + 1}. *${c.contato_nome || c.contato_id}* (${c.origem === "slack" ? "Slack" : "WhatsApp"}, há ${tempo(min)})${min >= 60 ? " 🔴" : ""}\n   ${resumos[c.id] || "sem resumo"}`;
+    });
+    const texto =
+      `📋 *${primeiroNome || "Olá"}, você está com ${fila.length} chamado(s) em aberto:*\n\n${linhas.join("\n")}` +
+      (fila.length > 20 ? `\n… e mais ${fila.length - 20}.` : "") +
+      `\n\n🔴 = esperando há mais de 1 hora\nAbrir: https://license-scope-pro.lovable.app/chamados`;
+    let status = "enviado";
+    let erro: string | null = null;
+    try {
+      await zapEnviarTexto(fone, texto, cfg.alerta_conexao_id);
+    } catch (e) {
+      status = "erro";
+      erro = (e instanceof Error ? e.message : String(e)).slice(0, 400);
+    }
+    await db.from("ia_alertas").insert({ empresa_id: cfg.empresa_id, tipo: "fila", perfil_id: pessoa.perfil_id, quantidade: fila.length, destino: fone, mensagem: texto, status, erro });
+  }
+}
+
+async function avisoDeDemora(db: SupabaseClient, cfg: ConfigIA, abertos: ChamadoAberto[]) {
+  const { data: nomes } = await db.from("usuario_perfil").select("id, nome").eq("empresa_id", cfg.empresa_id);
+  const nomeDe = (id: string | null) => ((nomes || []) as { id: string; nome: string | null }[]).find((n) => n.id === id)?.nome?.split(" ")[0] || null;
+  for (const c of abertos) {
+    if (c.ia_ativa) continue;
+    if (c.origem === "slack" ? !cfg.aviso_demora_slack : !cfg.aviso_demora_whatsapp) continue;
+    const { data: ultima } = await db.from("chamado_mensagens").select("direcao, created_at").eq("chamado_id", c.id).order("created_at", { ascending: false }).limit(1).maybeSingle();
+    if (!ultima || ultima.direcao !== "entrada") continue; // já responderam
+    if (minutosDesde(ultima.created_at) < cfg.aviso_demora_min) continue;
+    if (minutosDesde(ultima.created_at) > 24 * 60) continue; // conversa antiga: não acorda
+    if (c.aviso_demora_em && c.aviso_demora_em >= ultima.created_at) continue; // já avisou nesta espera
+
+    // Marca antes de enviar: duas rodadas seguidas não avisam duas vezes.
+    const { data: pegou } = await db.from("chamados").update({ aviso_demora_em: new Date().toISOString() }).eq("id", c.id).or(`aviso_demora_em.is.null,aviso_demora_em.lt."${ultima.created_at}"`).select("id");
+    if (!pegou?.length) continue;
+
+    const atendente = nomeDe(c.responsavel_id) || nomeDe(c.dono_id) || "Nossa equipe";
+    const contato = (c.contato_nome || "").split(" ")[0] || "tudo bem";
+    try {
+      if (cfg.plantao_ia_ajuda) {
+        // A IA avisa da espera e já tenta ajudar com a base de conhecimento.
+        await db
+          .from("chamados")
+          .update({
+            ia_ativa: true,
+            ia_status: "atendendo",
+            ia_respostas: 0,
+            ia_motivo: null,
+            ia_instrucoes: `PLANTÃO: ${atendente} está ocupado. Comece avisando com educação que ${atendente} vai responder em breve. Depois pergunte se pode ir ajudando e tente resolver usando SOMENTE a base de conhecimento. Se não encontrar a resposta, diga que ${atendente} vai continuar o atendimento e passe para a equipe.`,
+          })
+          .eq("id", c.id);
+        await responder(db, c.id, true);
+      } else {
+        const texto = cfg.aviso_demora_texto.replace(/\{nome\}/g, contato).replace(/\{atendente\}/g, atendente);
+        const externoId = await enviarAoCliente(db, c as unknown as Chamado, texto, true);
+        await db.from("chamado_mensagens").insert({
+          chamado_id: c.id,
+          empresa_id: c.empresa_id,
+          direcao: "saida",
+          autor_nome: `${NOME_IA} (IA)`,
+          texto,
+          externo_id: externoId,
+          por_ia: true,
+          aviso: true,
+        });
+      }
+      await db.from("ia_alertas").insert({ empresa_id: cfg.empresa_id, tipo: "demora", chamado_id: c.id, destino: c.contato_nome || c.contato_id, mensagem: cfg.plantao_ia_ajuda ? "Aviso de demora + IA ajudando" : "Aviso de demora", status: "enviado" });
+    } catch (e) {
+      await db.from("ia_alertas").insert({ empresa_id: cfg.empresa_id, tipo: "demora", chamado_id: c.id, destino: c.contato_nome || c.contato_id, status: "erro", erro: (e instanceof Error ? e.message : String(e)).slice(0, 400) });
+    }
+  }
+}
+
+async function plantao(db: SupabaseClient) {
+  const { data: empresas } = await db.from("ia_config").select("empresa_id");
+  for (const { empresa_id } of (empresas || []) as { empresa_id: string }[]) {
+    const cfg = await carregarConfig(db, empresa_id);
+    if (!noHorario(cfg)) continue;
+    const { data } = await db
+      .from("chamados")
+      .select("id, empresa_id, origem, conversa_id, contato_nome, contato_id, canal_nome, assunto, status, dono_id, responsavel_id, ia_ativa, aviso_demora_em, created_at")
+      .eq("empresa_id", empresa_id)
+      .neq("status", "resolvido")
+      .limit(500);
+    const abertos = (data || []) as ChamadoAberto[];
+    if (cfg.aviso_demora_ativo) await avisoDeDemora(db, cfg, abertos);
+    if (cfg.alerta_fila_ativo) await alertaDeFila(db, cfg, abertos);
+  }
+}
+
 // ----------------------------------------------------------------- rotas
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return respostaPreflight(req);
@@ -210,6 +480,13 @@ Deno.serve(async (req) => {
   const corpo = (await req.json().catch(() => ({}))) as Record<string, unknown>;
   const acao = String(corpo.acao ?? "");
   const chamadoId = String(corpo.chamado_id ?? "");
+
+  if (acao === "plantao") {
+    const token = new URL(req.url).searchParams.get("token") ?? "";
+    if (!iguaisSeguro(token, (await segredo("IA_TOKEN")) ?? "")) return new Response("não autorizado", { status: 401 });
+    emSegundoPlano(plantao(db), "ia-plantao");
+    return json(req, { ok: true });
+  }
 
   if (acao === "processar") {
     const token = new URL(req.url).searchParams.get("token") ?? "";
