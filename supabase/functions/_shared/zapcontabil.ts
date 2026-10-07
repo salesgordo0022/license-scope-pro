@@ -60,3 +60,53 @@ export function separarAssinatura(corpo: string): { autor: string | null; texto:
   const m = /^\*([^*\n]{1,80}):\*[ \t]*\n?/.exec(corpo ?? "");
   return m ? { autor: m[1].trim(), texto: corpo.slice(m[0].length) } : { autor: null, texto: corpo ?? "" };
 }
+
+/** DDI+DDD+número. Números de 10/11 dígitos ganham o 55 (não usar startsWith("55"): DDDs do RS). */
+export function normalizarNumero(telefone: string): string {
+  const t = (telefone ?? "").replace(/\D/g, "");
+  if (t.length === 12 || t.length === 13) return t;
+  if (t.length === 10 || t.length === 11) return `55${t}`;
+  return t.startsWith("55") ? t : `55${t}`;
+}
+
+/**
+ * Envia um arquivo (PDF/imagem) como documento. Tenta multipart com o
+ * binário e depois JSON { url }; cada um com e sem connectionFrom (algumas
+ * contas recusam a conexão no endpoint de mídia). true = entregue como anexo.
+ */
+export async function zapEnviarDocumento(
+  numero: string,
+  arquivo: { bytes: Uint8Array; tipo: string; nome: string } | null,
+  url: string | null,
+  conexaoId: number | null,
+): Promise<boolean> {
+  const endpoint = `${ZAP_BASE}/api/send/document/${numero}`;
+  const conexoes: (number | null)[] = conexaoId === null ? [null] : [conexaoId, null];
+  const auth = { accept: "application/json", Authorization: `Bearer ${token()}` };
+  if (arquivo) {
+    for (const conn of conexoes) {
+      const form = new FormData();
+      form.append("media", new Blob([arquivo.bytes.slice().buffer as ArrayBuffer], { type: arquivo.tipo }), arquivo.nome);
+      if (conn !== null) form.append("connectionFrom", String(conn));
+      try {
+        const r = await fetch(endpoint, { method: "POST", headers: auth, body: form });
+        await r.text();
+        if (r.ok) return true;
+      } catch { /* tenta o próximo */ }
+    }
+  }
+  if (url) {
+    for (const conn of conexoes) {
+      try {
+        const r = await fetch(endpoint, {
+          method: "POST",
+          headers: { ...auth, "Content-Type": "application/json" },
+          body: JSON.stringify(conn === null ? { url } : { url, connectionFrom: conn }),
+        });
+        await r.text();
+        if (r.ok) return true;
+      } catch { /* tenta o próximo */ }
+    }
+  }
+  return false;
+}

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { motion } from "framer-motion";
-import { MessageSquare, Send, FileText, Receipt, History, Search, Paperclip, Users, User } from '@/components/icons';
+import { MessageSquare, Send, FileText, Receipt, History, Search, Paperclip, Users, User, Clock } from '@/components/icons';
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -13,6 +13,7 @@ import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { toast } from "sonner";
+import Agendamentos from "@/components/mensagens/Agendamentos";
 
 interface Cliente {
   id: string;
@@ -354,10 +355,17 @@ export default function Mensagens() {
           <TabsTrigger value="enviar">
             <Send className="mr-2 h-4 w-4" /> Enviar
           </TabsTrigger>
+          <TabsTrigger value="agendamentos">
+            <Clock className="mr-2 h-4 w-4" /> Agendamentos
+          </TabsTrigger>
           <TabsTrigger value="historico">
             <History className="mr-2 h-4 w-4" /> Histórico
           </TabsTrigger>
         </TabsList>
+
+        <TabsContent value="agendamentos" className="mt-4">
+          <Agendamentos />
+        </TabsContent>
 
         <TabsContent value="enviar" className="mt-4">
           <div className="grid gap-6 lg:grid-cols-2">

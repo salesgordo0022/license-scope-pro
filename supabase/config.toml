@@ -16,3 +16,8 @@ verify_jwt = false
 # ou pelo botão da tela (usuário logado, verificado dentro da function).
 [functions.zapcontabil-sincronizar]
 verify_jwt = false
+
+# Envios agendados: chamada pelo pg_cron (token na URL) e pela tela (usuário
+# logado, verificado dentro da function).
+[functions.envios-agendados]
+verify_jwt = false

@@ -26,6 +26,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { toast } from "sonner";
+import { Input } from "@/components/ui/input";
+import { proximaExecucao } from "@/lib/agenda";
+import { erroDaFunction } from "@/lib/erroFunction";
 import {
   analisarBoleto,
   extrairTextoPdf,
@@ -57,7 +60,8 @@ type EntryStatus =
   | "enviado_link"
   | "enviado_sem_anexo"
   | "erro"
-  | "ja_enviado";
+  | "ja_enviado"
+  | "agendado";
 
 interface FileEntry {
   key: string; // nome|tamanho|dataModificacao — identifica o arquivo de forma estável
@@ -135,7 +139,16 @@ const STATUS_INFO: Record<EntryStatus, { label: string; icon: typeof Clock; clas
   enviado_sem_anexo: { label: "Enviado sem documento", icon: AlertTriangle, className: "text-amber-600" },
   erro: { label: "Erro", icon: XCircle, className: "text-destructive" },
   ja_enviado: { label: "Já enviado antes", icon: CheckCircle2, className: "text-muted-foreground" },
+  agendado: { label: "Agendado", icon: Clock, className: "text-blue-600" },
 };
+
+/** Próximo dia 10 às 09:00 (padrão do agendamento), no formato do campo datetime-local. */
+function proximoDia10(): string {
+  const p = proximaExecucao({ recorrencia: "mensal", dia_mes: 10, hora: "09:00" }, new Date());
+  const d = p ?? new Date();
+  const dois = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${dois(d.getMonth() + 1)}-${dois(d.getDate())}T${dois(d.getHours())}:${dois(d.getMinutes())}`;
+}
 
 const CONFIANCA_BADGE: Record<"alta" | "media" | "baixa", { label: string; variant: "default" | "secondary" | "outline" }> = {
   alta: { label: "confiança alta", variant: "default" },
@@ -169,6 +182,9 @@ export default function PastaBoletos() {
     () => localStorage.getItem(TEMPLATE_STORAGE) || DEFAULT_TEMPLATE
   );
   const [enviandoTodos, setEnviandoTodos] = useState(false);
+  const [agendarPara, setAgendarPara] = useState(proximoDia10);
+  const agendarParaRef = useRef(agendarPara);
+  agendarParaRef.current = agendarPara;
 
   const clientesRef = useRef<ClienteBusca[]>([]);
   const sentKeysRef = useRef<Set<string>>(new Set()); // chaves (nome|tamanho|data) já enviadas neste navegador
@@ -533,6 +549,57 @@ export default function PastaBoletos() {
     }
   }
 
+  /**
+   * Agenda o boleto: o PDF vai para o servidor agora e sai sozinho na data
+   * escolhida (function envios-agendados, que roda a cada 2 minutos), mesmo
+   * com este computador desligado.
+   */
+  async function agendarEntry(entry: FileEntry): Promise<boolean> {
+    if (!entry.clienteId || !entry.telefone) return false;
+    const quando = new Date(agendarParaRef.current);
+    if (isNaN(quando.getTime()) || quando.getTime() < Date.now() - 60_000) {
+      toast.error("Escolha uma data/hora futura para agendar");
+      return false;
+    }
+    updateEntry(entry.key, { status: "enviando", erro: undefined });
+    try {
+      const file = entry.fileHandle ? await entry.fileHandle.getFile() : entry.file;
+      if (!file) throw new Error("Arquivo indisponível");
+      if (file.size > MAX_PDF_BYTES) throw new Error("PDF maior que 8 MB");
+      const mensagem = montarMensagem(templateRef.current, { nome: entry.clienteNome || "", arquivo: entry.name, dados: entry.dados });
+      const { data, error } = await supabase.functions.invoke("envios-agendados", {
+        body: {
+          acao: "agendar_boleto",
+          cliente_id: entry.clienteId,
+          telefone: entry.telefone,
+          mensagem,
+          nome: entry.name,
+          tipo: file.type || "application/pdf",
+          base64: await fileToBase64(file),
+          enviar_em: quando.toISOString(),
+        },
+      });
+      if (error || data?.error) throw new Error((await erroDaFunction(error, data)) || "Falha ao agendar");
+      marcarComoEnviado(entry);
+      updateEntry(entry.key, { status: "agendado", erro: `Sai em ${quando.toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" })}` });
+      return true;
+    } catch (e) {
+      updateEntry(entry.key, { status: "erro", erro: e instanceof Error ? e.message : "Erro ao agendar" });
+      return false;
+    }
+  }
+
+  async function agendarTodosPendentes() {
+    const pendentes = entriesRef.current.filter((e) => e.status === "pendente");
+    if (pendentes.length === 0) return toast.info("Nenhum boleto pronto para agendar");
+    setEnviandoTodos(true);
+    let ok = 0;
+    for (const e of pendentes) if (await agendarEntry(e)) ok++;
+    setEnviandoTodos(false);
+    if (ok === pendentes.length) toast.success(`${ok} boleto(s) agendado(s)`, { description: "Acompanhe em Mensagens → Agendamentos." });
+    else toast.warning(`${ok} agendado(s), ${pendentes.length - ok} com problema`);
+  }
+
   /** Envia em série (uma mensagem por vez, com pausa) para não estourar limites do WhatsApp. */
   /** Coloca os boletos na fila de envio, respeitando o intervalo entre disparos. */
   function enfileirarEnvios(lista: FileEntry[]) {
@@ -610,7 +677,7 @@ export default function PastaBoletos() {
   const resumo = {
     pendentes: entries.filter((e) => e.status === "pendente").length,
     semCliente: entries.filter((e) => e.status === "sem_cliente" || e.status === "sem_telefone").length,
-    enviados: entries.filter((e) => e.status === "enviado" || e.status === "enviado_link" || e.status === "ja_enviado").length,
+    enviados: entries.filter((e) => e.status === "enviado" || e.status === "enviado_link" || e.status === "ja_enviado" || e.status === "agendado").length,
     comAviso: entries.filter((e) => e.status === "enviado_sem_anexo" || e.status === "erro").length,
     analisando: entries.filter((e) => e.status === "analisando").length,
   };
@@ -767,10 +834,24 @@ export default function PastaBoletos() {
                 {resumo.comAviso > 0 && ` · ${resumo.comAviso} com aviso/erro`}
               </CardDescription>
             </div>
-            <Button onClick={enviarTodosPendentes} disabled={enviandoTodos || resumo.pendentes === 0}>
-              <Send className="mr-2 h-4 w-4" />
-              {enviandoTodos ? "Enviando..." : `Enviar todos prontos (${resumo.pendentes})`}
-            </Button>
+            <div className="flex flex-wrap items-center justify-end gap-2">
+              <div className="flex items-center gap-1 rounded-lg border p-1">
+                <Input
+                  type="datetime-local"
+                  value={agendarPara}
+                  onChange={(e) => setAgendarPara(e.target.value)}
+                  className="h-8 w-[190px] border-0 text-xs shadow-none"
+                  title="Data e hora em que os boletos agendados saem"
+                />
+                <Button size="sm" variant="outline" onClick={agendarTodosPendentes} disabled={enviandoTodos || resumo.pendentes === 0}>
+                  <Clock className="mr-2 h-4 w-4" /> Agendar todos ({resumo.pendentes})
+                </Button>
+              </div>
+              <Button onClick={enviarTodosPendentes} disabled={enviandoTodos || resumo.pendentes === 0}>
+                <Send className="mr-2 h-4 w-4" />
+                {enviandoTodos ? "Enviando..." : `Enviar agora (${resumo.pendentes})`}
+              </Button>
+            </div>
           </CardHeader>
           <CardContent>
             <div className="overflow-x-auto">
@@ -877,6 +958,11 @@ export default function PastaBoletos() {
                             >
                               {reenvio ? "Reenviar" : "Enviar"}
                             </Button>
+                            {entry.status === "pendente" && (
+                              <Button size="sm" variant="outline" disabled={!podeEnviar} onClick={() => agendarEntry(entry)} title="Agendar para a data escolhida no topo">
+                                Agendar
+                              </Button>
+                            )}
                             {!entry.fileHandle && (
                               <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => removerEntry(entry.key)} title="Remover da lista">
                                 <Trash2 className="h-4 w-4" />

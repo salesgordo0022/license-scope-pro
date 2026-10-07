@@ -668,6 +668,84 @@ export type Database = {
           },
         ]
       }
+      fila_envios: {
+        Row: {
+          agendamento_id: string | null
+          anexo_nome: string | null
+          anexo_path: string | null
+          cliente_id: string | null
+          cliente_nome: string | null
+          conexao_id: number | null
+          created_at: string
+          criado_por: string | null
+          empresa_id: string | null
+          enviado_em: string | null
+          enviar_em: string
+          erro: string | null
+          id: string
+          mensagem: string
+          periodo: string | null
+          status: string
+          telefone: string
+          tipo: string
+        }
+        Insert: {
+          agendamento_id?: string | null
+          anexo_nome?: string | null
+          anexo_path?: string | null
+          cliente_id?: string | null
+          cliente_nome?: string | null
+          conexao_id?: number | null
+          created_at?: string
+          criado_por?: string | null
+          empresa_id?: string | null
+          enviado_em?: string | null
+          enviar_em?: string
+          erro?: string | null
+          id?: string
+          mensagem: string
+          periodo?: string | null
+          status?: string
+          telefone: string
+          tipo?: string
+        }
+        Update: {
+          agendamento_id?: string | null
+          anexo_nome?: string | null
+          anexo_path?: string | null
+          cliente_id?: string | null
+          cliente_nome?: string | null
+          conexao_id?: number | null
+          created_at?: string
+          criado_por?: string | null
+          empresa_id?: string | null
+          enviado_em?: string | null
+          enviar_em?: string
+          erro?: string | null
+          id?: string
+          mensagem?: string
+          periodo?: string | null
+          status?: string
+          telefone?: string
+          tipo?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "fila_envios_agendamento_id_fkey"
+            columns: ["agendamento_id"]
+            isOneToOne: false
+            referencedRelation: "mensagens_agendadas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fila_envios_cliente_id_fkey"
+            columns: ["cliente_id"]
+            isOneToOne: false
+            referencedRelation: "clientes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       forum_comentarios: {
         Row: {
           autor_id: string | null
@@ -1078,6 +1156,89 @@ export type Database = {
           },
           {
             foreignKeyName: "licencas_empresa_id_fkey"
+            columns: ["empresa_id"]
+            isOneToOne: false
+            referencedRelation: "empresas"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      mensagens_agendadas: {
+        Row: {
+          anexo_nome: string | null
+          anexo_path: string | null
+          ativo: boolean
+          clientes_ids: string[]
+          conexao_id: number | null
+          conexao_nome: string | null
+          created_at: string
+          criado_por: string | null
+          data_unica: string | null
+          destino: string
+          dia_mes: number | null
+          dia_semana: number | null
+          empresa_id: string | null
+          hora: string
+          id: string
+          mensagem: string
+          proxima_execucao: string | null
+          recorrencia: string
+          tipo: string
+          titulo: string
+          ultima_execucao: string | null
+          updated_at: string
+        }
+        Insert: {
+          anexo_nome?: string | null
+          anexo_path?: string | null
+          ativo?: boolean
+          clientes_ids?: string[]
+          conexao_id?: number | null
+          conexao_nome?: string | null
+          created_at?: string
+          criado_por?: string | null
+          data_unica?: string | null
+          destino?: string
+          dia_mes?: number | null
+          dia_semana?: number | null
+          empresa_id?: string | null
+          hora?: string
+          id?: string
+          mensagem: string
+          proxima_execucao?: string | null
+          recorrencia: string
+          tipo?: string
+          titulo: string
+          ultima_execucao?: string | null
+          updated_at?: string
+        }
+        Update: {
+          anexo_nome?: string | null
+          anexo_path?: string | null
+          ativo?: boolean
+          clientes_ids?: string[]
+          conexao_id?: number | null
+          conexao_nome?: string | null
+          created_at?: string
+          criado_por?: string | null
+          data_unica?: string | null
+          destino?: string
+          dia_mes?: number | null
+          dia_semana?: number | null
+          empresa_id?: string | null
+          hora?: string
+          id?: string
+          mensagem?: string
+          proxima_execucao?: string | null
+          recorrencia?: string
+          tipo?: string
+          titulo?: string
+          ultima_execucao?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "mensagens_agendadas_empresa_id_fkey"
             columns: ["empresa_id"]
             isOneToOne: false
             referencedRelation: "empresas"
