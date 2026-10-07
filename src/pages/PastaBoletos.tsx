@@ -838,11 +838,34 @@ export default function PastaBoletos() {
               <div className="flex items-center gap-1 rounded-lg border p-1">
                 <Input
                   type="datetime-local"
+                  min={new Date(Date.now() - new Date().getTimezoneOffset() * 60_000).toISOString().slice(0, 16)}
                   value={agendarPara}
                   onChange={(e) => setAgendarPara(e.target.value)}
                   className="h-8 w-[190px] border-0 text-xs shadow-none"
                   title="Data e hora em que os boletos agendados saem"
                 />
+                <Select
+                  value=""
+                  onValueChange={(v) => {
+                    const dois = (n: number) => String(n).padStart(2, "0");
+                    const loc = (d: Date) => `${d.getFullYear()}-${dois(d.getMonth() + 1)}-${dois(d.getDate())}T${dois(d.getHours())}:${dois(d.getMinutes())}`;
+                    if (v === "dia10") return setAgendarPara(proximoDia10());
+                    const d = new Date();
+                    if (v === "18h") d.setHours(18, 0, 0, 0);
+                    else d.setMinutes(Math.ceil((d.getMinutes() + Number(v)) / 5) * 5, 0, 0);
+                    setAgendarPara(loc(d));
+                  }}
+                >
+                  <SelectTrigger className="h-8 w-[92px] border-0 text-xs shadow-none" title="Atalhos de data">
+                    <SelectValue placeholder="Atalhos" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="5">Daqui a 5 min</SelectItem>
+                    <SelectItem value="60">Daqui a 1 hora</SelectItem>
+                    <SelectItem value="18h">Hoje às 18:00</SelectItem>
+                    <SelectItem value="dia10">Próximo dia 10</SelectItem>
+                  </SelectContent>
+                </Select>
                 <Button size="sm" variant="outline" onClick={agendarTodosPendentes} disabled={enviandoTodos || resumo.pendentes === 0}>
                   <Clock className="mr-2 h-4 w-4" /> Agendar todos ({resumo.pendentes})
                 </Button>

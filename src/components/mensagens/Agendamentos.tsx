@@ -98,6 +98,16 @@ const STATUS_FILA: Record<string, { rotulo: string; cor: string }> = {
 
 const SEMANA = ['Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado'];
 
+const dois = (n: number) => String(n).padStart(2, '0');
+
+/** Data (AAAA-MM-DD) e hora (HH:MM) de Brasília daqui a `minutos`, arredondada para cima de 5 em 5. */
+function daquiA(minutos: number): { data: string; hora: string } {
+  const t = new Date(Date.now() + minutos * 60_000 - 3 * 3600_000); // relógio de Brasília em UTC
+  const m = Math.ceil(t.getUTCMinutes() / 5) * 5;
+  t.setUTCMinutes(m, 0, 0);
+  return { data: `${t.getUTCFullYear()}-${dois(t.getUTCMonth() + 1)}-${dois(t.getUTCDate())}`, hora: `${dois(t.getUTCHours())}:${dois(t.getUTCMinutes())}` };
+}
+
 const dataHora = (iso: string | null) => (iso ? format(parseISO(iso), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR }) : '—');
 
 function arquivoParaBase64(f: File): Promise<string> {
@@ -466,7 +476,17 @@ export default function Agendamentos() {
             <div className="grid gap-3 sm:grid-cols-3">
               <div className="space-y-1.5">
                 <Label>Quando</Label>
-                <Select value={form.recorrencia} onValueChange={(v) => setForm({ ...form, recorrencia: v as Recorrencia })}>
+                <Select
+                  value={form.recorrencia}
+                  onValueChange={(v) => {
+                    const r = v as Recorrencia;
+                    // "Uma vez só" já começa em hoje, daqui a poucos minutos.
+                    if (r === 'uma_vez' && !form.data_unica) {
+                      const d = daquiA(10);
+                      setForm({ ...form, recorrencia: r, data_unica: d.data, hora: d.hora });
+                    } else setForm({ ...form, recorrencia: r });
+                  }}
+                >
                   <SelectTrigger>
                     <SelectValue />
                   </SelectTrigger>
@@ -505,7 +525,7 @@ export default function Agendamentos() {
               {form.recorrencia === 'uma_vez' && (
                 <div className="space-y-1.5">
                   <Label>Data</Label>
-                  <Input type="date" value={form.data_unica ?? ''} onChange={(e) => setForm({ ...form, data_unica: e.target.value || null })} />
+                  <Input type="date" min={daquiA(0).data} value={form.data_unica ?? ''} onChange={(e) => setForm({ ...form, data_unica: e.target.value || null })} />
                 </div>
               )}
               <div className="space-y-1.5">
@@ -513,8 +533,38 @@ export default function Agendamentos() {
                 <Input type="time" value={form.hora} onChange={(e) => setForm({ ...form, hora: e.target.value || '09:00' })} />
               </div>
             </div>
-            <p className="-mt-2 text-xs text-muted-foreground">
-              {proximaPrevista ? `Primeiro envio: ${dataHora(proximaPrevista.toISOString())}` : 'Essa data já passou.'}
+            {form.recorrencia === 'uma_vez' && (
+              <div className="-mt-1 flex flex-wrap gap-1.5">
+                {[
+                  { rotulo: 'Daqui a 5 min', min: 5 },
+                  { rotulo: 'Daqui a 30 min', min: 30 },
+                  { rotulo: 'Daqui a 1 hora', min: 60 },
+                ].map((o) => (
+                  <Button
+                    key={o.rotulo}
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    className="h-7 text-xs"
+                    onClick={() => {
+                      const d = daquiA(o.min);
+                      setForm({ ...form, data_unica: d.data, hora: d.hora });
+                    }}
+                  >
+                    {o.rotulo}
+                  </Button>
+                ))}
+                <Button type="button" size="sm" variant="outline" className="h-7 text-xs" onClick={() => setForm({ ...form, data_unica: daquiA(0).data, hora: '18:00' })}>
+                  Hoje às 18:00
+                </Button>
+              </div>
+            )}
+            <p className={cn('-mt-2 text-xs', proximaPrevista ? 'text-muted-foreground' : 'text-destructive')}>
+              {proximaPrevista
+                ? `Primeiro envio: ${dataHora(proximaPrevista.toISOString())}`
+                : form.recorrencia === 'uma_vez' && form.data_unica === daquiA(0).data
+                  ? `Esse horário de hoje já passou: escolha depois de ${daquiA(0).hora}.`
+                  : 'Essa data já passou.'}
               {form.recorrencia === 'mensal' && (form.dia_mes ?? 0) > 28 ? ' · Nos meses mais curtos, sai no último dia.' : ''}
             </p>
 
