@@ -15,7 +15,7 @@
 import { autenticar, json, respostaPreflight } from "../_shared/auth.ts";
 import { clienteServico, iguaisSeguro } from "../_shared/chamados.ts";
 import { segredo } from "../_shared/segredos.ts";
-import { lista, normalizarNumero, zapEnviarDocumento, zapEnviarTexto, zapGet } from "../_shared/zapcontabil.ts";
+import { lista, normalizarNumero, zapEnviarDocumento, zapEnviarTexto, zapGarantirContato, zapGet } from "../_shared/zapcontabil.ts";
 import { preencherVariaveis, proximaExecucao, type RegraAgenda } from "../_shared/agenda.ts";
 import type { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 
