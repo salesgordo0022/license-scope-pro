@@ -744,6 +744,20 @@ export type Database = {
             referencedRelation: "clientes"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "fila_envios_criado_por_fkey"
+            columns: ["criado_por"]
+            isOneToOne: false
+            referencedRelation: "usuario_perfil"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fila_envios_empresa_id_fkey"
+            columns: ["empresa_id"]
+            isOneToOne: false
+            referencedRelation: "empresas"
+            referencedColumns: ["id"]
+          },
         ]
       }
       forum_comentarios: {
@@ -1238,6 +1252,13 @@ export type Database = {
         }
         Relationships: [
           {
+            foreignKeyName: "mensagens_agendadas_criado_por_fkey"
+            columns: ["criado_por"]
+            isOneToOne: false
+            referencedRelation: "usuario_perfil"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "mensagens_agendadas_empresa_id_fkey"
             columns: ["empresa_id"]
             isOneToOne: false
@@ -1319,7 +1340,15 @@ export type Database = {
           sistema?: string
           updated_at?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "metas_sistema_empresa_id_fkey"
+            columns: ["empresa_id"]
+            isOneToOne: false
+            referencedRelation: "empresas"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       metas_vendas: {
         Row: {
@@ -1524,75 +1553,6 @@ export type Database = {
           },
         ]
       }
-      prospectos: {
-        Row: {
-          cep: string | null
-          cidade: string | null
-          cliente_id: string | null
-          cnpj: string | null
-          convertido_em: string | null
-          created_at: string
-          dados_cliente: Json | null
-          email: string | null
-          empresa_id: string | null
-          endereco: string | null
-          estado: string | null
-          id: string
-          nome_contato: string | null
-          nome_empresa: string
-          observacoes: string | null
-          origem: string
-          regime_tributario: string | null
-          segmento: string | null
-          telefone: string | null
-          updated_at: string
-        }
-        Insert: {
-          cep?: string | null
-          cidade?: string | null
-          cliente_id?: string | null
-          cnpj?: string | null
-          convertido_em?: string | null
-          created_at?: string
-          dados_cliente?: Json | null
-          email?: string | null
-          empresa_id?: string | null
-          endereco?: string | null
-          estado?: string | null
-          id?: string
-          nome_contato?: string | null
-          nome_empresa: string
-          observacoes?: string | null
-          origem?: string
-          regime_tributario?: string | null
-          segmento?: string | null
-          telefone?: string | null
-          updated_at?: string
-        }
-        Update: {
-          cep?: string | null
-          cidade?: string | null
-          cliente_id?: string | null
-          cnpj?: string | null
-          convertido_em?: string | null
-          created_at?: string
-          dados_cliente?: Json | null
-          email?: string | null
-          empresa_id?: string | null
-          endereco?: string | null
-          estado?: string | null
-          id?: string
-          nome_contato?: string | null
-          nome_empresa?: string
-          observacoes?: string | null
-          origem?: string
-          regime_tributario?: string | null
-          segmento?: string | null
-          telefone?: string | null
-          updated_at?: string
-        }
-        Relationships: []
-      }
       pipelines_vendas: {
         Row: {
           ativo: boolean
@@ -1666,6 +1626,90 @@ export type Database = {
           preco?: number
         }
         Relationships: []
+      }
+      prospectos: {
+        Row: {
+          cep: string | null
+          cidade: string | null
+          cliente_id: string | null
+          cnpj: string | null
+          convertido_em: string | null
+          created_at: string
+          dados_cliente: Json | null
+          email: string | null
+          empresa_id: string | null
+          endereco: string | null
+          estado: string | null
+          id: string
+          nome_contato: string | null
+          nome_empresa: string
+          observacoes: string | null
+          origem: string
+          regime_tributario: string | null
+          segmento: string | null
+          telefone: string | null
+          updated_at: string
+        }
+        Insert: {
+          cep?: string | null
+          cidade?: string | null
+          cliente_id?: string | null
+          cnpj?: string | null
+          convertido_em?: string | null
+          created_at?: string
+          dados_cliente?: Json | null
+          email?: string | null
+          empresa_id?: string | null
+          endereco?: string | null
+          estado?: string | null
+          id?: string
+          nome_contato?: string | null
+          nome_empresa: string
+          observacoes?: string | null
+          origem?: string
+          regime_tributario?: string | null
+          segmento?: string | null
+          telefone?: string | null
+          updated_at?: string
+        }
+        Update: {
+          cep?: string | null
+          cidade?: string | null
+          cliente_id?: string | null
+          cnpj?: string | null
+          convertido_em?: string | null
+          created_at?: string
+          dados_cliente?: Json | null
+          email?: string | null
+          empresa_id?: string | null
+          endereco?: string | null
+          estado?: string | null
+          id?: string
+          nome_contato?: string | null
+          nome_empresa?: string
+          observacoes?: string | null
+          origem?: string
+          regime_tributario?: string | null
+          segmento?: string | null
+          telefone?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "prospectos_cliente_id_fkey"
+            columns: ["cliente_id"]
+            isOneToOne: false
+            referencedRelation: "clientes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "prospectos_empresa_id_fkey"
+            columns: ["empresa_id"]
+            isOneToOne: false
+            referencedRelation: "empresas"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       revendas: {
         Row: {
@@ -1751,6 +1795,13 @@ export type Database = {
             columns: ["pipeline_id"]
             isOneToOne: false
             referencedRelation: "pipelines_vendas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "revendas_prospecto_id_fkey"
+            columns: ["prospecto_id"]
+            isOneToOne: false
+            referencedRelation: "prospectos"
             referencedColumns: ["id"]
           },
           {
@@ -2023,10 +2074,6 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      prospecto_converter: {
-        Args: { p_revenda_id: string }
-        Returns: string
-      }
       chamado_registrar: {
         Args: {
           p_anexos?: Json
@@ -2055,6 +2102,7 @@ export type Database = {
       }
       is_admin_or_super: { Args: never; Returns: boolean }
       is_super_admin: { Args: never; Returns: boolean }
+      prospecto_converter: { Args: { p_revenda_id: string }; Returns: string }
     }
     Enums: {
       status_type: "ativo" | "inativo" | "pendente" | "vencido"
