@@ -191,6 +191,15 @@ export default function Agendamentos() {
   }, [carregar]);
 
   const ativos = clientes.filter((c) => c.status === 'ativo' && (c.telefone || '').replace(/\D/g, '').length >= 10);
+  // Mostra "Hoje"/"Amanhã" no seletor quando a data única cai nesses dias.
+  const opcaoQuando =
+    form.recorrencia !== 'uma_vez'
+      ? form.recorrencia
+      : form.data_unica === daquiA(0).data
+        ? 'hoje'
+        : form.data_unica === daquiA(24 * 60).data
+          ? 'amanha'
+          : 'uma_vez';
   const proximaPrevista = useMemo(() => proximaExecucao(form, new Date()), [form]);
   const exemplo = useMemo(() => {
     const c = form.destino === 'selecionados' ? clientes.find((x) => form.clientes_ids.includes(x.id)) : ativos[0];
@@ -477,10 +486,17 @@ export default function Agendamentos() {
               <div className="space-y-1.5">
                 <Label>Quando</Label>
                 <Select
-                  value={form.recorrencia}
+                  value={opcaoQuando}
                   onValueChange={(v) => {
+                    // "Hoje" e "Amanhã" são atalhos de "uma vez só" com a data já preenchida.
+                    if (v === 'hoje') {
+                      const d = daquiA(10);
+                      return setForm({ ...form, recorrencia: 'uma_vez', data_unica: d.data, hora: d.hora });
+                    }
+                    if (v === 'amanha') {
+                      return setForm({ ...form, recorrencia: 'uma_vez', data_unica: daquiA(24 * 60).data, hora: '09:00' });
+                    }
                     const r = v as Recorrencia;
-                    // "Uma vez só" já começa em hoje, daqui a poucos minutos.
                     if (r === 'uma_vez' && !form.data_unica) {
                       const d = daquiA(10);
                       setForm({ ...form, recorrencia: r, data_unica: d.data, hora: d.hora });
@@ -491,11 +507,13 @@ export default function Agendamentos() {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
+                    <SelectItem value="hoje">Hoje (uma vez)</SelectItem>
+                    <SelectItem value="amanha">Amanhã (uma vez)</SelectItem>
                     <SelectItem value="mensal">Todo mês, no dia...</SelectItem>
                     <SelectItem value="ultimo_dia_mes">Último dia do mês</SelectItem>
                     <SelectItem value="semanal">Toda semana</SelectItem>
                     <SelectItem value="diaria">Todos os dias</SelectItem>
-                    <SelectItem value="uma_vez">Uma vez só</SelectItem>
+                    <SelectItem value="uma_vez">Uma vez, em outra data</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
