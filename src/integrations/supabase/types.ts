@@ -94,6 +94,9 @@ export type Database = {
           contato_nome: string | null
           conversa_id: string
           created_at: string
+          dispensa_motivo: string | null
+          dispensado_em: string | null
+          dispensado_por: string | null
           dono_id: string | null
           empresa_id: string
           ia_assumida_por: string | null
@@ -122,6 +125,9 @@ export type Database = {
           contato_nome?: string | null
           conversa_id: string
           created_at?: string
+          dispensa_motivo?: string | null
+          dispensado_em?: string | null
+          dispensado_por?: string | null
           dono_id?: string | null
           empresa_id: string
           ia_assumida_por?: string | null
@@ -150,6 +156,9 @@ export type Database = {
           contato_nome?: string | null
           conversa_id?: string
           created_at?: string
+          dispensa_motivo?: string | null
+          dispensado_em?: string | null
+          dispensado_por?: string | null
           dono_id?: string | null
           empresa_id?: string
           ia_assumida_por?: string | null

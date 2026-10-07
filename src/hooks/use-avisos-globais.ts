@@ -30,7 +30,7 @@ export function useAvisosGlobais(): number {
       supabase
         .from('chamados')
         .select('nao_lidas')
-        .neq('status', 'resolvido')
+        .not('status', 'in', '(resolvido,dispensado)')
         .gt('nao_lidas', 0)
         .then(({ data, error }) => {
           if (!error) setNaoLidas((data || []).reduce((s, c) => s + (c.nao_lidas || 0), 0));
@@ -57,10 +57,11 @@ export function useAvisosGlobais(): number {
         const m = p.new as { id: string; chamado_id: string; autor_nome: string | null; texto: string };
         const { data: c } = await supabase
           .from('chamados')
-          .select('id, origem, contato_nome, canal_nome')
+          .select('id, origem, contato_nome, canal_nome, status')
           .eq('id', m.chamado_id)
           .maybeSingle();
         if (!c) return; // chamado de outra pessoa (RLS)
+        if (c.status === 'dispensado') return; // dispensado não é chamado: não avisa
 
         const origem = ORIGEM[c.origem] || c.origem;
         const quem = m.autor_nome || c.contato_nome || 'Contato';

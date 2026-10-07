@@ -512,7 +512,7 @@ async function avisoDeDemora(db: SupabaseClient, cfg: ConfigIA, abertos: Chamado
 const COLUNAS_ABERTOS = "id, empresa_id, origem, conversa_id, contato_nome, contato_id, canal_nome, assunto, status, dono_id, responsavel_id, ia_ativa, aviso_demora_em, created_at";
 
 async function chamadosAbertos(db: SupabaseClient, empresaId: string) {
-  const { data } = await db.from("chamados").select(COLUNAS_ABERTOS).eq("empresa_id", empresaId).neq("status", "resolvido").limit(500);
+  const { data } = await db.from("chamados").select(COLUNAS_ABERTOS).eq("empresa_id", empresaId).not("status", "in", "(resolvido,dispensado)").limit(500);
   return (data || []) as ChamadoAberto[];
 }
 

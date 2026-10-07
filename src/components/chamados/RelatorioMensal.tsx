@@ -62,8 +62,8 @@ export function RelatorioMensal({
       const desde = intervaloMes(deslocarMes(mes, -(MESES_SERIE - 1))).inicio.toISOString();
       // Criados na janela da série + pendentes mais antigos (para o "pendentes no fim do mês").
       const [janela, antigos] = await Promise.all([
-        supabase.from('chamados').select(COLUNAS).gte('created_at', desde).limit(20000),
-        supabase.from('chamados').select(COLUNAS).lt('created_at', desde).or(`resolvido_em.is.null,resolvido_em.gte.${desde}`).limit(20000),
+        supabase.from('chamados').select(COLUNAS).neq('status', 'dispensado').gte('created_at', desde).limit(20000),
+        supabase.from('chamados').select(COLUNAS).neq('status', 'dispensado').lt('created_at', desde).or(`resolvido_em.is.null,resolvido_em.gte.${desde}`).limit(20000),
       ]);
       if (cancelado) return;
       setCarregando(false);

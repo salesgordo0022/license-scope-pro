@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation } from 'react-router-dom';
 import { format, isToday, isYesterday, parseISO } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { Inbox, Search, Send, Settings2, Loader2, MessageCircle, Paperclip, ChevronLeft, Copy, Check, BarChart3, RefreshCw } from '@/components/icons';
+import { Inbox, Search, Send, Settings2, Loader2, MessageCircle, Paperclip, ChevronLeft, Copy, Check, BarChart3, RefreshCw, XCircle } from '@/components/icons';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -37,6 +37,9 @@ interface Chamado {
   ia_status?: 'atendendo' | 'finalizado' | 'devolvido' | null;
   ia_motivo?: string | null;
   ia_respostas?: number;
+  dispensado_em?: string | null;
+  dispensado_por?: string | null;
+  dispensa_motivo?: string | null;
 }
 
 interface Mensagem {
@@ -66,6 +69,7 @@ const STATUS = [
   { valor: 'em_atendimento', rotulo: 'Em atendimento', cor: 'bg-amber-50 text-amber-700' },
   { valor: 'aguardando', rotulo: 'Aguardando cliente', cor: 'bg-violet-50 text-violet-600' },
   { valor: 'resolvido', rotulo: 'Resolvido', cor: 'bg-emerald-50 text-emerald-700' },
+  { valor: 'dispensado', rotulo: 'Dispensado', cor: 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300' },
 ];
 const PRIORIDADES = [
   { valor: 'baixa', rotulo: 'Baixa' },
@@ -78,8 +82,22 @@ const ABAS = [
   { valor: 'em_atendimento', rotulo: 'Em atendimento' },
   { valor: 'aguardando', rotulo: 'Aguardando' },
   { valor: 'resolvido', rotulo: 'Resolvidos' },
+  { valor: 'dispensado', rotulo: 'Dispensados' },
   { valor: 'todos', rotulo: 'Todos' },
 ];
+
+/** Motivos rápidos para dispensar (o campo aceita texto livre também). */
+const MOTIVOS_DISPENSA = ['Só agradecimento / ok', 'Conversa interna', 'Spam / propaganda', 'Mensagem por engano', 'Já resolvido por outro canal'];
+
+/**
+ * Em qual aba o chamado aparece. Dispensado não é chamado: some de "Em aberto"
+ * e de "Todos" e fica só na aba "Dispensados".
+ */
+function casaAba(valor: string, status: string) {
+  if (valor === 'todos') return status !== 'dispensado';
+  if (valor === 'ativos') return status !== 'resolvido' && status !== 'dispensado';
+  return status === valor;
+}
 
 const ORIGEM = {
   slack: { rotulo: 'Slack', classe: 'bg-[#4A154B] text-white' },
@@ -219,22 +237,21 @@ export default function Chamados() {
   const filtrados = useMemo(() => {
     const termo = busca.trim().toLowerCase();
     return chamados.filter((c) => {
-      const casaAba =
-        aba === 'todos' ? true : aba === 'ativos' ? c.status !== 'resolvido' : c.status === aba;
+      const naAba = casaAba(aba, c.status);
       const casaOrigem = origem === 'todas' || c.origem === origem;
       const casaDe =
         de === 'todos' ? true : de === 'meus' ? c.dono_id === meuId || c.responsavel_id === meuId : c.dono_id === de || c.responsavel_id === de;
       const casaBusca =
         !termo ||
         [c.contato_nome, c.canal_nome, c.assunto, c.contato_id].some((v) => (v || '').toLowerCase().includes(termo));
-      return casaAba && casaOrigem && casaDe && casaBusca;
+      return naAba && casaOrigem && casaDe && casaBusca;
     });
   }, [chamados, aba, origem, de, busca, meuId]);
 
   const contagem = (valor: string) =>
     chamados.filter(
       (c) =>
-        (valor === 'todos' ? true : valor === 'ativos' ? c.status !== 'resolvido' : c.status === valor) &&
+        casaAba(valor, c.status) &&
         (de === 'todos' || (de === 'meus' ? c.dono_id === meuId || c.responsavel_id === meuId : c.dono_id === de || c.responsavel_id === de))
     ).length;
 
@@ -315,6 +332,43 @@ export default function Chamados() {
     setResposta('');
     carregarMensagens(selecionado.id);
     carregarChamados();
+  };
+
+  // ---- Dispensar: não é chamado (agradecimento, spam, conversa interna...). Não conta em nada.
+  const [dispensarAberto, setDispensarAberto] = useState(false);
+  const [motivoDispensa, setMotivoDispensa] = useState('');
+
+  const desfazerDispensa = async (id: string) => {
+    setChamados((lista) => lista.map((x) => (x.id === id ? { ...x, status: 'aberto', dispensado_em: null, dispensado_por: null, dispensa_motivo: null } : x)));
+    const { error } = await supabase.from('chamados').update({ status: 'aberto' }).eq('id', id);
+    if (error) {
+      toast.error('Não foi possível desfazer', {
+        description: error.code === '23505' ? 'Esta conversa já tem outro chamado em aberto.' : error.message,
+      });
+      carregarChamados();
+      return;
+    }
+    toast.success('Chamado de volta para Em aberto');
+  };
+
+  const dispensar = async (motivo: string) => {
+    if (!selecionado) return;
+    const id = selecionado.id;
+    const campos = { status: 'dispensado', dispensa_motivo: motivo.trim() || null, nao_lidas: 0, ia_ativa: false };
+    setChamados((lista) => lista.map((x) => (x.id === id ? { ...x, ...campos, dispensado_em: new Date().toISOString(), dispensado_por: meuId } : x)));
+    const { error } = await supabase.from('chamados').update(campos).eq('id', id);
+    if (error) {
+      toast.error('Não foi possível dispensar', { description: error.message });
+      carregarChamados();
+      return;
+    }
+    setDispensarAberto(false);
+    setMotivoDispensa('');
+    if (aba !== 'dispensado' && aba !== 'todos') setSelecionadoId(null);
+    toast.success('Chamado dispensado', {
+      description: 'Não conta no relatório nem nos avisos. Fica na aba Dispensados.',
+      action: { label: 'Desfazer', onClick: () => desfazerDispensa(id) },
+    });
   };
 
   const statusInfo = (s: string) => STATUS.find((x) => x.valor === s) || STATUS[0];
@@ -494,18 +548,43 @@ export default function Chamados() {
                       {selecionado.dono_id ? ` · Slack de ${selecionado.dono_id === meuId ? 'você' : nomeUsuario(selecionado.dono_id) || 'outro usuário'}` : ''}
                     </p>
                   </div>
+                  {selecionado.status !== 'dispensado' && (
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="shrink-0 gap-1.5 text-muted-foreground hover:text-foreground"
+                      onClick={() => setDispensarAberto(true)}
+                      title="Não é chamado: tira da fila e não conta no relatório"
+                    >
+                      <XCircle className="h-4 w-4" /> Dispensar
+                    </Button>
+                  )}
                   {selecionado.ia_ativa ? (
                     <Button size="sm" variant="outline" className="shrink-0" onClick={iaParar}>
                       Parar IA e assumir
                     </Button>
                   ) : (
-                    selecionado.status !== 'resolvido' && (
+                    selecionado.status !== 'resolvido' && selecionado.status !== 'dispensado' && (
                       <Button size="sm" className="shrink-0 gap-1 bg-violet-600 text-white hover:bg-violet-700" onClick={() => setIaAberta(true)}>
                         🧑‍💻 IA assume
                       </Button>
                     )
                   )}
                 </div>
+                {selecionado.status === 'dispensado' && (
+                  <div className="flex flex-wrap items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-700 dark:border-slate-700 dark:bg-slate-900/60 dark:text-slate-200">
+                    <XCircle className="h-4 w-4 shrink-0" />
+                    <span className="min-w-0 flex-1">
+                      <strong>Dispensado</strong>
+                      {selecionado.dispensado_por ? ` por ${selecionado.dispensado_por === meuId ? 'você' : nomeUsuario(selecionado.dispensado_por) || 'alguém da equipe'}` : ''}
+                      {selecionado.dispensado_em ? ` em ${format(parseISO(selecionado.dispensado_em), "dd/MM 'às' HH:mm")}` : ''}
+                      {selecionado.dispensa_motivo ? ` · ${selecionado.dispensa_motivo}` : ''}. Não conta como chamado.
+                    </span>
+                    <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => desfazerDispensa(selecionado.id)}>
+                      Desfazer
+                    </Button>
+                  </div>
+                )}
                 {selecionado.ia_ativa ? (
                   <div className="rounded-lg border border-violet-200 bg-violet-50 px-3 py-2 text-xs text-violet-900 dark:border-violet-900 dark:bg-violet-950/40 dark:text-violet-100">
                     <p className="font-semibold">🧑‍💻 A IA está atendendo ({selecionado.ia_respostas ?? 0} resposta(s)). Se você responder, ela sai da conversa.</p>
@@ -674,6 +753,44 @@ export default function Chamados() {
             </Button>
             <Button className="gap-2 bg-violet-600 text-white hover:bg-violet-700" onClick={iaAssumir} disabled={iaOcupada || iaInstrucoes.trim().length < 10}>
               {iaOcupada && <Loader2 className="h-4 w-4 animate-spin" />} {iaOcupada ? 'A IA está escrevendo...' : 'IA assume e responde'}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+      <Dialog open={dispensarAberto} onOpenChange={setDispensarAberto}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Dispensar chamado</DialogTitle>
+            <DialogDescription>
+              Use quando a mensagem não é um atendimento de verdade. O chamado sai da fila e não conta no relatório, nas não lidas nem nos avisos. Dá
+              para desfazer na aba Dispensados.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex flex-wrap gap-1.5">
+            {MOTIVOS_DISPENSA.map((m) => (
+              <button
+                key={m}
+                type="button"
+                onClick={() => setMotivoDispensa(m)}
+                className={cn(
+                  'rounded-full border px-2.5 py-1 text-xs transition',
+                  motivoDispensa === m ? 'border-primary bg-primary/10 text-primary' : 'border-border text-muted-foreground hover:bg-muted'
+                )}
+              >
+                {m}
+              </button>
+            ))}
+          </div>
+          <Input value={motivoDispensa} onChange={(e) => setMotivoDispensa(e.target.value)} placeholder="Motivo (opcional)" maxLength={200} />
+          <p className="text-[11px] text-muted-foreground">
+            Se o contato escrever de novo logo em seguida, a mensagem fica guardada aqui sem notificar. Passado o prazo de reabertura, vira um chamado novo.
+          </p>
+          <div className="flex justify-end gap-2">
+            <Button variant="outline" onClick={() => setDispensarAberto(false)}>
+              Cancelar
+            </Button>
+            <Button onClick={() => dispensar(motivoDispensa)} className="gap-1.5">
+              <XCircle className="h-4 w-4" /> Dispensar
             </Button>
           </div>
         </DialogContent>

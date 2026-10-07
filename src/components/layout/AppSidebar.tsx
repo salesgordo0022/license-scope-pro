@@ -82,7 +82,7 @@ export function AppSidebar({ collapsed: controlledCollapsed, onToggleCollapse }:
       supabase
         .from('chamados')
         .select('nao_lidas')
-        .neq('status', 'resolvido')
+        .not('status', 'in', '(resolvido,dispensado)')
         .gt('nao_lidas', 0)
         .then(({ data, error }) => {
           if (!error) setNaoLidas((data || []).reduce((s, c) => s + (c.nao_lidas || 0), 0));
