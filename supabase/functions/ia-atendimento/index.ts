@@ -252,7 +252,9 @@ async function carregarConfig(db: SupabaseClient, empresaId: string): Promise<Co
 }
 
 /** Agora está dentro do horário do plantão? (Brasília) */
-function noHorario(cfg: ConfigIA, agora = new Date()): boolean {
+type Horario = { horario_dias: number[]; horario_inicio: string; horario_fim: string };
+
+function noHorario(cfg: Horario, agora = new Date()): boolean {
   const l = new Date(agora.getTime() - 3 * 3600_000);
   const dia = l.getUTCDay();
   const minutos = l.getUTCHours() * 60 + l.getUTCMinutes();
@@ -338,7 +340,7 @@ async function resumir(db: SupabaseClient, cfg: ConfigIA, chamados: ChamadoAbert
     }
     const bruto = await chamarGroq(
       [
-        { role: "system", content: 'Resuma cada chamado de suporte em UMA frase curta (até 15 palavras), em português, dizendo qual é o problema. Responda só com JSON: {"resumos": {"<ID>": "frase"}}' },
+        { role: "system", content: 'Para cada chamado de suporte, diga em UMA frase curta (até 15 palavras), em português, o que o cliente quer ou precisa. Responda só com JSON: {"resumos": {"<ID>": "frase"}}' },
         { role: "user", content: blocos.join("\n\n---\n\n") },
       ],
       cfg.modelo,
@@ -358,14 +360,78 @@ function filaDe(perfilId: string, abertos: ChamadoAberto[], filaGeral: boolean) 
   );
 }
 
-async function alertaDeFila(db: SupabaseClient, cfg: ConfigIA, abertos: ChamadoAberto[]) {
-  const { data: equipe } = await db.from("ia_equipe").select("perfil_id, whatsapp, receber_alertas").eq("empresa_id", cfg.empresa_id).eq("receber_alertas", true);
-  const { data: nomes } = await db.from("usuario_perfil").select("id, nome, email").eq("empresa_id", cfg.empresa_id);
-  for (const pessoa of (equipe || []) as { perfil_id: string; whatsapp: string | null }[]) {
+/** Preferências do colaborador ("Minha IA"); vazio = regra geral da empresa. */
+interface Pessoa {
+  perfil_id: string;
+  whatsapp: string | null;
+  receber_alertas: boolean;
+  alerta_limite: number | null;
+  alerta_intervalo_min: number | null;
+  horario_dias: number[] | null;
+  horario_inicio: string | null;
+  horario_fim: string | null;
+  aviso_demora_ativo: boolean | null;
+  aviso_demora_min: number | null;
+  aviso_demora_texto: string | null;
+}
+
+const horarioDe = (cfg: ConfigIA, p?: Pessoa | null): Horario => ({
+  horario_dias: p?.horario_dias?.length ? p.horario_dias : cfg.horario_dias,
+  horario_inicio: (p?.horario_inicio || cfg.horario_inicio).slice(0, 5),
+  horario_fim: (p?.horario_fim || cfg.horario_fim).slice(0, 5),
+});
+
+async function carregarEquipe(db: SupabaseClient, empresaId: string) {
+  const [{ data: equipe }, { data: nomes }] = await Promise.all([
+    db.from("ia_equipe").select("*").eq("empresa_id", empresaId),
+    db.from("usuario_perfil").select("id, nome, email").eq("empresa_id", empresaId),
+  ]);
+  const pessoas = new Map(((equipe || []) as Pessoa[]).map((p) => [p.perfil_id, p]));
+  const nomeDe = (id: string | null) => {
+    const n = ((nomes || []) as { id: string; nome: string | null; email: string | null }[]).find((x) => x.id === id);
+    return (n?.nome || n?.email || "").split(/[ @]/)[0] || null;
+  };
+  return { pessoas, nomeDe };
+}
+
+/** Mensagem do alerta de fila: um item por chamado com o que o cliente quer. */
+async function montarAlertaFila(db: SupabaseClient, cfg: ConfigIA, fila: ChamadoAberto[], primeiroNome: string | null) {
+  const ordenados = [...fila].sort((a, b) => a.created_at.localeCompare(b.created_at));
+  const resumos = await resumir(db, cfg, ordenados);
+  const linhas = ordenados.slice(0, 20).map((c, i) => {
+    const min = minutosDesde(c.created_at);
+    return `${i + 1}. *${c.contato_nome || c.contato_id}* (${c.origem === "slack" ? "Slack" : "WhatsApp"}, há ${tempo(min)})${min >= 60 ? " 🔴" : ""}\n   ${resumos[c.id] || "sem resumo"}`;
+  });
+  return (
+    `📋 *${primeiroNome || "Olá"}, você está com ${fila.length} chamado(s) em aberto:*\n\n${linhas.join("\n")}` +
+    (fila.length > 20 ? `\n… e mais ${fila.length - 20}.` : "") +
+    `\n\n🔴 = esperando há mais de 1 hora\nAbrir: https://license-scope-pro.lovable.app/chamados`
+  );
+}
+
+async function enviarAlerta(db: SupabaseClient, cfg: ConfigIA, perfilId: string, fone: string, texto: string, quantidade: number, tipo = "fila") {
+  let status = "enviado";
+  let erro: string | null = null;
+  try {
+    await zapEnviarTexto(fone, texto, cfg.alerta_conexao_id);
+  } catch (e) {
+    status = "erro";
+    erro = (e instanceof Error ? e.message : String(e)).slice(0, 400);
+  }
+  await db.from("ia_alertas").insert({ empresa_id: cfg.empresa_id, tipo, perfil_id: perfilId, quantidade, destino: fone, mensagem: texto, status, erro });
+  return { status, erro };
+}
+
+async function alertaDeFila(db: SupabaseClient, cfg: ConfigIA, abertos: ChamadoAberto[], equipe: Awaited<ReturnType<typeof carregarEquipe>>) {
+  for (const pessoa of equipe.pessoas.values()) {
+    if (!pessoa.receber_alertas) continue;
     const fone = (pessoa.whatsapp || "").replace(/\D/g, "");
     if (fone.length < 10) continue;
+    if (!noHorario(horarioDe(cfg, pessoa))) continue;
+    const limite = pessoa.alerta_limite ?? cfg.alerta_fila_limite;
+    const intervalo = pessoa.alerta_intervalo_min ?? cfg.alerta_intervalo_min;
     const fila = filaDe(pessoa.perfil_id, abertos, cfg.alerta_fila_geral);
-    if (fila.length < cfg.alerta_fila_limite) continue;
+    if (fila.length < limite) continue;
 
     // No máximo 1 alerta por intervalo, a não ser que a fila tenha crescido bastante.
     const { data: ultimo } = await db
@@ -377,41 +443,27 @@ async function alertaDeFila(db: SupabaseClient, cfg: ConfigIA, abertos: ChamadoA
       .order("created_at", { ascending: false })
       .limit(1)
       .maybeSingle();
-    if (ultimo && minutosDesde(ultimo.created_at) < cfg.alerta_intervalo_min && fila.length < (ultimo.quantidade ?? 0) + Math.max(3, Math.ceil(cfg.alerta_fila_limite / 2))) continue;
+    if (ultimo && minutosDesde(ultimo.created_at) < intervalo && fila.length < (ultimo.quantidade ?? 0) + Math.max(3, Math.ceil(limite / 2))) continue;
 
-    const ordenados = [...fila].sort((a, b) => a.created_at.localeCompare(b.created_at));
-    const resumos = await resumir(db, cfg, ordenados);
-    const nome = ((nomes || []) as { id: string; nome: string | null; email: string | null }[]).find((n) => n.id === pessoa.perfil_id);
-    const primeiroNome = (nome?.nome || nome?.email || "").split(/[ @]/)[0];
-    const linhas = ordenados.slice(0, 20).map((c, i) => {
-      const min = minutosDesde(c.created_at);
-      return `${i + 1}. *${c.contato_nome || c.contato_id}* (${c.origem === "slack" ? "Slack" : "WhatsApp"}, há ${tempo(min)})${min >= 60 ? " 🔴" : ""}\n   ${resumos[c.id] || "sem resumo"}`;
-    });
-    const texto =
-      `📋 *${primeiroNome || "Olá"}, você está com ${fila.length} chamado(s) em aberto:*\n\n${linhas.join("\n")}` +
-      (fila.length > 20 ? `\n… e mais ${fila.length - 20}.` : "") +
-      `\n\n🔴 = esperando há mais de 1 hora\nAbrir: https://license-scope-pro.lovable.app/chamados`;
-    let status = "enviado";
-    let erro: string | null = null;
-    try {
-      await zapEnviarTexto(fone, texto, cfg.alerta_conexao_id);
-    } catch (e) {
-      status = "erro";
-      erro = (e instanceof Error ? e.message : String(e)).slice(0, 400);
-    }
-    await db.from("ia_alertas").insert({ empresa_id: cfg.empresa_id, tipo: "fila", perfil_id: pessoa.perfil_id, quantidade: fila.length, destino: fone, mensagem: texto, status, erro });
+    const texto = await montarAlertaFila(db, cfg, fila, equipe.nomeDe(pessoa.perfil_id));
+    await enviarAlerta(db, cfg, pessoa.perfil_id, fone, texto, fila.length);
   }
 }
 
-async function avisoDeDemora(db: SupabaseClient, cfg: ConfigIA, abertos: ChamadoAberto[]) {
-  const { data: nomes } = await db.from("usuario_perfil").select("id, nome").eq("empresa_id", cfg.empresa_id);
-  const nomeDe = (id: string | null) => ((nomes || []) as { id: string; nome: string | null }[]).find((n) => n.id === id)?.nome?.split(" ")[0] || null;
+async function avisoDeDemora(db: SupabaseClient, cfg: ConfigIA, abertos: ChamadoAberto[], equipe: Awaited<ReturnType<typeof carregarEquipe>>) {
   for (const c of abertos) {
     if (c.ia_ativa) continue;
     if (c.origem === "slack" ? !cfg.aviso_demora_slack : !cfg.aviso_demora_whatsapp) continue;
+    // Quem atende este chamado manda nas regras dele ("Minha IA").
+    const donoId = c.responsavel_id ?? c.dono_id;
+    const pessoa = donoId ? equipe.pessoas.get(donoId) : undefined;
+    if ((pessoa?.aviso_demora_ativo ?? cfg.aviso_demora_ativo) === false) continue;
+    if (!noHorario(horarioDe(cfg, pessoa))) continue;
+    const limiteMin = pessoa?.aviso_demora_min ?? cfg.aviso_demora_min;
+
     const { data: ultima } = await db.from("chamado_mensagens").select("direcao, created_at").eq("chamado_id", c.id).order("created_at", { ascending: false }).limit(1).maybeSingle();
     if (!ultima || ultima.direcao !== "entrada") continue; // já responderam
-    if (minutosDesde(ultima.created_at) < cfg.aviso_demora_min) continue;
+    if (minutosDesde(ultima.created_at) < limiteMin) continue;
     if (minutosDesde(ultima.created_at) > 24 * 60) continue; // conversa antiga: não acorda
     if (c.aviso_demora_em && c.aviso_demora_em >= ultima.created_at) continue; // já avisou nesta espera
 
@@ -419,8 +471,9 @@ async function avisoDeDemora(db: SupabaseClient, cfg: ConfigIA, abertos: Chamado
     const { data: pegou } = await db.from("chamados").update({ aviso_demora_em: new Date().toISOString() }).eq("id", c.id).or(`aviso_demora_em.is.null,aviso_demora_em.lt."${ultima.created_at}"`).select("id");
     if (!pegou?.length) continue;
 
-    const atendente = nomeDe(c.responsavel_id) || nomeDe(c.dono_id) || "Nossa equipe";
+    const atendente = equipe.nomeDe(c.responsavel_id) || equipe.nomeDe(c.dono_id) || "Nossa equipe";
     const contato = (c.contato_nome || "").split(" ")[0] || "tudo bem";
+    const modelo = pessoa?.aviso_demora_texto?.trim() || cfg.aviso_demora_texto;
     try {
       if (cfg.plantao_ia_ajuda) {
         // A IA avisa da espera e já tenta ajudar com a base de conhecimento.
@@ -436,7 +489,7 @@ async function avisoDeDemora(db: SupabaseClient, cfg: ConfigIA, abertos: Chamado
           .eq("id", c.id);
         await responder(db, c.id, true);
       } else {
-        const texto = cfg.aviso_demora_texto.replace(/\{nome\}/g, contato).replace(/\{atendente\}/g, atendente);
+        const texto = modelo.replace(/\{nome\}/g, contato).replace(/\{atendente\}/g, atendente);
         const externoId = await enviarAoCliente(db, c as unknown as Chamado, texto, true);
         await db.from("chamado_mensagens").insert({
           chamado_id: c.id,
@@ -449,27 +502,27 @@ async function avisoDeDemora(db: SupabaseClient, cfg: ConfigIA, abertos: Chamado
           aviso: true,
         });
       }
-      await db.from("ia_alertas").insert({ empresa_id: cfg.empresa_id, tipo: "demora", chamado_id: c.id, destino: c.contato_nome || c.contato_id, mensagem: cfg.plantao_ia_ajuda ? "Aviso de demora + IA ajudando" : "Aviso de demora", status: "enviado" });
+      await db.from("ia_alertas").insert({ empresa_id: cfg.empresa_id, tipo: "demora", perfil_id: donoId, chamado_id: c.id, destino: c.contato_nome || c.contato_id, mensagem: cfg.plantao_ia_ajuda ? "Aviso de demora + IA ajudando" : "Aviso de demora", status: "enviado" });
     } catch (e) {
-      await db.from("ia_alertas").insert({ empresa_id: cfg.empresa_id, tipo: "demora", chamado_id: c.id, destino: c.contato_nome || c.contato_id, status: "erro", erro: (e instanceof Error ? e.message : String(e)).slice(0, 400) });
+      await db.from("ia_alertas").insert({ empresa_id: cfg.empresa_id, tipo: "demora", perfil_id: donoId, chamado_id: c.id, destino: c.contato_nome || c.contato_id, status: "erro", erro: (e instanceof Error ? e.message : String(e)).slice(0, 400) });
     }
   }
+}
+
+const COLUNAS_ABERTOS = "id, empresa_id, origem, conversa_id, contato_nome, contato_id, canal_nome, assunto, status, dono_id, responsavel_id, ia_ativa, aviso_demora_em, created_at";
+
+async function chamadosAbertos(db: SupabaseClient, empresaId: string) {
+  const { data } = await db.from("chamados").select(COLUNAS_ABERTOS).eq("empresa_id", empresaId).neq("status", "resolvido").limit(500);
+  return (data || []) as ChamadoAberto[];
 }
 
 async function plantao(db: SupabaseClient) {
   const { data: empresas } = await db.from("ia_config").select("empresa_id");
   for (const { empresa_id } of (empresas || []) as { empresa_id: string }[]) {
     const cfg = await carregarConfig(db, empresa_id);
-    if (!noHorario(cfg)) continue;
-    const { data } = await db
-      .from("chamados")
-      .select("id, empresa_id, origem, conversa_id, contato_nome, contato_id, canal_nome, assunto, status, dono_id, responsavel_id, ia_ativa, aviso_demora_em, created_at")
-      .eq("empresa_id", empresa_id)
-      .neq("status", "resolvido")
-      .limit(500);
-    const abertos = (data || []) as ChamadoAberto[];
-    if (cfg.aviso_demora_ativo) await avisoDeDemora(db, cfg, abertos);
-    if (cfg.alerta_fila_ativo) await alertaDeFila(db, cfg, abertos);
+    const [abertos, equipe] = await Promise.all([chamadosAbertos(db, empresa_id), carregarEquipe(db, empresa_id)]);
+    if (cfg.aviso_demora_ativo || [...equipe.pessoas.values()].some((p) => p.aviso_demora_ativo)) await avisoDeDemora(db, cfg, abertos, equipe);
+    if (cfg.alerta_fila_ativo) await alertaDeFila(db, cfg, abertos, equipe);
   }
 }
 
@@ -520,8 +573,10 @@ Deno.serve(async (req) => {
   const { auth, erro } = await autenticar(req);
   if (erro) return erro;
   // O usuário precisa enxergar o chamado (RLS).
-  const { data: visivel } = await auth.client.from("chamados").select("id").eq("id", chamadoId).maybeSingle();
-  if (!visivel) return json(req, { error: "Chamado não encontrado" }, 404);
+  if (acao !== "teste_alerta") {
+    const { data: visivel } = await auth.client.from("chamados").select("id").eq("id", chamadoId).maybeSingle();
+    if (!visivel) return json(req, { error: "Chamado não encontrado" }, 404);
+  }
 
   try {
     if (acao === "assumir") {
@@ -538,6 +593,23 @@ Deno.serve(async (req) => {
         await db.from("chamados").update({ ia_ativa: false, ia_status: "devolvido", ia_motivo: "Falha ao iniciar" }).eq("id", chamadoId);
         throw e;
       }
+    }
+
+    if (acao === "teste_alerta") {
+      // Manda agora, para o WhatsApp de quem pediu, o resumo dos chamados abertos dele.
+      if (!auth.empresaId || !auth.perfilId) return json(req, { error: "Usuário sem empresa" }, 403);
+      const cfg = await carregarConfig(db, auth.empresaId);
+      const equipe = await carregarEquipe(db, auth.empresaId);
+      const pessoa = equipe.pessoas.get(auth.perfilId);
+      const fone = (pessoa?.whatsapp || "").replace(/\D/g, "");
+      if (fone.length < 10) return json(req, { error: "Cadastre e salve o seu WhatsApp primeiro" }, 400);
+      const fila = filaDe(auth.perfilId, await chamadosAbertos(db, auth.empresaId), cfg.alerta_fila_geral);
+      const texto = fila.length
+        ? await montarAlertaFila(db, cfg, fila, equipe.nomeDe(auth.perfilId))
+        : `✅ ${equipe.nomeDe(auth.perfilId) || "Olá"}, você não tem chamados em aberto agora. Os alertas da IA estão funcionando.`;
+      const r = await enviarAlerta(db, cfg, auth.perfilId, fone, texto, fila.length, "teste");
+      if (r.status !== "enviado") return json(req, { error: r.erro || "Falha ao enviar" }, 502);
+      return json(req, { ok: true, quantidade: fila.length });
     }
 
     if (acao === "parar") {

@@ -16,6 +16,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
+import { erroDaFunction } from '@/lib/erroFunction';
 
 interface ConfigIA {
   empresa_id?: string;
@@ -72,6 +73,21 @@ interface Membro {
   whatsapp: string;
   receber_alertas: boolean;
   salvo: boolean;
+}
+
+/** "Minha IA": preferências do próprio colaborador (vazio = regra da empresa). */
+interface MinhaIA {
+  whatsapp: string;
+  receber_alertas: boolean;
+  alerta_limite: number | null;
+  alerta_intervalo_min: number | null;
+  horario_proprio: boolean;
+  horario_dias: number[];
+  horario_inicio: string;
+  horario_fim: string;
+  aviso_demora_ativo: boolean | null;
+  aviso_demora_min: number | null;
+  aviso_demora_texto: string;
 }
 
 interface Artigo {
@@ -136,12 +152,15 @@ export default function AssistenteIA() {
   const [statsIA, setStatsIA] = useState({ atendendo: 0, finalizado: 0, devolvido: 0 });
   const [busca, setBusca] = useState('');
   const [editando, setEditando] = useState<Partial<Artigo> | null>(null);
+  const [minha, setMinha] = useState<MinhaIA | null>(null);
+  const [salvandoMinha, setSalvandoMinha] = useState(false);
+  const [testando, setTestando] = useState(false);
 
   const carregar = useCallback(async () => {
     const inicioMes = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString();
     const [c, eq, pf, ar, al, ch] = await Promise.all([
       supabase.from('ia_config').select('*').maybeSingle(),
-      supabase.from('ia_equipe').select('perfil_id, whatsapp, receber_alertas'),
+      supabase.from('ia_equipe').select('*'),
       supabase.from('usuario_perfil').select('id, nome, email').order('nome'),
       supabase.from('ia_conhecimento').select('id, titulo, conteudo, tags, ativo, updated_at').order('titulo'),
       supabase.from('ia_alertas').select('*').order('created_at', { ascending: false }).limit(100),
@@ -155,7 +174,34 @@ export default function AssistenteIA() {
       setCfg({ ...PADRAO, ...(c.data as ConfigIA), horario_inicio: String(c.data.horario_inicio).slice(0, 5), horario_fim: String(c.data.horario_fim).slice(0, 5) });
       setCfgExiste(true);
     }
-    const mapa = new Map(((eq.data || []) as { perfil_id: string; whatsapp: string | null; receber_alertas: boolean }[]).map((e) => [e.perfil_id, e]));
+    type LinhaEquipe = {
+      perfil_id: string;
+      whatsapp: string | null;
+      receber_alertas: boolean;
+      alerta_limite: number | null;
+      alerta_intervalo_min: number | null;
+      horario_dias: number[] | null;
+      horario_inicio: string | null;
+      horario_fim: string | null;
+      aviso_demora_ativo: boolean | null;
+      aviso_demora_min: number | null;
+      aviso_demora_texto: string | null;
+    };
+    const mapa = new Map(((eq.data || []) as LinhaEquipe[]).map((e) => [e.perfil_id, e]));
+    const eu = profile?.id ? mapa.get(profile.id) : undefined;
+    setMinha({
+      whatsapp: eu?.whatsapp || '',
+      receber_alertas: eu?.receber_alertas ?? true,
+      alerta_limite: eu?.alerta_limite ?? null,
+      alerta_intervalo_min: eu?.alerta_intervalo_min ?? null,
+      horario_proprio: !!eu?.horario_dias?.length,
+      horario_dias: eu?.horario_dias?.length ? eu.horario_dias : [1, 2, 3, 4, 5],
+      horario_inicio: (eu?.horario_inicio || '08:00').slice(0, 5),
+      horario_fim: (eu?.horario_fim || '18:00').slice(0, 5),
+      aviso_demora_ativo: eu?.aviso_demora_ativo ?? null,
+      aviso_demora_min: eu?.aviso_demora_min ?? null,
+      aviso_demora_texto: eu?.aviso_demora_texto || '',
+    });
     setEquipe(
       ((pf.data || []) as { id: string; nome: string | null; email: string | null }[]).map((p) => ({
         ...p,
@@ -169,11 +215,48 @@ export default function AssistenteIA() {
     const st = { atendendo: 0, finalizado: 0, devolvido: 0 };
     for (const x of (ch.data || []) as { ia_status: string; ia_ativa: boolean }[]) if (x.ia_status in st) st[x.ia_status as keyof typeof st]++;
     setStatsIA(st);
-  }, []);
+  }, [profile?.id]);
 
   useEffect(() => {
     carregar();
   }, [carregar]);
+
+  const salvarMinha = async () => {
+    if (!minha || !profile?.id) return;
+    const fone = minha.whatsapp.replace(/\D/g, '');
+    if (minha.receber_alertas && fone.length < 10) return toast.error('Informe o seu WhatsApp com DDD');
+    setSalvandoMinha(true);
+    const { error } = await supabase.from('ia_equipe').upsert(
+      {
+        perfil_id: profile.id,
+        whatsapp: fone || null,
+        receber_alertas: minha.receber_alertas,
+        alerta_limite: minha.alerta_limite,
+        alerta_intervalo_min: minha.alerta_intervalo_min,
+        horario_dias: minha.horario_proprio ? minha.horario_dias : null,
+        horario_inicio: minha.horario_proprio ? minha.horario_inicio : null,
+        horario_fim: minha.horario_proprio ? minha.horario_fim : null,
+        aviso_demora_ativo: minha.aviso_demora_ativo,
+        aviso_demora_min: minha.aviso_demora_min,
+        aviso_demora_texto: minha.aviso_demora_texto.trim() || null,
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: 'perfil_id' }
+    );
+    setSalvandoMinha(false);
+    if (error) return toast.error('Não foi possível salvar', { description: error.message });
+    toast.success('Sua IA foi configurada');
+    carregar();
+  };
+
+  const testarAlerta = async () => {
+    setTestando(true);
+    const { data, error } = await supabase.functions.invoke('ia-atendimento', { body: { acao: 'teste_alerta' } });
+    setTestando(false);
+    if (error || data?.error) return toast.error('Não foi possível enviar', { description: await erroDaFunction(error, data) });
+    toast.success('Enviado para o seu WhatsApp', { description: `${data?.quantidade ?? 0} chamado(s) em aberto no resumo.` });
+    carregar();
+  };
 
   const salvarConfig = async () => {
     setSalvando(true);
@@ -263,13 +346,151 @@ export default function AssistenteIA() {
         </div>
       </div>
 
-      <Tabs defaultValue="regras">
+      <Tabs defaultValue="minha">
         <TabsList>
-          <TabsTrigger value="regras">Regras</TabsTrigger>
-          <TabsTrigger value="equipe">Equipe</TabsTrigger>
+          <TabsTrigger value="minha">Minha IA</TabsTrigger>
+          <TabsTrigger value="regras">Regras da empresa</TabsTrigger>
+          {isAdmin && <TabsTrigger value="equipe">Equipe</TabsTrigger>}
           <TabsTrigger value="base">Base de conhecimento ({artigos.filter((a) => a.ativo).length})</TabsTrigger>
           <TabsTrigger value="atividade">Atividade</TabsTrigger>
         </TabsList>
+
+        {/* --------------------------------------------------------- MINHA IA */}
+        <TabsContent value="minha" className="mt-4 space-y-4">
+          {minha && (
+            <>
+              <div className="grid gap-4 lg:grid-cols-2">
+                <Bloco
+                  titulo="📲 Meus lembretes no WhatsApp"
+                  descricao="Quando eu tiver muitos chamados em aberto, a IA me manda no WhatsApp a lista com o que cada cliente quer."
+                  ativo={minha.receber_alertas}
+                  onAtivo={(v) => setMinha({ ...minha, receber_alertas: v })}
+                  podeEditar
+                >
+                  <div className="space-y-1.5">
+                    <Label className="text-xs">Meu WhatsApp</Label>
+                    <Input value={minha.whatsapp} onChange={(e) => setMinha({ ...minha, whatsapp: e.target.value })} placeholder="(98) 9XXXX-XXXX" className="w-56" />
+                  </div>
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <div className="space-y-1.5">
+                      <Label className="text-xs">Me avisar a partir de</Label>
+                      <div className="flex items-center gap-2">
+                        <Input
+                          type="number"
+                          min={1}
+                          max={200}
+                          value={minha.alerta_limite ?? ''}
+                          placeholder={String(cfg.alerta_fila_limite)}
+                          onChange={(e) => setMinha({ ...minha, alerta_limite: e.target.value ? Math.max(1, Number(e.target.value)) : null })}
+                          className="w-24"
+                        />
+                        <span className="text-sm text-muted-foreground">chamados</span>
+                      </div>
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label className="text-xs">No máximo 1 lembrete a cada</Label>
+                      <div className="flex items-center gap-2">
+                        <Input
+                          type="number"
+                          min={10}
+                          max={1440}
+                          value={minha.alerta_intervalo_min ?? ''}
+                          placeholder={String(cfg.alerta_intervalo_min)}
+                          onChange={(e) => setMinha({ ...minha, alerta_intervalo_min: e.target.value ? Math.max(10, Number(e.target.value)) : null })}
+                          className="w-24"
+                        />
+                        <span className="text-sm text-muted-foreground">minutos</span>
+                      </div>
+                    </div>
+                  </div>
+                  <p className="text-[11px] text-muted-foreground">Em branco = regra da empresa ({cfg.alerta_fila_limite} chamados, a cada {cfg.alerta_intervalo_min} min).</p>
+                  <Button variant="outline" size="sm" className="gap-2" onClick={testarAlerta} disabled={testando}>
+                    {testando ? <Loader2 className="h-4 w-4 animate-spin" /> : '📲'} Mandar meu resumo agora (teste)
+                  </Button>
+                </Bloco>
+
+                <Bloco
+                  titulo="⏰ Aviso de demora nos meus chamados"
+                  descricao="Se alguém esperar resposta minha por muito tempo, a IA avisa com educação que eu já respondo."
+                  podeEditar
+                >
+                  <div className="flex flex-wrap gap-2">
+                    {[
+                      { v: null, r: 'Seguir a empresa' },
+                      { v: true, r: 'Ligado' },
+                      { v: false, r: 'Desligado' },
+                    ].map((o) => (
+                      <Button key={String(o.v)} size="sm" type="button" variant={minha.aviso_demora_ativo === o.v ? 'default' : 'outline'} onClick={() => setMinha({ ...minha, aviso_demora_ativo: o.v })}>
+                        {o.r}
+                      </Button>
+                    ))}
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-xs">Avisar depois de</Label>
+                    <div className="flex items-center gap-2">
+                      <Input
+                        type="number"
+                        min={1}
+                        max={1440}
+                        value={minha.aviso_demora_min ?? ''}
+                        placeholder={String(cfg.aviso_demora_min)}
+                        onChange={(e) => setMinha({ ...minha, aviso_demora_min: e.target.value ? Math.max(1, Number(e.target.value)) : null })}
+                        className="w-24"
+                      />
+                      <span className="text-sm text-muted-foreground">minutos sem resposta</span>
+                    </div>
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-xs">Minha mensagem ({'{nome}'} = quem chamou, {'{atendente}'} = eu)</Label>
+                    <Textarea rows={3} value={minha.aviso_demora_texto} placeholder={cfg.aviso_demora_texto} onChange={(e) => setMinha({ ...minha, aviso_demora_texto: e.target.value })} />
+                  </div>
+                </Bloco>
+
+                <Bloco
+                  titulo="🕗 Meu horário"
+                  descricao="Fora deste horário a IA não me manda lembretes nem avisa de demora nos meus chamados."
+                  ativo={minha.horario_proprio}
+                  onAtivo={(v) => setMinha({ ...minha, horario_proprio: v })}
+                  podeEditar
+                >
+                  {minha.horario_proprio ? (
+                    <>
+                      <div className="flex flex-wrap gap-1.5">
+                        {DIAS.map((d, i) => (
+                          <Button
+                            key={d}
+                            type="button"
+                            size="sm"
+                            variant={minha.horario_dias.includes(i) ? 'default' : 'outline'}
+                            onClick={() =>
+                              setMinha({ ...minha, horario_dias: minha.horario_dias.includes(i) ? minha.horario_dias.filter((x) => x !== i) : [...minha.horario_dias, i].sort() })
+                            }
+                          >
+                            {d}
+                          </Button>
+                        ))}
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Input type="time" value={minha.horario_inicio} onChange={(e) => setMinha({ ...minha, horario_inicio: e.target.value || '08:00' })} className="w-32" />
+                        <span className="text-sm text-muted-foreground">até</span>
+                        <Input type="time" value={minha.horario_fim} onChange={(e) => setMinha({ ...minha, horario_fim: e.target.value || '18:00' })} className="w-32" />
+                      </div>
+                    </>
+                  ) : (
+                    <p className="text-sm text-muted-foreground">
+                      Seguindo o horário da empresa: {cfg.horario_dias.map((d) => DIAS[d]).join(', ')}, das {cfg.horario_inicio} às {cfg.horario_fim}.
+                    </p>
+                  )}
+                </Bloco>
+              </div>
+              <div className="flex justify-end">
+                <Button onClick={salvarMinha} disabled={salvandoMinha} className="gap-2">
+                  {salvandoMinha ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />} Salvar minha IA
+                </Button>
+              </div>
+            </>
+          )}
+        </TabsContent>
 
         {/* ------------------------------------------------------------ REGRAS */}
         <TabsContent value="regras" className="mt-4 space-y-4">

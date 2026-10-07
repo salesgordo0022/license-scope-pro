@@ -1093,6 +1093,14 @@ export type Database = {
       }
       ia_equipe: {
         Row: {
+          alerta_intervalo_min: number | null
+          alerta_limite: number | null
+          aviso_demora_ativo: boolean | null
+          aviso_demora_min: number | null
+          aviso_demora_texto: string | null
+          horario_dias: number[] | null
+          horario_fim: string | null
+          horario_inicio: string | null
           empresa_id: string | null
           perfil_id: string
           receber_alertas: boolean
@@ -1100,6 +1108,14 @@ export type Database = {
           whatsapp: string | null
         }
         Insert: {
+          alerta_intervalo_min?: number | null
+          alerta_limite?: number | null
+          aviso_demora_ativo?: boolean | null
+          aviso_demora_min?: number | null
+          aviso_demora_texto?: string | null
+          horario_dias?: number[] | null
+          horario_fim?: string | null
+          horario_inicio?: string | null
           empresa_id?: string | null
           perfil_id: string
           receber_alertas?: boolean
@@ -1107,6 +1123,14 @@ export type Database = {
           whatsapp?: string | null
         }
         Update: {
+          alerta_intervalo_min?: number | null
+          alerta_limite?: number | null
+          aviso_demora_ativo?: boolean | null
+          aviso_demora_min?: number | null
+          aviso_demora_texto?: string | null
+          horario_dias?: number[] | null
+          horario_fim?: string | null
+          horario_inicio?: string | null
           empresa_id?: string | null
           perfil_id?: string
           receber_alertas?: boolean
