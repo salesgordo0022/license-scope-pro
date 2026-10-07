@@ -23,6 +23,22 @@ export function ImperTechSimbolo({ tom = 'claro', className }: { tom?: 'claro' |
   );
 }
 
+/**
+ * Símbolo do Assistente IA: a janela da ImperTech em tons de azul sobre fundo
+ * marinho (arte "assistente-ia.png").
+ */
+export function AssistenteIASimbolo({ className }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 1080 1080" className={cn('shrink-0', className)} aria-hidden="true">
+      <rect width="1080" height="1080" rx="220" fill="#15223D" />
+      <rect x="280" y="280" width="250" height="250" fill="#5BB8F9" />
+      <path d="M550 280H800L727 530H550Z" fill="#2D8CF0" />
+      <rect x="280" y="550" width="250" height="250" fill="#0B5CAD" />
+      <rect x="550" y="550" width="250" height="250" fill="#A0D4FA" />
+    </svg>
+  );
+}
+
 /** "Bloco IT" na versão escura (arquivo LOGOS/v1 - Bloco IT/cores-sistema/bloco-it-escuro.svg). */
 export function BlocoItSimbolo({ className }: { className?: string }) {
   return (

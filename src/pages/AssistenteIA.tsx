@@ -17,6 +17,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import { erroDaFunction } from '@/lib/erroFunction';
+import { AssistenteIASimbolo } from '@/components/brand/ImperTechLogo';
 
 interface ConfigIA {
   empresa_id?: string;
@@ -335,7 +336,7 @@ export default function AssistenteIA() {
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <h1 className="flex items-center gap-2 text-2xl font-bold">
-            <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-violet-600 text-lg text-white">🤖</span> Assistente IA
+            <AssistenteIASimbolo className="h-10 w-10" /> Assistente IA
           </h1>
           <p className="text-sm text-muted-foreground">Regras do plantão, alertas para a equipe e o que a IA sabe para ajudar no suporte.</p>
         </div>

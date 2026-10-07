@@ -458,9 +458,9 @@ export default function Chamados() {
                       )}
                     </span>
                     <span className={cn('mt-1 inline-block rounded px-1.5 py-0.5 text-[10px] font-medium', statusInfo(c.status).cor)}>{statusInfo(c.status).rotulo}</span>
-                    {c.ia_ativa && <span className="ml-1 mt-1 inline-block rounded bg-violet-100 px-1.5 py-0.5 text-[10px] font-medium text-violet-700">🤖 IA atendendo</span>}
+                    {c.ia_ativa && <span className="ml-1 mt-1 inline-block rounded bg-violet-100 px-1.5 py-0.5 text-[10px] font-medium text-violet-700">🧑‍💻 IA atendendo</span>}
                     {!c.ia_ativa && c.ia_status === 'devolvido' && c.status !== 'resolvido' && (
-                      <span className="ml-1 mt-1 inline-block rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-medium text-amber-700">🤖 IA devolveu</span>
+                      <span className="ml-1 mt-1 inline-block rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-medium text-amber-700">🧑‍💻 IA devolveu</span>
                     )}
                   </span>
                 </button>
@@ -501,14 +501,14 @@ export default function Chamados() {
                   ) : (
                     selecionado.status !== 'resolvido' && (
                       <Button size="sm" className="shrink-0 gap-1 bg-violet-600 text-white hover:bg-violet-700" onClick={() => setIaAberta(true)}>
-                        🤖 IA assume
+                        🧑‍💻 IA assume
                       </Button>
                     )
                   )}
                 </div>
                 {selecionado.ia_ativa ? (
                   <div className="rounded-lg border border-violet-200 bg-violet-50 px-3 py-2 text-xs text-violet-900 dark:border-violet-900 dark:bg-violet-950/40 dark:text-violet-100">
-                    <p className="font-semibold">🤖 A IA está atendendo ({selecionado.ia_respostas ?? 0} resposta(s)). Se você responder, ela sai da conversa.</p>
+                    <p className="font-semibold">🧑‍💻 A IA está atendendo ({selecionado.ia_respostas ?? 0} resposta(s)). Se você responder, ela sai da conversa.</p>
                     <p className="mt-0.5 line-clamp-2 opacity-80">Orientação: {selecionado.ia_instrucoes}</p>
                   </div>
                 ) : selecionado.ia_status && selecionado.ia_motivo ? (
@@ -518,7 +518,7 @@ export default function Chamados() {
                       selecionado.ia_status === 'finalizado' ? 'border-emerald-200 bg-emerald-50 text-emerald-900' : 'border-amber-200 bg-amber-50 text-amber-900'
                     )}
                   >
-                    🤖 {selecionado.ia_status === 'finalizado' ? 'A IA encerrou o atendimento' : 'A IA devolveu o atendimento'}: {selecionado.ia_motivo}
+                    🧑‍💻 {selecionado.ia_status === 'finalizado' ? 'A IA encerrou o atendimento' : 'A IA devolveu o atendimento'}: {selecionado.ia_motivo}
                   </div>
                 ) : null}
                 <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
@@ -650,7 +650,7 @@ export default function Chamados() {
       <Dialog open={iaAberta} onOpenChange={(v) => !iaOcupada && setIaAberta(v)}>
         <DialogContent className="max-w-xl">
           <DialogHeader>
-            <DialogTitle>🤖 A IA assume este chamado</DialogTitle>
+            <DialogTitle>🧑‍💻 A IA assume este chamado</DialogTitle>
             <DialogDescription>
               Escreva como você explicaria para um estagiário: o que dizer ao cliente, onde procurar e quando chamar a equipe. A IA se apresenta como assistente
               virtual, explica, pergunta se ficou claro e tenta de outro jeito até o cliente entender. Ela encerra sozinha quando ele confirmar, ou devolve

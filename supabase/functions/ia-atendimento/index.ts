@@ -140,7 +140,7 @@ Responda SOMENTE com um objeto JSON, sem texto fora dele:
 async function enviarAoCliente(db: SupabaseClient, c: Chamado, texto: string, _aviso = false): Promise<string> {
   if (c.origem === "zapcontabil") {
     const { data: cfg } = await db.from("chamados_config").select("zap_conexao_id").eq("empresa_id", c.empresa_id).maybeSingle();
-    return zapEnviarTexto(String(c.contato_id ?? "").replace(/\D/g, ""), `*${NOME_IA} (IA):*\n${texto}`, cfg?.zap_conexao_id ?? null);
+    return zapEnviarTexto(String(c.contato_id ?? "").replace(/\D/g, ""), `*🧑‍💻 ${NOME_IA}:*\n${texto}`, cfg?.zap_conexao_id ?? null);
   }
   // Slack: sai pela conta do dono do chamado, identificada como assistente.
   const { data: conexao } = await db.from("slack_conexoes").select("access_token").eq("perfil_id", c.dono_id ?? "").maybeSingle();
@@ -148,7 +148,7 @@ async function enviarAoCliente(db: SupabaseClient, c: Chamado, texto: string, _a
   const [tipo, canal, thread] = c.conversa_id.split(":");
   const r = await slackPost(conexao.access_token, "chat.postMessage", {
     channel: canal,
-    text: `🤖 *${NOME_IA}:* ${texto}`,
+    text: `🧑‍💻 *${NOME_IA}:* ${texto}`,
     ...(tipo === "th" && thread ? { thread_ts: thread } : {}),
   });
   if (!r.ok) throw new Error(`Slack recusou: ${r.error}`);
