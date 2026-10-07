@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation } from 'react-router-dom';
 import { format, isToday, isYesterday, parseISO } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { Inbox, Search, Send, Settings2, Loader2, MessageCircle, Paperclip, ChevronLeft, Copy, Check, BarChart3, RefreshCw, XCircle } from '@/components/icons';
+import { Inbox, Search, Send, Settings2, Loader2, MessageCircle, Paperclip, ChevronLeft, Copy, Check, BarChart3, RefreshCw, XCircle, StickyNote, Pencil, Trash2 } from '@/components/icons';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -40,6 +40,9 @@ interface Chamado {
   dispensado_em?: string | null;
   dispensado_por?: string | null;
   dispensa_motivo?: string | null;
+  anotacao?: string | null;
+  anotacao_por?: string | null;
+  anotacao_em?: string | null;
 }
 
 interface Mensagem {
@@ -335,6 +338,40 @@ export default function Chamados() {
   };
 
   // ---- Dispensar: não é chamado (agradecimento, spam, conversa interna...). Não conta em nada.
+  // ---- Cartão: anotação curta para o técnico (só no sistema, não vai ao cliente).
+  const [cartaoEditando, setCartaoEditando] = useState(false);
+  const [textoCartao, setTextoCartao] = useState('');
+  const [salvandoCartao, setSalvandoCartao] = useState(false);
+  useEffect(() => {
+    setCartaoEditando(false);
+  }, [selecionadoId]);
+
+  const abrirCartao = () => {
+    setTextoCartao(selecionado?.anotacao || '');
+    setCartaoEditando(true);
+  };
+
+  const salvarCartao = async (texto: string) => {
+    if (!selecionado) return;
+    const id = selecionado.id;
+    const anotacao = texto.trim() || null;
+    setSalvandoCartao(true);
+    const { data, error } = await supabase
+      .from('chamados')
+      .update({ anotacao })
+      .eq('id', id)
+      .select('anotacao, anotacao_por, anotacao_em')
+      .maybeSingle();
+    setSalvandoCartao(false);
+    if (error) {
+      toast.error('Não foi possível salvar o cartão', { description: error.message });
+      return;
+    }
+    setChamados((lista) => lista.map((x) => (x.id === id ? { ...x, ...(data || { anotacao }) } : x)));
+    setCartaoEditando(false);
+    toast.success(anotacao ? 'Cartão salvo' : 'Cartão removido');
+  };
+
   const [dispensarAberto, setDispensarAberto] = useState(false);
   const [motivoDispensa, setMotivoDispensa] = useState('');
 
@@ -512,6 +549,11 @@ export default function Chamados() {
                       )}
                     </span>
                     <span className={cn('mt-1 inline-block rounded px-1.5 py-0.5 text-[10px] font-medium', statusInfo(c.status).cor)}>{statusInfo(c.status).rotulo}</span>
+                    {c.anotacao && (
+                      <span className="ml-1 mt-1 inline-flex items-center gap-1 rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-medium text-amber-800 dark:bg-amber-900/40 dark:text-amber-200" title={c.anotacao}>
+                        <StickyNote className="h-3 w-3" /> Cartão
+                      </span>
+                    )}
                     {c.ia_ativa && <span className="ml-1 mt-1 inline-block rounded bg-violet-100 px-1.5 py-0.5 text-[10px] font-medium text-violet-700">🧑‍💻 IA atendendo</span>}
                     {!c.ia_ativa && c.ia_status === 'devolvido' && c.status !== 'resolvido' && (
                       <span className="ml-1 mt-1 inline-block rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-medium text-amber-700">🧑‍💻 IA devolveu</span>
@@ -533,6 +575,64 @@ export default function Chamados() {
           ) : (
             <>
               <div className="space-y-3 border-b border-border/60 p-4">
+                {cartaoEditando ? (
+                  <div className="space-y-2 rounded-lg border border-amber-300 bg-amber-50 p-3 dark:border-amber-700/60 dark:bg-amber-950/30">
+                    <p className="flex items-center gap-1.5 text-xs font-semibold text-amber-900 dark:text-amber-200">
+                      <StickyNote className="h-4 w-4" /> Cartão do chamado
+                      <span className="font-normal opacity-70">· só a equipe vê</span>
+                    </p>
+                    <Textarea
+                      autoFocus
+                      rows={3}
+                      maxLength={1000}
+                      value={textoCartao}
+                      onChange={(e) => setTextoCartao(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) salvarCartao(textoCartao);
+                        if (e.key === 'Escape') setCartaoEditando(false);
+                      }}
+                      placeholder="Ex.: Cliente quer liberar usuário novo no Onvio. Já mandou print do erro. Ver permissão de admin."
+                      className="resize-none border-amber-200 bg-white text-sm dark:border-amber-800 dark:bg-background"
+                    />
+                    <div className="flex items-center gap-2">
+                      <span className="text-[11px] text-amber-900/60 dark:text-amber-200/60">{textoCartao.length}/1000 · Ctrl+Enter salva</span>
+                      {selecionado.anotacao && (
+                        <Button size="sm" variant="ghost" className="ml-auto h-7 gap-1 text-xs text-red-600 hover:text-red-700" onClick={() => salvarCartao('')} disabled={salvandoCartao}>
+                          <Trash2 className="h-3.5 w-3.5" /> Apagar
+                        </Button>
+                      )}
+                      <Button size="sm" variant="outline" className={cn('h-7 text-xs', !selecionado.anotacao && 'ml-auto')} onClick={() => setCartaoEditando(false)} disabled={salvandoCartao}>
+                        Cancelar
+                      </Button>
+                      <Button size="sm" className="h-7 gap-1 bg-amber-500 text-xs text-white hover:bg-amber-600" onClick={() => salvarCartao(textoCartao)} disabled={salvandoCartao}>
+                        {salvandoCartao && <Loader2 className="h-3.5 w-3.5 animate-spin" />} Salvar
+                      </Button>
+                    </div>
+                  </div>
+                ) : selecionado.anotacao ? (
+                  <button
+                    type="button"
+                    onClick={abrirCartao}
+                    title="Editar cartão"
+                    className="group block w-full rounded-lg border border-amber-300 bg-amber-50 p-3 text-left transition hover:border-amber-400 dark:border-amber-700/60 dark:bg-amber-950/30"
+                  >
+                    <span className="flex items-center gap-1.5 text-xs font-semibold text-amber-900 dark:text-amber-200">
+                      <StickyNote className="h-4 w-4" /> Cartão do chamado
+                      <Pencil className="ml-auto h-3.5 w-3.5 opacity-0 transition group-hover:opacity-70" />
+                    </span>
+                    <span className="mt-1 block whitespace-pre-wrap break-words text-sm text-amber-950 dark:text-amber-50">{selecionado.anotacao}</span>
+                    {(selecionado.anotacao_por || selecionado.anotacao_em) && (
+                      <span className="mt-1 block text-[11px] text-amber-900/60 dark:text-amber-200/60">
+                        {selecionado.anotacao_por ? (selecionado.anotacao_por === meuId ? 'Você' : nomeUsuario(selecionado.anotacao_por) || 'Equipe') : 'Equipe'}
+                        {selecionado.anotacao_em ? ` · ${format(parseISO(selecionado.anotacao_em), "dd/MM 'às' HH:mm")}` : ''}
+                      </span>
+                    )}
+                  </button>
+                ) : (
+                  <Button size="sm" variant="outline" className="h-7 gap-1.5 border-dashed text-xs text-muted-foreground hover:text-foreground" onClick={abrirCartao}>
+                    <StickyNote className="h-3.5 w-3.5" /> Cartão: anotar para o técnico
+                  </Button>
+                )}
                 <div className="flex items-start gap-3">
                   <button type="button" onClick={() => setSelecionadoId(null)} className="rounded-md p-1 hover:bg-muted lg:hidden" title="Voltar">
                     <ChevronLeft className="h-5 w-5" />

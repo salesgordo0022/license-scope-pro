@@ -86,6 +86,9 @@ export type Database = {
       }
       chamados: {
         Row: {
+          anotacao: string | null
+          anotacao_em: string | null
+          anotacao_por: string | null
           assunto: string | null
           aviso_demora_em: string | null
           canal_nome: string | null
@@ -117,6 +120,9 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          anotacao?: string | null
+          anotacao_em?: string | null
+          anotacao_por?: string | null
           assunto?: string | null
           aviso_demora_em?: string | null
           canal_nome?: string | null
@@ -148,6 +154,9 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          anotacao?: string | null
+          anotacao_em?: string | null
+          anotacao_por?: string | null
           assunto?: string | null
           aviso_demora_em?: string | null
           canal_nome?: string | null
