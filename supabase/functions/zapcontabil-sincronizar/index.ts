@@ -16,7 +16,7 @@
  *  - botão "Sincronizar" da tela: usuário logado (empresa dele).
  */
 import { autenticar, json, respostaPreflight } from "../_shared/auth.ts";
-import { clienteServico, iguaisSeguro, registrarMensagem } from "../_shared/chamados.ts";
+import { clienteServico, emSegundoPlano, iguaisSeguro, registrarMensagem } from "../_shared/chamados.ts";
 import { lista, separarAssinatura, zapGet } from "../_shared/zapcontabil.ts";
 import type { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 
@@ -162,6 +162,19 @@ Deno.serve(async (req) => {
 
   const { data: cfg } = await db.from("chamados_config").select("empresa_id, zap_filtro, zap_sync_ate").eq("empresa_id", empresaId).maybeSingle();
   if (!cfg) return json(req, { error: "Configure os Chamados (Integrações) primeiro" }, 400);
+
+  // Chamada do pg_cron: responde na hora e sincroniza em segundo plano.
+  if (token) {
+    emSegundoPlano(
+      sincronizar(db, cfg as Config).catch(async (e) => {
+        const msg = e instanceof Error ? e.message : String(e);
+        await db.from("chamados_config").update({ zap_sync_erro: msg.slice(0, 500) }).eq("empresa_id", empresaId);
+        throw e;
+      }),
+      "zapcontabil-sincronizar",
+    );
+    return json(req, { ok: true, em_segundo_plano: true });
+  }
 
   try {
     const r = await sincronizar(db, cfg as Config);

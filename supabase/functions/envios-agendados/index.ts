@@ -14,7 +14,7 @@
  * Tudo o que sai é registrado em mensagens_enviadas (histórico da aba Mensagens).
  */
 import { autenticar, json, respostaPreflight } from "../_shared/auth.ts";
-import { clienteServico, iguaisSeguro } from "../_shared/chamados.ts";
+import { clienteServico, emSegundoPlano, iguaisSeguro } from "../_shared/chamados.ts";
 import { segredo } from "../_shared/segredos.ts";
 import { lista, normalizarNumero, zapContatoExiste, zapEnviarDocumento, zapEnviarTexto, zapGarantirContato, zapGet } from "../_shared/zapcontabil.ts";
 import { preencherVariaveis, proximaExecucao, type RegraAgenda } from "../_shared/agenda.ts";
@@ -187,14 +187,16 @@ Deno.serve(async (req) => {
   if (acao === "executar") {
     const token = new URL(req.url).searchParams.get("token") ?? "";
     if (!iguaisSeguro(token, (await segredo("ENVIOS_CRON_TOKEN")) ?? "")) return new Response("não autorizado", { status: 401 });
-    try {
-      const geradas = await gerarFila(db);
-      const enviados = await enviarFila(db);
-      return json(req, { ok: true, geradas, enviados });
-    } catch (e) {
-      console.error("envios-agendados:", e);
-      return json(req, { error: e instanceof Error ? e.message : String(e) }, 500);
-    }
+    // Responde na hora; o trabalho segue em segundo plano (ver emSegundoPlano).
+    emSegundoPlano(
+      (async () => {
+        const geradas = await gerarFila(db);
+        const enviados = await enviarFila(db);
+        console.log("envios-agendados:", { geradas, enviados });
+      })(),
+      "envios-agendados",
+    );
+    return json(req, { ok: true, em_segundo_plano: true });
   }
 
   const { auth, erro } = await autenticar(req);

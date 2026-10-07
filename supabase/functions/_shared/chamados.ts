@@ -69,3 +69,17 @@ export function iguaisSeguro(a: string, b: string): boolean {
   for (let i = 0; i < a.length; i++) dif |= a.charCodeAt(i) ^ b.charCodeAt(i);
   return dif === 0;
 }
+
+/**
+ * Roda a tarefa depois de responder (EdgeRuntime.waitUntil). Usado nas
+ * chamadas do pg_cron: o banco recebe a resposta na hora e não fica com a
+ * conexão presa esperando o trabalho terminar (as esperas se acumulavam e as
+ * chamadas seguintes estouravam o tempo).
+ */
+export function emSegundoPlano(tarefa: Promise<unknown>, rotulo: string) {
+  const p = tarefa.catch((e) => console.error(`${rotulo}:`, e));
+  // deno-lint-ignore no-explicit-any
+  const rt = (globalThis as any).EdgeRuntime;
+  if (rt?.waitUntil) rt.waitUntil(p);
+  return p;
+}
