@@ -38,7 +38,7 @@ function base64ParaBytes(b64: string): Uint8Array {
 
 /** Conexão padrão para quem não escolheu (mesma regra do send-whatsapp). */
 function conexaoPadrao(): number | null {
-  const env = (Deno.env.get("ZAPCONTABIL_CONNECTION_ID") ?? "").trim();
+  const env = (Deno.env.get("ZAPCONTABIL_CONNECTION_ID") ?? "0").trim();
   return env && env.toLowerCase() !== "none" && Number.isFinite(Number(env)) ? Number(env) : null;
 }
 
