@@ -32,6 +32,11 @@ interface Chamado {
   dono_id: string | null;
   ultima_mensagem_em: string;
   nao_lidas: number;
+  ia_ativa?: boolean;
+  ia_instrucoes?: string | null;
+  ia_status?: 'atendendo' | 'finalizado' | 'devolvido' | null;
+  ia_motivo?: string | null;
+  ia_respostas?: number;
 }
 
 interface Mensagem {
@@ -41,6 +46,7 @@ interface Mensagem {
   texto: string;
   anexos: { nome?: string; url?: string }[] | null;
   created_at: string;
+  por_ia?: boolean;
 }
 
 interface Config {
@@ -139,7 +145,7 @@ export default function Chamados() {
   }, []);
 
   const carregarMensagens = useCallback(async (id: string) => {
-    const { data } = await supabase.from('chamado_mensagens').select('id, direcao, autor_nome, texto, anexos, created_at').eq('chamado_id', id).order('created_at');
+    const { data } = await supabase.from('chamado_mensagens').select('id, direcao, autor_nome, texto, anexos, created_at, por_ia').eq('chamado_id', id).order('created_at');
     setMensagens((data || []) as Mensagem[]);
   }, []);
 
@@ -258,6 +264,40 @@ export default function Chamados() {
       return;
     }
     toast.success(data?.gravadas ? `${data.gravadas} mensagem(ns) nova(s) do WhatsApp` : 'WhatsApp em dia');
+    carregarChamados();
+  };
+
+  // ---- IA no atendimento (Groq): assumir / parar
+  const [iaAberta, setIaAberta] = useState(false);
+  const [iaInstrucoes, setIaInstrucoes] = useState('');
+  const [iaOcupada, setIaOcupada] = useState(false);
+
+  const iaAssumir = async () => {
+    if (!selecionado) return;
+    setIaOcupada(true);
+    const { data, error } = await supabase.functions.invoke('ia-atendimento', {
+      body: { acao: 'assumir', chamado_id: selecionado.id, instrucoes: iaInstrucoes },
+    });
+    setIaOcupada(false);
+    if (error || data?.error) {
+      toast.error('A IA não conseguiu assumir', { description: await erroDaFunction(error, data) });
+      return;
+    }
+    setIaAberta(false);
+    setIaInstrucoes('');
+    toast.success('A IA assumiu o chamado', { description: 'Ela já mandou a primeira mensagem e responde sozinha até o cliente entender.' });
+    carregarMensagens(selecionado.id);
+    carregarChamados();
+  };
+
+  const iaParar = async () => {
+    if (!selecionado) return;
+    const { data, error } = await supabase.functions.invoke('ia-atendimento', { body: { acao: 'parar', chamado_id: selecionado.id } });
+    if (error || data?.error) {
+      toast.error('Não foi possível parar a IA', { description: await erroDaFunction(error, data) });
+      return;
+    }
+    toast.success('Você assumiu o chamado');
     carregarChamados();
   };
 
@@ -418,6 +458,10 @@ export default function Chamados() {
                       )}
                     </span>
                     <span className={cn('mt-1 inline-block rounded px-1.5 py-0.5 text-[10px] font-medium', statusInfo(c.status).cor)}>{statusInfo(c.status).rotulo}</span>
+                    {c.ia_ativa && <span className="ml-1 mt-1 inline-block rounded bg-violet-100 px-1.5 py-0.5 text-[10px] font-medium text-violet-700">🤖 IA atendendo</span>}
+                    {!c.ia_ativa && c.ia_status === 'devolvido' && c.status !== 'resolvido' && (
+                      <span className="ml-1 mt-1 inline-block rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-medium text-amber-700">🤖 IA devolveu</span>
+                    )}
                   </span>
                 </button>
               ))
@@ -450,7 +494,33 @@ export default function Chamados() {
                       {selecionado.dono_id ? ` · Slack de ${selecionado.dono_id === meuId ? 'você' : nomeUsuario(selecionado.dono_id) || 'outro usuário'}` : ''}
                     </p>
                   </div>
+                  {selecionado.ia_ativa ? (
+                    <Button size="sm" variant="outline" className="shrink-0" onClick={iaParar}>
+                      Parar IA e assumir
+                    </Button>
+                  ) : (
+                    selecionado.status !== 'resolvido' && (
+                      <Button size="sm" className="shrink-0 gap-1 bg-violet-600 text-white hover:bg-violet-700" onClick={() => setIaAberta(true)}>
+                        🤖 IA assume
+                      </Button>
+                    )
+                  )}
                 </div>
+                {selecionado.ia_ativa ? (
+                  <div className="rounded-lg border border-violet-200 bg-violet-50 px-3 py-2 text-xs text-violet-900 dark:border-violet-900 dark:bg-violet-950/40 dark:text-violet-100">
+                    <p className="font-semibold">🤖 A IA está atendendo ({selecionado.ia_respostas ?? 0} resposta(s)). Se você responder, ela sai da conversa.</p>
+                    <p className="mt-0.5 line-clamp-2 opacity-80">Orientação: {selecionado.ia_instrucoes}</p>
+                  </div>
+                ) : selecionado.ia_status && selecionado.ia_motivo ? (
+                  <div
+                    className={cn(
+                      'rounded-lg border px-3 py-2 text-xs',
+                      selecionado.ia_status === 'finalizado' ? 'border-emerald-200 bg-emerald-50 text-emerald-900' : 'border-amber-200 bg-amber-50 text-amber-900'
+                    )}
+                  >
+                    🤖 {selecionado.ia_status === 'finalizado' ? 'A IA encerrou o atendimento' : 'A IA devolveu o atendimento'}: {selecionado.ia_motivo}
+                  </div>
+                ) : null}
                 <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
                   <Select value={selecionado.status} onValueChange={(v) => atualizar({ status: v })}>
                     <SelectTrigger className="h-9 text-xs">
@@ -511,7 +581,11 @@ export default function Chamados() {
                     <div
                       className={cn(
                         'max-w-[78%] rounded-2xl px-3.5 py-2 text-sm shadow-sm',
-                        m.direcao === 'saida' ? 'rounded-br-sm bg-primary text-primary-foreground' : 'rounded-bl-sm border border-border/60 bg-card text-foreground'
+                        m.por_ia
+                          ? 'rounded-br-sm bg-violet-600 text-white'
+                          : m.direcao === 'saida'
+                            ? 'rounded-br-sm bg-primary text-primary-foreground'
+                            : 'rounded-bl-sm border border-border/60 bg-card text-foreground'
                       )}
                     >
                       <p className={cn('mb-0.5 text-[11px] font-semibold', m.direcao === 'saida' ? 'text-primary-foreground/80' : 'text-primary')}>{m.autor_nome}</p>
@@ -573,6 +647,37 @@ export default function Chamados() {
         nomeUsuario={nomeUsuario}
       />
       <MeuSlack aberta={meuSlackAberto} onFechar={() => setMeuSlackAberto(false)} conexao={minhaConexao} onMudou={carregarConexoes} />
+      <Dialog open={iaAberta} onOpenChange={(v) => !iaOcupada && setIaAberta(v)}>
+        <DialogContent className="max-w-xl">
+          <DialogHeader>
+            <DialogTitle>🤖 A IA assume este chamado</DialogTitle>
+            <DialogDescription>
+              Escreva como você explicaria para um estagiário: o que dizer ao cliente, onde procurar e quando chamar a equipe. A IA se apresenta como assistente
+              virtual, explica, pergunta se ficou claro e tenta de outro jeito até o cliente entender. Ela encerra sozinha quando ele confirmar, ou devolve
+              para a equipe se não conseguir.
+            </DialogDescription>
+          </DialogHeader>
+          <Textarea
+            rows={8}
+            value={iaInstrucoes}
+            onChange={(e) => setIaInstrucoes(e.target.value)}
+            placeholder={
+              'Ex.: Dúvida de Onvio. O cliente quer liberar acesso para um funcionário novo.\nExplique: Configurações → Usuários → Convidar, informando o e-mail do funcionário. Ele recebe um e-mail para criar a senha.\nSe aparecer erro de permissão, peça um print e passe para a equipe.'
+            }
+          />
+          <p className="text-[11px] text-muted-foreground">
+            A IA não promete prazo, preço ou desconto e não mexe em nada do sistema: só conversa. Se você responder no chamado, ela sai na hora.
+          </p>
+          <div className="flex justify-end gap-2">
+            <Button variant="outline" onClick={() => setIaAberta(false)} disabled={iaOcupada}>
+              Cancelar
+            </Button>
+            <Button className="gap-2 bg-violet-600 text-white hover:bg-violet-700" onClick={iaAssumir} disabled={iaOcupada || iaInstrucoes.trim().length < 10}>
+              {iaOcupada && <Loader2 className="h-4 w-4 animate-spin" />} {iaOcupada ? 'A IA está escrevendo...' : 'IA assume e responde'}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
       <RelatorioMensal aberta={relatorioAberto} onFechar={() => setRelatorioAberto(false)} usuarios={usuarios} clientes={clientes} />
     </div>
   );

@@ -21,3 +21,8 @@ verify_jwt = false
 # logado, verificado dentro da function).
 [functions.envios-agendados]
 verify_jwt = false
+
+# IA do atendimento: chamada pelo trigger do banco (token na URL) e pela tela
+# (usuário logado, verificado dentro da function).
+[functions.ia-atendimento]
+verify_jwt = false

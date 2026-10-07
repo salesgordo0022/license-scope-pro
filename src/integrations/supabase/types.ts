@@ -26,6 +26,7 @@ export type Database = {
           enviado_por: string | null
           externo_id: string | null
           id: string
+          por_ia: boolean
           texto: string
         }
         Insert: {
@@ -39,6 +40,7 @@ export type Database = {
           enviado_por?: string | null
           externo_id?: string | null
           id?: string
+          por_ia?: boolean
           texto?: string
         }
         Update: {
@@ -52,6 +54,7 @@ export type Database = {
           enviado_por?: string | null
           externo_id?: string | null
           id?: string
+          por_ia?: boolean
           texto?: string
         }
         Relationships: [
@@ -89,6 +92,12 @@ export type Database = {
           created_at: string
           dono_id: string | null
           empresa_id: string
+          ia_assumida_por: string | null
+          ia_ativa: boolean
+          ia_instrucoes: string | null
+          ia_motivo: string | null
+          ia_respostas: number
+          ia_status: string | null
           id: string
           nao_lidas: number
           origem: string
@@ -110,6 +119,12 @@ export type Database = {
           created_at?: string
           dono_id?: string | null
           empresa_id: string
+          ia_assumida_por?: string | null
+          ia_ativa?: boolean
+          ia_instrucoes?: string | null
+          ia_motivo?: string | null
+          ia_respostas?: number
+          ia_status?: string | null
           id?: string
           nao_lidas?: number
           origem: string
@@ -131,6 +146,12 @@ export type Database = {
           created_at?: string
           dono_id?: string | null
           empresa_id?: string
+          ia_assumida_por?: string | null
+          ia_ativa?: boolean
+          ia_instrucoes?: string | null
+          ia_motivo?: string | null
+          ia_respostas?: number
+          ia_status?: string | null
           id?: string
           nao_lidas?: number
           origem?: string
