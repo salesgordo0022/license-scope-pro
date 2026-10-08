@@ -187,6 +187,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "chamados_dispensado_por_fkey"
+            columns: ["dispensado_por"]
+            isOneToOne: false
+            referencedRelation: "usuario_perfil"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "chamados_dono_id_fkey"
             columns: ["dono_id"]
             isOneToOne: false
@@ -994,6 +1001,27 @@ export type Database = {
           tipo?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "ia_alertas_chamado_id_fkey"
+            columns: ["chamado_id"]
+            isOneToOne: false
+            referencedRelation: "chamados"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ia_alertas_empresa_id_fkey"
+            columns: ["empresa_id"]
+            isOneToOne: false
+            referencedRelation: "empresas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ia_alertas_perfil_id_fkey"
+            columns: ["perfil_id"]
+            isOneToOne: false
+            referencedRelation: "usuario_perfil"
+            referencedColumns: ["id"]
+          },
         ]
       }
       ia_config: {
@@ -1061,6 +1089,13 @@ export type Database = {
           usar_forum?: boolean
         }
         Relationships: [
+          {
+            foreignKeyName: "ia_config_empresa_id_fkey"
+            columns: ["empresa_id"]
+            isOneToOne: true
+            referencedRelation: "empresas"
+            referencedColumns: ["id"]
+          },
         ]
       }
       ia_conhecimento: {
@@ -1098,6 +1133,20 @@ export type Database = {
           updated_at?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "ia_conhecimento_criado_por_fkey"
+            columns: ["criado_por"]
+            isOneToOne: false
+            referencedRelation: "usuario_perfil"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ia_conhecimento_empresa_id_fkey"
+            columns: ["empresa_id"]
+            isOneToOne: false
+            referencedRelation: "empresas"
+            referencedColumns: ["id"]
+          },
         ]
       }
       ia_equipe: {
@@ -1107,10 +1156,10 @@ export type Database = {
           aviso_demora_ativo: boolean | null
           aviso_demora_min: number | null
           aviso_demora_texto: string | null
+          empresa_id: string | null
           horario_dias: number[] | null
           horario_fim: string | null
           horario_inicio: string | null
-          empresa_id: string | null
           perfil_id: string
           receber_alertas: boolean
           updated_at: string
@@ -1122,10 +1171,10 @@ export type Database = {
           aviso_demora_ativo?: boolean | null
           aviso_demora_min?: number | null
           aviso_demora_texto?: string | null
+          empresa_id?: string | null
           horario_dias?: number[] | null
           horario_fim?: string | null
           horario_inicio?: string | null
-          empresa_id?: string | null
           perfil_id: string
           receber_alertas?: boolean
           updated_at?: string
@@ -1137,16 +1186,30 @@ export type Database = {
           aviso_demora_ativo?: boolean | null
           aviso_demora_min?: number | null
           aviso_demora_texto?: string | null
+          empresa_id?: string | null
           horario_dias?: number[] | null
           horario_fim?: string | null
           horario_inicio?: string | null
-          empresa_id?: string | null
           perfil_id?: string
           receber_alertas?: boolean
           updated_at?: string
           whatsapp?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "ia_equipe_empresa_id_fkey"
+            columns: ["empresa_id"]
+            isOneToOne: false
+            referencedRelation: "empresas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ia_equipe_perfil_id_fkey"
+            columns: ["perfil_id"]
+            isOneToOne: true
+            referencedRelation: "usuario_perfil"
+            referencedColumns: ["id"]
+          },
         ]
       }
       implantacao_checklist: {
