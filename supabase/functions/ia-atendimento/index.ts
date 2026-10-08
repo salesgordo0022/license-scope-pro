@@ -18,7 +18,7 @@ import { autenticar, json, respostaPreflight } from "../_shared/auth.ts";
 import { clienteServico, emSegundoPlano, iguaisSeguro } from "../_shared/chamados.ts";
 import { segredo } from "../_shared/segredos.ts";
 import { slackPost } from "../_shared/slack.ts";
-import { zapEnviarTexto } from "../_shared/zapcontabil.ts";
+import { normalizarNumero, zapEnviarTexto, zapGarantirContato } from "../_shared/zapcontabil.ts";
 import type { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 
 const NOME_IA = "Assistente ImperTech";
@@ -412,7 +412,11 @@ async function montarAlertaFila(db: SupabaseClient, cfg: ConfigIA, fila: Chamado
 async function enviarAlerta(db: SupabaseClient, cfg: ConfigIA, perfilId: string, fone: string, texto: string, quantidade: number, tipo = "fila") {
   let status = "enviado";
   let erro: string | null = null;
+  // Número como o WhatsApp espera (55 + DDD + número) e cadastrado como contato no ZapContábil.
+  fone = normalizarNumero(fone);
   try {
+    const contato = await zapGarantirContato(fone, "Equipe ImperTech", cfg.alerta_conexao_id);
+    if (contato.situacao === "sem_whatsapp") throw new Error(`O número ${fone} não tem WhatsApp. Confira o número cadastrado (com DDD).`);
     await zapEnviarTexto(fone, texto, cfg.alerta_conexao_id);
   } catch (e) {
     status = "erro";
