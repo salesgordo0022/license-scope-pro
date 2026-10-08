@@ -101,7 +101,7 @@ function lerDecisao(bruto: string): Decisao {
   return { resposta, acao, motivo: String(obj?.motivo ?? "").slice(0, 300) };
 }
 
-function montarPrompt(c: Chamado, nomeCliente: string | null, historico: Mensagem[], primeira: boolean, conhecimento = "") {
+function montarPrompt(c: Chamado, nomeCliente: string | null, historico: Mensagem[], primeira: boolean, conhecimento = "", anotacoes = "") {
   const canal = c.origem === "slack" ? "Slack" : "WhatsApp";
   const sistema = `Você é o ${NOME_IA}, assistente virtual do suporte da ImperTech (sistemas para empresas e escritórios de contabilidade).
 Você está atendendo um chamado pelo ${canal} com ${c.contato_nome || "o cliente"}${nomeCliente ? `, da empresa ${nomeCliente}` : ""}.
@@ -110,7 +110,7 @@ ORIENTAÇÃO DA EQUIPE (sua fonte principal; siga à risca):
 """
 ${c.ia_instrucoes || "(sem orientação específica: use só a base de conhecimento abaixo)"}
 """
-${conhecimento ? `\nBASE DE CONHECIMENTO DA IMPERTECH (use quando ajudar; não invente além do que está aqui):\n"""\n${conhecimento}\n"""\n` : ""}
+${anotacoes ? `\nANOTAÇÕES INTERNAS DA EQUIPE (contexto para você; NUNCA mencione nem repita ao cliente):\n"""\n${anotacoes}\n"""\n` : ""}${conhecimento ? `\nBASE DE CONHECIMENTO DA IMPERTECH (use quando ajudar; não invente além do que está aqui):\n"""\n${conhecimento}\n"""\n` : ""}
 Como atender:
 - Português do Brasil, cordial e simples, como uma pessoa do suporte. Mensagens curtas de ${canal} (até umas 8 linhas). Quando houver passos, numere 1, 2, 3.
 - ${primeira ? "Esta é a sua primeira mensagem: apresente-se como assistente virtual da ImperTech, diga que vai ajudar com o assunto e já explique." : "Continue a conversa a partir da última mensagem do cliente."}
@@ -170,7 +170,15 @@ async function responder(db: SupabaseClient, chamadoId: string, primeira: boolea
   const cfg = await carregarConfig(db, chamado.empresa_id);
   const ultimasDoCliente = historico.filter((m) => m.direcao === "entrada").slice(-3).map((m) => m.texto).join(" ");
   const conhecimento = await buscarConhecimento(db, chamado.empresa_id, `${chamado.ia_instrucoes ?? ""} ${ultimasDoCliente}`, cfg.usar_forum);
-  const decisao = lerDecisao(await chamarGroq(montarPrompt(chamado, cli?.nome_empresa ?? null, historico, primeira, conhecimento), cfg.modelo));
+  // Anotações deste chamado (fixadas primeiro) e de outros chamados do mesmo cliente.
+  let consultaNotas = db.from("chamado_notas").select("texto, fixada, created_at, chamado_id").order("fixada", { ascending: false }).order("created_at", { ascending: false }).limit(15);
+  consultaNotas = chamado.cliente_id ? consultaNotas.or(`chamado_id.eq.${chamado.id},cliente_id.eq.${chamado.cliente_id}`) : consultaNotas.eq("chamado_id", chamado.id);
+  const { data: notas } = await consultaNotas;
+  const anotacoes = ((notas || []) as { texto: string; fixada: boolean; chamado_id: string }[])
+    .map((n) => `- ${n.fixada ? "[IMPORTANTE] " : ""}${n.chamado_id === chamado.id ? "" : "(chamado anterior) "}${n.texto.slice(0, 400)}`)
+    .join("\n")
+    .slice(0, 3000);
+  const decisao = lerDecisao(await chamarGroq(montarPrompt(chamado, cli?.nome_empresa ?? null, historico, primeira, conhecimento, anotacoes), cfg.modelo));
   if (!decisao.resposta) throw new Error("A IA não devolveu resposta");
 
   const limite = chamado.ia_respostas + 1 >= MAX_RESPOSTAS && decisao.acao === "continuar";
@@ -637,7 +645,39 @@ async function chamadosAbertos(db: SupabaseClient, empresaId: string) {
   return (data || []) as ChamadoAberto[];
 }
 
+/**
+ * Lembretes das anotações dos chamados: na hora marcada, manda no WhatsApp de
+ * quem deve lembrar (Minha IA). Vale a qualquer hora (a pessoa escolheu a hora).
+ */
+async function lembretesDeNotas(db: SupabaseClient) {
+  const agora = new Date();
+  const { data } = await db
+    .from("chamado_notas")
+    .select("id, empresa_id, chamado_id, texto, lembrar_em, lembrete_para, chamados(contato_nome, contato_id, origem)")
+    .is("lembrete_enviado_em", null)
+    .eq("lembrete_concluido", false)
+    .lte("lembrar_em", agora.toISOString())
+    .gte("lembrar_em", new Date(agora.getTime() - 24 * 3600_000).toISOString())
+    .limit(50);
+  for (const n of (data || []) as Record<string, any>[]) {
+    // Marca antes de enviar: duas rodadas não mandam o mesmo lembrete.
+    const { data: pegou } = await db.from("chamado_notas").update({ lembrete_enviado_em: agora.toISOString() }).eq("id", n.id).is("lembrete_enviado_em", null).select("id");
+    if (!pegou?.length || !n.lembrete_para) continue;
+    const { data: pessoa } = await db.from("ia_equipe").select("whatsapp").eq("perfil_id", n.lembrete_para).maybeSingle();
+    const fone = (pessoa?.whatsapp || "").replace(/\D/g, "");
+    if (fone.length < 10) continue; // sem WhatsApp: fica só o aviso no sistema
+    const cfg = await carregarConfig(db, n.empresa_id);
+    const c = n.chamados || {};
+    const texto =
+      `⏰ *Lembrete de chamado*\n` +
+      `*${c.contato_nome || c.contato_id || "Contato"}* (${c.origem === "slack" ? "Slack" : "WhatsApp"})\n\n` +
+      `${n.texto}\n\nAbrir: https://license-scope-pro.lovable.app/chamados?abrir=${n.chamado_id}`;
+    await enviarAlerta(db, cfg, n.lembrete_para, fone, texto, 1, "lembrete");
+  }
+}
+
 async function plantao(db: SupabaseClient) {
+  await lembretesDeNotas(db).catch((e) => console.error("ia-plantao: lembretes", e));
   const { data: empresas } = await db.from("ia_config").select("empresa_id");
   for (const { empresa_id } of (empresas || []) as { empresa_id: string }[]) {
     const cfg = await carregarConfig(db, empresa_id);

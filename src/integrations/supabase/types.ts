@@ -84,6 +84,54 @@ export type Database = {
           },
         ]
       }
+      chamado_notas: {
+        Row: {
+          autor_id: string | null
+          chamado_id: string
+          cliente_id: string | null
+          created_at: string
+          empresa_id: string
+          fixada: boolean
+          id: string
+          lembrar_em: string | null
+          lembrete_concluido: boolean
+          lembrete_enviado_em: string | null
+          lembrete_para: string | null
+          texto: string
+          updated_at: string
+        }
+        Insert: {
+          autor_id?: string | null
+          chamado_id: string
+          cliente_id?: string | null
+          created_at?: string
+          empresa_id?: string
+          fixada?: boolean
+          id?: string
+          lembrar_em?: string | null
+          lembrete_concluido?: boolean
+          lembrete_enviado_em?: string | null
+          lembrete_para?: string | null
+          texto: string
+          updated_at?: string
+        }
+        Update: {
+          autor_id?: string | null
+          chamado_id?: string
+          cliente_id?: string | null
+          created_at?: string
+          empresa_id?: string
+          fixada?: boolean
+          id?: string
+          lembrar_em?: string | null
+          lembrete_concluido?: boolean
+          lembrete_enviado_em?: string | null
+          lembrete_para?: string | null
+          texto?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       chamados: {
         Row: {
           assunto: string | null

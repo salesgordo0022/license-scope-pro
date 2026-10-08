@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { Bell, ChevronDown, LogOut, Search, ShieldCheck, UserCog, User, KeyRound, Receipt, Plus, Users, ClipboardList, FileText, Inbox } from '@/components/icons';
 import { Switch } from '@/components/ui/switch';
 import { useAvisosGlobais } from '@/hooks/use-avisos-globais';
+import { useLembretes } from '@/hooks/use-lembretes';
 import {
   avisarNoSistema,
   definirNotificacoesLigadas,
@@ -58,6 +59,7 @@ export function TopBar() {
   const [busca, setBusca] = useState('');
   const [alertas, setAlertas] = useState<Alerta[]>([]);
   const naoLidas = useAvisosGlobais();
+  const lembretes = useLembretes();
   const [permissao, setPermissao] = useState<PermissaoNotificacao>(permissaoAtual);
   const [ligadas, setLigadas] = useState(notificacoesLigadas);
   const avisosAtivos = permissao === 'granted' && ligadas;
@@ -138,7 +140,7 @@ export function TopBar() {
     );
   }, [avisosAtivos, alertas, navigate]);
 
-  const totalSino = alertas.length + (naoLidas > 0 ? 1 : 0);
+  const totalSino = alertas.length + (naoLidas > 0 ? 1 : 0) + lembretes.length;
 
   const pesquisar = (e: React.FormEvent) => {
     e.preventDefault();
@@ -210,6 +212,17 @@ export function TopBar() {
               <Switch checked={avisosAtivos} onCheckedChange={alternarAvisos} disabled={permissao === 'indisponivel'} />
             </div>
             <DropdownMenuSeparator />
+            {lembretes.map((l) => (
+              <DropdownMenuItem key={l.id} className="items-start gap-3 py-2" onClick={() => navigate(`/chamados?abrir=${l.chamado_id}`)}>
+                <span className="mt-0.5 rounded-lg bg-red-100 p-1.5 text-red-600">
+                  <Bell className="h-4 w-4" />
+                </span>
+                <span className="min-w-0">
+                  <span className="block text-sm font-medium leading-snug">Lembrete de chamado</span>
+                  <span className="line-clamp-2 block text-xs text-muted-foreground">{l.texto}</span>
+                </span>
+              </DropdownMenuItem>
+            ))}
             {naoLidas > 0 && (
               <DropdownMenuItem className="items-start gap-3 py-2" onClick={() => navigate('/chamados')}>
                 <span className="mt-0.5 rounded-lg bg-blue-100 p-1.5 text-blue-600">
@@ -223,7 +236,7 @@ export function TopBar() {
                 </span>
               </DropdownMenuItem>
             )}
-            {alertas.length === 0 && naoLidas === 0 ? (
+            {alertas.length === 0 && naoLidas === 0 && lembretes.length === 0 ? (
               <p className="px-2 py-6 text-center text-sm text-muted-foreground">Nenhum alerta no momento.</p>
             ) : (
               alertas.map((a) => (

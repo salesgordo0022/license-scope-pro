@@ -14,6 +14,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import { MeuSlack, type ConexaoSlack } from '@/components/chamados/MeuSlack';
+import { AnotacoesChamado } from '@/components/chamados/AnotacoesChamado';
 import { RelatorioMensal } from '@/components/chamados/RelatorioMensal';
 import { erroDaFunction } from '@/lib/erroFunction';
 
@@ -286,6 +287,26 @@ export default function Chamados() {
 
   // ---- IA no atendimento (Groq): assumir / parar
   const [iaAberta, setIaAberta] = useState(false);
+  // ---- Anotações internas do chamado
+  const [notasAberta, setNotasAberta] = useState(false);
+  const [notasQtd, setNotasQtd] = useState(0);
+  useEffect(() => {
+    if (!selecionadoId) return;
+    const contar = () =>
+      supabase
+        .from('chamado_notas')
+        .select('id', { count: 'exact', head: true })
+        .eq('chamado_id', selecionadoId)
+        .then(({ count }) => setNotasQtd(count ?? 0));
+    contar();
+    const canal = supabase
+      .channel(`notas-qtd-${selecionadoId}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'chamado_notas', filter: `chamado_id=eq.${selecionadoId}` }, contar)
+      .subscribe();
+    return () => {
+      supabase.removeChannel(canal);
+    };
+  }, [selecionadoId]);
   const [iaInstrucoes, setIaInstrucoes] = useState('');
   const [iaOcupada, setIaOcupada] = useState(false);
 
@@ -559,6 +580,9 @@ export default function Chamados() {
                       <XCircle className="h-4 w-4" /> Dispensar
                     </Button>
                   )}
+                  <Button size="sm" variant="outline" className="shrink-0 gap-1.5" onClick={() => setNotasAberta(true)} title="Anotações internas (o cliente não vê)">
+                    📝 Anotações{notasQtd > 0 ? ` (${notasQtd})` : ''}
+                  </Button>
                   {selecionado.ia_ativa ? (
                     <Button size="sm" variant="outline" className="shrink-0" onClick={iaParar}>
                       Parar IA e assumir
@@ -726,6 +750,9 @@ export default function Chamados() {
         nomeUsuario={nomeUsuario}
       />
       <MeuSlack aberta={meuSlackAberto} onFechar={() => setMeuSlackAberto(false)} conexao={minhaConexao} onMudou={carregarConexoes} />
+      {selecionado && (
+        <AnotacoesChamado aberta={notasAberta} onFechar={() => setNotasAberta(false)} chamado={selecionado} usuarios={usuarios} />
+      )}
       <Dialog open={iaAberta} onOpenChange={(v) => !iaOcupada && setIaAberta(v)}>
         <DialogContent className="max-w-xl">
           <DialogHeader>

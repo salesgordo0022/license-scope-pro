@@ -715,9 +715,13 @@ export default function AssistenteIA() {
                     <tr key={a.id} className="border-t align-top">
                       <td className="whitespace-nowrap px-4 py-2 tabular-nums">{format(parseISO(a.created_at), "dd/MM 'às' HH:mm", { locale: ptBR })}</td>
                       <td className="px-4 py-2">
-                        {a.tipo === 'fila' || a.tipo === 'teste' ? `📋 ${a.tipo === 'teste' ? 'Resumo (teste)' : 'Alerta de fila'} (${a.quantidade} chamados)` : `⏰ ${a.mensagem || 'Aviso de demora'}`}
+                        {a.tipo === 'fila' || a.tipo === 'teste'
+                          ? `📋 ${a.tipo === 'teste' ? 'Resumo (teste)' : 'Alerta de fila'} (${a.quantidade} chamados)`
+                          : a.tipo === 'lembrete'
+                            ? '📝 Lembrete de anotação'
+                            : `⏰ ${a.mensagem || 'Aviso de demora'}`}
                       </td>
-                      <td className="px-4 py-2">{a.tipo === 'fila' ? nomeDe(a.perfil_id) : a.destino}</td>
+                      <td className="px-4 py-2">{a.tipo === 'fila' || a.tipo === 'teste' || a.tipo === 'lembrete' ? nomeDe(a.perfil_id) : a.destino}</td>
                       <td className="px-4 py-2">
                         <span
                           className={cn(
