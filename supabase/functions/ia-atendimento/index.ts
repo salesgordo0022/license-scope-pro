@@ -321,7 +321,113 @@ interface ChamadoAberto {
   responsavel_id: string | null;
   ia_ativa: boolean;
   aviso_demora_em: string | null;
+  nao_lidas: number;
   created_at: string;
+}
+
+// ------------------------------------------------- contexto da conversa
+interface MsgCurta {
+  chamado_id: string;
+  direcao: "entrada" | "saida";
+  texto: string;
+  anexos: unknown[] | null;
+  created_at: string;
+}
+
+/** Palavras de quem só confirma/agradece ("ok", "entendi", "obrigado", "blz"...). */
+const CONFIRMA = new Set(
+  ("ok okk okay oks blz beleza certo certinho show top perfeito otimo excelente maravilha entendi entendido compreendi combinado " +
+    "fechado valeu vlw obrigado obrigada obrigadao obg brigado brigada grato grata agradeco ta tah bom boa tudo bem de nada disponha " +
+    "sim isso uhum aham joia massa ah entao muito mto demais tmj abraco abracos abs ate mais logo depois recebido recebi visto vi").split(" "),
+);
+const AUTOMATICA = /mensagem autom[aá]tica|resposta autom[aá]tica|retornaremos|responderemos (assim que|em breve)|fora do (hor[aá]rio|expediente)|no momento n[aã]o (estamos|estou|podemos)|agradecemos (o|seu) contato|este n[uú]mero n[aã]o recebe/i;
+
+/** A mensagem só confirma/agradece, é um arquivo/imagem sem texto, ou é resposta automática? Devolve o motivo. */
+function semPedido(m: { texto: string; anexos?: unknown[] | null }): string | null {
+  const texto = (m.texto || "").trim();
+  const temArquivo = Array.isArray(m.anexos) && m.anexos.length > 0;
+  if (!texto || /^\((m[ií]dia|anexo)\)$/i.test(texto)) return temArquivo ? "o cliente só mandou um arquivo/imagem (ex.: comprovante)" : "mensagem sem texto";
+  if (AUTOMATICA.test(texto)) return "mensagem automática do cliente";
+  const palavrasMsg = texto
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/\p{Extended_Pictographic}|\p{Emoji_Component}/gu, " ")
+    .match(/[a-z]+/g) ?? [];
+  if (!palavrasMsg.length) return "o cliente só mandou um emoji";
+  if (palavrasMsg.length <= 8 && palavrasMsg.every((w) => CONFIRMA.has(w))) return "o cliente só confirmou/agradeceu";
+  return null;
+}
+
+/** Últimas mensagens de cada chamado (uma consulta para todos), da mais nova para a mais antiga. */
+async function ultimasMensagens(db: SupabaseClient, ids: string[]): Promise<Map<string, MsgCurta[]>> {
+  const mapa = new Map<string, MsgCurta[]>();
+  for (let i = 0; i < ids.length; i += 100) {
+    const { data } = await db
+      .from("chamado_mensagens")
+      .select("chamado_id, direcao, texto, anexos, created_at")
+      .in("chamado_id", ids.slice(i, i + 100))
+      .gte("created_at", new Date(Date.now() - 14 * 86400_000).toISOString())
+      .order("created_at", { ascending: false })
+      .limit(3000);
+    for (const m of (data || []) as MsgCurta[]) {
+      const lista = mapa.get(m.chamado_id) ?? [];
+      if (lista.length < 10) lista.push(m);
+      mapa.set(m.chamado_id, lista);
+    }
+  }
+  return mapa;
+}
+
+/** Pelas regras simples: o chamado está esperando a equipe? (última é do cliente e não é só "ok"/arquivo/automática) */
+function esperandoEquipe(msgs: MsgCurta[] | undefined): { espera: boolean; motivo: string } {
+  if (!msgs?.length) return { espera: false, motivo: "sem mensagens" };
+  if (msgs[0].direcao === "saida") return { espera: false, motivo: "a última mensagem é da equipe (aguardando o cliente)" };
+  const doCliente: MsgCurta[] = [];
+  for (const m of msgs) {
+    if (m.direcao !== "entrada") break;
+    doCliente.push(m);
+  }
+  const motivos = doCliente.map((m) => semPedido(m));
+  if (motivos.every(Boolean)) return { espera: false, motivo: motivos[0] as string };
+  return { espera: true, motivo: "" };
+}
+
+/**
+ * Precisa mesmo responder? Primeiro as regras simples; na dúvida, a IA lê a
+ * conversa e decide (cliente que só confirmou, encerrou, mandou comprovante ou
+ * já foi atendido não recebe "aguarde um pouco").
+ */
+async function precisaDeResposta(cfg: ConfigIA, msgs: MsgCurta[] | undefined): Promise<{ precisa: boolean; motivo: string }> {
+  const regra = esperandoEquipe(msgs);
+  if (!regra.espera) return { precisa: false, motivo: regra.motivo };
+  const conversa = [...(msgs || [])]
+    .reverse()
+    .map((m) => `${m.direcao === "entrada" ? "Cliente" : "Equipe"}: ${(m.texto || "(arquivo)").slice(0, 400)}`)
+    .join("\n");
+  try {
+    const bruto = await chamarGroq(
+      [
+        {
+          role: "system",
+          content:
+            "Você analisa uma conversa de suporte técnico. Decida se a(s) última(s) mensagem(ns) do cliente pedem uma resposta da equipe AGORA. " +
+            "Responda false quando o cliente só confirma, agradece, diz que entendeu, se despede, manda comprovante/arquivo sem pergunta, manda mensagem automática, " +
+            "ou quando o assunto já foi resolvido. Responda true quando há pergunta, pedido, problema, reclamação ou o cliente está aguardando algo da equipe. " +
+            'Responda só com JSON: {"precisa_resposta": true ou false, "motivo": "frase curta"}',
+        },
+        { role: "user", content: conversa },
+      ],
+      cfg.modelo,
+    );
+    const obj = JSON.parse(bruto.match(/\{[\s\S]*\}/)?.[0] ?? "{}");
+    if (typeof obj?.precisa_resposta === "boolean") return { precisa: obj.precisa_resposta, motivo: String(obj.motivo ?? "").slice(0, 200) };
+  } catch (e) {
+    console.error("ia-plantao: contexto", e);
+  }
+  // Sem a IA: só avisa se houver pergunta clara.
+  const ultima = msgs?.[0]?.texto || "";
+  return { precisa: ultima.includes("?"), motivo: "decisão sem IA (pela pergunta na mensagem)" };
 }
 
 const minutosDesde = (iso: string) => Math.round((Date.now() - new Date(iso).getTime()) / 60000);
@@ -427,6 +533,7 @@ async function enviarAlerta(db: SupabaseClient, cfg: ConfigIA, perfilId: string,
 }
 
 async function alertaDeFila(db: SupabaseClient, cfg: ConfigIA, abertos: ChamadoAberto[], equipe: Awaited<ReturnType<typeof carregarEquipe>>) {
+  // O lembrete conta TODOS os chamados em aberto (a checagem de contexto é só do aviso de demora).
   for (const pessoa of equipe.pessoas.values()) {
     if (!pessoa.receber_alertas) continue;
     const fone = (pessoa.whatsapp || "").replace(/\D/g, "");
@@ -454,7 +561,7 @@ async function alertaDeFila(db: SupabaseClient, cfg: ConfigIA, abertos: ChamadoA
   }
 }
 
-async function avisoDeDemora(db: SupabaseClient, cfg: ConfigIA, abertos: ChamadoAberto[], equipe: Awaited<ReturnType<typeof carregarEquipe>>) {
+async function avisoDeDemora(db: SupabaseClient, cfg: ConfigIA, abertos: ChamadoAberto[], equipe: Awaited<ReturnType<typeof carregarEquipe>>, ultimas: Map<string, MsgCurta[]>) {
   for (const c of abertos) {
     if (c.ia_ativa) continue;
     if (c.origem === "slack" ? !cfg.aviso_demora_slack : !cfg.aviso_demora_whatsapp) continue;
@@ -465,7 +572,10 @@ async function avisoDeDemora(db: SupabaseClient, cfg: ConfigIA, abertos: Chamado
     if (!noHorario(horarioDe(cfg, pessoa))) continue;
     const limiteMin = pessoa?.aviso_demora_min ?? cfg.aviso_demora_min;
 
-    const { data: ultima } = await db.from("chamado_mensagens").select("direcao, created_at").eq("chamado_id", c.id).order("created_at", { ascending: false }).limit(1).maybeSingle();
+    // Quem atende já abriu o chamado e viu a mensagem: não precisa avisar.
+    if ((c.nao_lidas ?? 0) === 0) continue;
+    const msgs = ultimas.get(c.id);
+    const ultima = msgs?.[0];
     if (!ultima || ultima.direcao !== "entrada") continue; // já responderam
     if (minutosDesde(ultima.created_at) < limiteMin) continue;
     if (minutosDesde(ultima.created_at) > 24 * 60) continue; // conversa antiga: não acorda
@@ -474,6 +584,13 @@ async function avisoDeDemora(db: SupabaseClient, cfg: ConfigIA, abertos: Chamado
     // Marca antes de enviar: duas rodadas seguidas não avisam duas vezes.
     const { data: pegou } = await db.from("chamados").update({ aviso_demora_em: new Date().toISOString() }).eq("id", c.id).or(`aviso_demora_em.is.null,aviso_demora_em.lt."${ultima.created_at}"`).select("id");
     if (!pegou?.length) continue;
+
+    // O cliente está mesmo esperando? ("ok", "entendi", comprovante, mensagem automática → não)
+    const contexto = await precisaDeResposta(cfg, msgs);
+    if (!contexto.precisa) {
+      await db.from("ia_alertas").insert({ empresa_id: cfg.empresa_id, tipo: "demora", perfil_id: donoId, chamado_id: c.id, destino: c.contato_nome || c.contato_id, mensagem: `Não precisou avisar: ${contexto.motivo}`, status: "ignorado" });
+      continue;
+    }
 
     const atendente = equipe.nomeDe(c.responsavel_id) || equipe.nomeDe(c.dono_id) || "Nossa equipe";
     const contato = (c.contato_nome || "").split(" ")[0] || "tudo bem";
@@ -513,7 +630,7 @@ async function avisoDeDemora(db: SupabaseClient, cfg: ConfigIA, abertos: Chamado
   }
 }
 
-const COLUNAS_ABERTOS = "id, empresa_id, origem, conversa_id, contato_nome, contato_id, canal_nome, assunto, status, dono_id, responsavel_id, ia_ativa, aviso_demora_em, created_at";
+const COLUNAS_ABERTOS = "id, empresa_id, origem, conversa_id, contato_nome, contato_id, canal_nome, assunto, status, dono_id, responsavel_id, ia_ativa, aviso_demora_em, nao_lidas, created_at";
 
 async function chamadosAbertos(db: SupabaseClient, empresaId: string) {
   const { data } = await db.from("chamados").select(COLUNAS_ABERTOS).eq("empresa_id", empresaId).not("status", "in", "(resolvido,dispensado)").limit(500);
@@ -525,7 +642,8 @@ async function plantao(db: SupabaseClient) {
   for (const { empresa_id } of (empresas || []) as { empresa_id: string }[]) {
     const cfg = await carregarConfig(db, empresa_id);
     const [abertos, equipe] = await Promise.all([chamadosAbertos(db, empresa_id), carregarEquipe(db, empresa_id)]);
-    if (cfg.aviso_demora_ativo || [...equipe.pessoas.values()].some((p) => p.aviso_demora_ativo)) await avisoDeDemora(db, cfg, abertos, equipe);
+    const ultimas = await ultimasMensagens(db, abertos.map((c) => c.id));
+    if (cfg.aviso_demora_ativo || [...equipe.pessoas.values()].some((p) => p.aviso_demora_ativo)) await avisoDeDemora(db, cfg, abertos, equipe, ultimas);
     if (cfg.alerta_fila_ativo) await alertaDeFila(db, cfg, abertos, equipe);
   }
 }

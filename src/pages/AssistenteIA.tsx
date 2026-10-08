@@ -715,12 +715,17 @@ export default function AssistenteIA() {
                     <tr key={a.id} className="border-t align-top">
                       <td className="whitespace-nowrap px-4 py-2 tabular-nums">{format(parseISO(a.created_at), "dd/MM 'às' HH:mm", { locale: ptBR })}</td>
                       <td className="px-4 py-2">
-                        {a.tipo === 'fila' ? `📋 Alerta de fila (${a.quantidade} chamados)` : `⏰ ${a.mensagem || 'Aviso de demora'}`}
+                        {a.tipo === 'fila' || a.tipo === 'teste' ? `📋 ${a.tipo === 'teste' ? 'Resumo (teste)' : 'Alerta de fila'} (${a.quantidade} chamados)` : `⏰ ${a.mensagem || 'Aviso de demora'}`}
                       </td>
                       <td className="px-4 py-2">{a.tipo === 'fila' ? nomeDe(a.perfil_id) : a.destino}</td>
                       <td className="px-4 py-2">
-                        <span className={cn('rounded px-1.5 py-0.5 text-[11px] font-medium', a.status === 'enviado' ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-700')}>
-                          {a.status === 'enviado' ? 'Enviado' : 'Erro'}
+                        <span
+                          className={cn(
+                            'rounded px-1.5 py-0.5 text-[11px] font-medium',
+                            a.status === 'enviado' ? 'bg-emerald-50 text-emerald-700' : a.status === 'ignorado' ? 'bg-muted text-muted-foreground' : 'bg-red-50 text-red-700'
+                          )}
+                        >
+                          {a.status === 'enviado' ? 'Enviado' : a.status === 'ignorado' ? 'Não precisou' : 'Erro'}
                         </span>
                         {a.erro && <span className="mt-1 block max-w-[320px] text-[11px] text-muted-foreground">{a.erro}</span>}
                       </td>
