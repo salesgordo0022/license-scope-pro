@@ -84,6 +84,90 @@ export type Database = {
           },
         ]
       }
+      chamado_notas: {
+        Row: {
+          autor_id: string | null
+          chamado_id: string
+          cliente_id: string | null
+          created_at: string
+          empresa_id: string
+          fixada: boolean
+          id: string
+          lembrar_em: string | null
+          lembrete_concluido: boolean
+          lembrete_enviado_em: string | null
+          lembrete_para: string | null
+          texto: string
+          updated_at: string
+        }
+        Insert: {
+          autor_id?: string | null
+          chamado_id: string
+          cliente_id?: string | null
+          created_at?: string
+          empresa_id?: string
+          fixada?: boolean
+          id?: string
+          lembrar_em?: string | null
+          lembrete_concluido?: boolean
+          lembrete_enviado_em?: string | null
+          lembrete_para?: string | null
+          texto: string
+          updated_at?: string
+        }
+        Update: {
+          autor_id?: string | null
+          chamado_id?: string
+          cliente_id?: string | null
+          created_at?: string
+          empresa_id?: string
+          fixada?: boolean
+          id?: string
+          lembrar_em?: string | null
+          lembrete_concluido?: boolean
+          lembrete_enviado_em?: string | null
+          lembrete_para?: string | null
+          texto?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "chamado_notas_autor_id_fkey"
+            columns: ["autor_id"]
+            isOneToOne: false
+            referencedRelation: "usuario_perfil"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "chamado_notas_chamado_id_fkey"
+            columns: ["chamado_id"]
+            isOneToOne: false
+            referencedRelation: "chamados"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "chamado_notas_cliente_id_fkey"
+            columns: ["cliente_id"]
+            isOneToOne: false
+            referencedRelation: "clientes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "chamado_notas_empresa_id_fkey"
+            columns: ["empresa_id"]
+            isOneToOne: false
+            referencedRelation: "empresas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "chamado_notas_lembrete_para_fkey"
+            columns: ["lembrete_para"]
+            isOneToOne: false
+            referencedRelation: "usuario_perfil"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       chamados: {
         Row: {
           assunto: string | null
